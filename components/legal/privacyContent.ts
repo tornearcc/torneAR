@@ -1,114 +1,137 @@
 /**
- * Texto de la Política de Privacidad, separado de la pantalla que lo pinta.
+ * Política de Privacidad de torneAR — texto definitivo, vigente desde el
+ * 24 de agosto de 2026.
  *
- * Mismo criterio que `termsContent.ts`, del que reutiliza `LegalSection`: la
- * pantalla de privacidad tenía las secciones escritas a mano en JSX y por eso
- * quedó desalineada de la de Términos —numeración manual, clases repetidas por
- * sección— y desactualizada respecto de lo que la app hace hoy.
+ * Redactada sobre la auditoría técnica de la app (Expo), el dashboard (Next) y
+ * las funciones de Supabase. El texto legal NO se reescribe ni se resume acá:
+ * si hay que cambiar una cláusula, se cambia el documento y después este
+ * archivo.
  *
- * Para actualizar: cambiar `PRIVACY_LAST_UPDATED` y el contenido de
- * `PRIVACY_SECTIONS`. La pantalla no se toca.
+ * Espejo 1:1 de dashboard/lib/legal/privacyContent.ts. Sincronización manual:
+ * si tocás este archivo, replicá el cambio allá (y viceversa).
  *
- * ⚠️ "Responsables del tratamiento de datos" tiene placeholders
- * `[COMPLETAR_DNI]`, `[COMPLETAR_CUIT]` y `[COMPLETAR_DOMICILIO]` a
- * propósito — no se inventan datos de identidad de terceros. Completar
- * antes de publicar esta versión.
+ * ── Tres afirmaciones que este texto le hace al usuario ──────────────────────
+ * Son verificables contra el código, y si el código cambia hay que volver acá:
+ *
+ * 1. §6 "no utiliza SDKs de rastreo comercial ni analíticas de terceros". Hoy
+ *    es cierto: no hay Sentry/PostHog/GA/Firebase Analytics en ningún
+ *    package.json. `lib/share-analytics.ts` escribe a `app_logs` (base propia)
+ *    y Firebase está sólo por FCM (ver app.config.js). Sumar un SDK de
+ *    telemetría de terceros obliga a actualizar esta cláusula ANTES de
+ *    publicarlo.
+ *
+ * 2. §5 "no rastrea tu ubicación en segundo plano". Depende de que no se pida
+ *    permiso de background location: app.json declara sólo ACCESS_*_LOCATION
+ *    y el uso es puntual en el check-in.
+ *
+ * 3. §8 enumera qué se sobrescribe y qué se conserva al dar de baja. Espeja
+ *    exactamente lo que hace `delete_own_account()`
+ *    (20260818140000_store_debt_account_reports_feedback.sql): anonimiza
+ *    `profiles` y banea `auth.users`, NO borra físicamente. `preferred_position`
+ *    aparece declarado como dato conservado porque la función efectivamente no
+ *    lo limpia. Si algún día se agrega al UPDATE, hay que sacarlo de §8.
+ *
+ * ── Versionado ───────────────────────────────────────────────────────────────
+ * `PRIVACY_LAST_UPDATED` alimenta `LEGAL_VERSIONS.privacy` y se guarda como
+ * constancia al aceptar. A diferencia de los TyC NO dispara re-aceptación:
+ * `needsLegalAcceptance()` (lib/auth-data.ts) sólo compara
+ * `LEGAL_VERSIONS.terms`.
  */
 
 import type { LegalSection } from './termsContent';
 
-/** Se muestra bajo el título. Cambiarlo al publicar una versión nueva. */
-export const PRIVACY_LAST_UPDATED = '18 de Agosto, 2026';
+/**
+ * Se muestra bajo el título Y actúa como identificador de versión del
+ * documento. Cambiarlo al publicar una versión nueva.
+ */
+export const PRIVACY_LAST_UPDATED = '24 de Agosto, 2026';
 
 export const PRIVACY_INTRO =
   'En torneAR valoramos y respetamos la privacidad de nuestros usuarios. Esta política describe qué datos recopilamos, para qué los usamos, con quién se comparten y durante cuánto tiempo los conservamos.';
 
 export const PRIVACY_SECTIONS: LegalSection[] = [
   {
-    title: 'Datos que recopilamos',
+    title: '1. Identidad de los Responsables y Contacto',
     paragraphs: [
-      'Al registrarte guardamos los datos de tu perfil: nombre, nombre de usuario, correo electrónico, fecha de nacimiento, zona, posición preferida y, si la cargás, tu foto de perfil.',
-      'A medida que jugás, registramos la actividad deportiva: partidos en los que participaste, goles, MVPs, presencias, insignias, equipos por los que pasaste y los puntajes que se derivan de todo eso.',
+      'TorneAR es una plataforma tecnológica operada conjuntamente por Juan Ignacio Sacco Moriconi (CUIT/CUIL 20-44787831-4) y Agustín Saladino (CUIT/CUIL 20-45415371-6), quienes actúan como responsables del tratamiento de los datos personales. Para cualquier consulta, reclamo o ejercicio de derechos vinculados a tu privacidad, podés contactarnos de forma directa al correo electrónico oficial: tornearcc@gmail.com.',
     ],
   },
   {
-    title: 'Responsables del tratamiento de datos',
+    title: '2. Alcance de la Política',
     paragraphs: [
-      'El tratamiento de tus datos personales está a cargo, en carácter de cotitulares, de Juan Ignacio Sacco Moriconi (DNI [COMPLETAR_DNI], CUIT [COMPLETAR_CUIT], domicilio [COMPLETAR_DOMICILIO]) y Agustín Saladino (DNI [COMPLETAR_DNI], CUIT [COMPLETAR_CUIT], domicilio [COMPLETAR_DOMICILIO]).',
-      'El dominio oficial de la plataforma es https://tornear.app. Para consultas, reclamos o el ejercicio de tus derechos sobre tus datos personales, escribinos a tornearcc@gmail.com.',
+      'Esta Política de Privacidad aplica a todos los usuarios que descarguen, accedan o utilicen la aplicación móvil de TorneAR (disponible para iOS y Android) y su plataforma web. Al registrarte, confirmás que leíste y comprendés cómo tratamos tu información.',
     ],
   },
   {
-    title: 'Geolocalización y check-in',
+    title: '3. Datos Personales que Recopilamos',
     paragraphs: [
-      'Al utilizar la función de Check-In procesamos tu ubicación en el momento, y únicamente para validar que estés en el lugar del partido dentro del radio permitido. No rastreamos tu ubicación en segundo plano ni cuando no hay un check-in en curso.',
-      'De esa validación conservamos la distancia aproximada en metros hasta el predio —no tus coordenadas— para auditar los check-ins y calibrar el radio con datos reales en vez de a ojo.',
+      'Para que la plataforma funcione, recopilamos la siguiente información:',
+      'Datos obligatorios de registro: Nombre completo, nombre de usuario (username), fecha de nacimiento (exclusivamente para validar la mayoría de edad), género, pie hábil, posición preferida en la cancha y zona geográfica. Si no proporcionás estos datos, no podrás crear una cuenta.',
+      'Datos opcionales y de uso: Fotografía de perfil (avatar), escudos de equipos, y el contenido que generes (mensajes en chats, reportes).',
+      'Datos deportivos e historial: Resultados de partidos, cantidad de goles, reconocimientos (MVP), presencias, historial de equipos y estadísticas de juego.',
+      'Datos técnicos: Identificadores internos (UUID) y tokens de notificaciones push (Expo Push Tokens) para enviarte alertas de partidos.',
+      'Aclaración importante: TorneAR no solicita ni recopila datos relativos a tu salud, aptitud física o historial médico. Las contraseñas son gestionadas de forma cifrada por nuestro proveedor de autenticación y nunca tenemos acceso a ellas en texto plano.',
     ],
   },
   {
-    title: 'Qué ven los demás usuarios',
+    title: '4. Finalidades del Tratamiento',
     paragraphs: [
-      'Tu nombre, nombre de usuario, zona, posición, edad, foto de perfil, estadísticas, insignias y trayectoria por equipos son visibles para otros usuarios de la app: son parte del ecosistema de rankings, Mercado y búsqueda de rivales.',
-      'Tu correo electrónico no se muestra en tu perfil público.',
+      'Utilizamos tus datos exclusivamente para:',
+      'Crear y gestionar tu cuenta de usuario.',
+      'Permitirte crear equipos, unirte a ellos y buscar rivales o jugadores en tu zona.',
+      'Generar y mantener estadísticas deportivas históricas (rankings, historiales de partidos, goleadores).',
+      'Enviarte notificaciones operativas (ej. confirmaciones de partidos o mensajes de tu equipo).',
+      'Mantener la seguridad de la plataforma, auditar el comportamiento de los usuarios y prevenir fraudes o abusos.',
     ],
   },
   {
-    title: 'Chats y mensajes',
+    title: '5. Geolocalización y Permisos del Dispositivo',
     paragraphs: [
-      'Los mensajes de los chats de Mercado y de partido se almacenan para que la conversación siga disponible para sus participantes.',
-      'Podemos acceder a ellos cuando sea necesario para resolver una denuncia, una disputa de resultado o un incumplimiento de las reglas de conducta.',
+      'TorneAR solicita acceso a la ubicación precisa (GPS) de tu dispositivo con un único fin: validar el Check-in presencial de los equipos en la cancha al momento de jugar un partido de ranking.',
+      'La ubicación solo se obtiene en primer plano, en el momento exacto en que tocás el botón de Check-in.',
+      'TorneAR no rastrea tu ubicación en segundo plano ni guarda un historial de tus movimientos.',
+      'Si denegás el permiso de ubicación, no podrás realizar el Check-in para validar partidos competitivos, pero podrás seguir usando el resto de la aplicación.',
     ],
   },
   {
-    title: 'Evidencias de Walkover',
+    title: '6. Proveedores, Infraestructura y Analíticas',
     paragraphs: [
-      'Si tu equipo reclama un Walkover (W.O.), la foto que subís como evidencia queda con acceso público temporal: cualquiera con el enlace puede verla mientras dure el proceso de resolución de la disputa, porque el equipo rival y, si hace falta, la administración de torneAR necesitan poder revisarla para decidir el reclamo.',
-      'Esa evidencia se conserva hasta 30 días después de finalizada la temporada correspondiente (ver "Conservación y eliminación" más abajo). No subas una foto que no quieras que quede accesible por ese medio y por ese plazo.',
+      'La infraestructura de TorneAR está diseñada para proteger tu información limitando el acceso de terceros.',
+      'Servicios de terceros: Utilizamos Supabase (alojado en AWS) para la base de datos y autenticación, y Vercel para el alojamiento de nuestra web y generación de imágenes. También utilizamos Firebase (FCM) de forma exclusiva para el ruteo técnico de las notificaciones push.',
+      'Analíticas: TorneAR no utiliza SDKs de rastreo comercial ni analíticas de terceros (como Google Analytics, Meta Pixel o Mixpanel). Toda la telemetría, el análisis de uso y los reportes de errores se procesan de forma interna y anónima en nuestros propios servidores para mejorar la aplicación.',
+      'TorneAR no vende, alquila ni comercializa tus datos personales con terceros bajo ninguna circunstancia.',
     ],
   },
   {
-    title: 'Notificaciones push',
+    title: '7. Seguridad de los Datos',
     paragraphs: [
-      'Si aceptás recibir notificaciones, guardamos el identificador de notificaciones de tu dispositivo para poder avisarte de desafíos, solicitudes, mensajes y cambios en tus partidos.',
-      'Podés revocar el permiso desde la configuración de tu teléfono en cualquier momento.',
+      'Implementamos medidas de seguridad técnicas y organizativas robustas, como el uso de Seguridad a Nivel de Fila (RLS) en nuestras bases de datos, tokens JWT de corta duración y vistas públicas limitadas para garantizar que datos sensibles (como tu correo electrónico) nunca queden expuestos al resto de los usuarios.',
     ],
   },
   {
-    title: 'Registros técnicos',
+    title: '8. Conservación y Eliminación de Cuentas',
     paragraphs: [
-      'Guardamos registros de errores y de eventos relevantes de la aplicación (qué operación falló, cuándo y para qué cuenta) con el fin de diagnosticar problemas y mejorar la estabilidad del servicio.',
+      'Podés solicitar la eliminación de tu cuenta en cualquier momento. Al hacerlo, aplicamos un procedimiento de anonimización irreversible (borrado lógico):',
+      'Tus datos personales directos (nombre, username, fecha de nacimiento, género, pie hábil, token de dispositivo) son sobrescritos y eliminados. Tu avatar es borrado de nuestros servidores y el acceso a la cuenta queda bloqueado permanentemente.',
+      'Datos que se conservan: Para mantener la integridad de los torneos, el sistema de estadísticas y no afectar a otros jugadores, conservaremos de forma anónima tu historial deportivo (resultados de partidos jugados, goles, MVPs, tu posición preferida en la cancha), los reportes de sistema y los mensajes de chat enviados previamente (los cuales aparecerán a nombre de "Usuario eliminado").',
     ],
   },
   {
-    title: 'Con quién compartimos los datos',
+    title: '9. Derechos de los Usuarios',
     paragraphs: [
-      'No vendemos tus datos personales a terceros ni los usamos para publicidad.',
-      'Nos apoyamos en proveedores de infraestructura para que la app funcione: alojamiento de la base de datos, autenticación y almacenamiento de archivos, y el servicio de envío de notificaciones push. Esos proveedores procesan los datos por cuenta de torneAR y sólo para prestar ese servicio.',
-      'También podremos comunicar información cuando una autoridad competente lo requiera legalmente.',
+      'De conformidad con la Ley N.º 25.326 de Protección de los Datos Personales de la República Argentina, tenés derecho a solicitar el acceso, rectificación, actualización o supresión de tus datos personales. Podés ejercer estos derechos enviando un correo electrónico a tornearcc@gmail.com, indicando tu nombre de usuario y el derecho que deseás ejercer.',
     ],
   },
   {
-    title: 'Conservación y eliminación',
+    title: '10. Protección de Menores de Edad',
     paragraphs: [
-      'Conservamos cada categoría de dato sólo durante el plazo necesario para la finalidad que la originó. Los plazos formales de conservación, definidos conforme a los criterios de la Agencia de Acceso a la Información Pública (AAIP), son los siguientes:',
-      'Logs técnicos y telemetría: 90 días desde su generación.',
-      'Evidencias de Walkover (fotos): hasta 30 días después de finalizada la temporada correspondiente al partido.',
-      'Cuentas eliminadas: la baja es inmediata, con anonimización del perfil en el mismo momento — no hay período de gracia durante el cual tus datos personales queden identificables.',
-      'Backups de la base de datos: retención rotativa de 30 días; una copia de respaldo que contenga tus datos deja de existir, como máximo, 30 días después de haberse generado.',
-      'Más allá de estos plazos, los resultados de partidos ya jugados y las estadísticas de los equipos en los que participaste pueden conservarse de forma disociada, porque forman parte del historial competitivo compartido con otros usuarios.',
+      'TorneAR está dirigida exclusivamente a personas mayores de dieciocho (18) años. No recopilamos de manera intencional información de menores. Si detectamos que una cuenta pertenece a un menor de edad, procederemos a su bloqueo y eliminación inmediata, conservando únicamente la información técnica necesaria para evitar que vuelva a registrarse.',
     ],
   },
   {
-    title: 'Tus derechos',
+    title: '11. Modificaciones a la Política',
     paragraphs: [
-      'Podés acceder a tus datos, rectificarlos, actualizarlos y solicitar su supresión. Buena parte de eso lo podés hacer vos mismo desde la edición de perfil.',
-      'Para el resto de los pedidos, escribinos por el formulario de contacto disponible en la pantalla de Perfil, o a tornearcc@gmail.com.',
-    ],
-  },
-  {
-    title: 'Cambios en esta política',
-    paragraphs: [
-      'Podemos actualizar esta política para reflejar cambios en la plataforma. La fecha de la última actualización figura al comienzo de esta pantalla.',
+      'Podemos actualizar esta Política de Privacidad periódicamente para reflejar mejoras técnicas o cambios legales. Si realizamos cambios sustanciales, te lo notificaremos a través de la aplicación para que puedas revisar y aceptar las nuevas condiciones antes de seguir utilizando TorneAR.',
       'La versión vigente de este documento siempre está disponible en https://tornear.app/legal/privacidad.',
     ],
   },
