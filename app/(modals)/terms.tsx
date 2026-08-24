@@ -33,10 +33,16 @@ export default function TermsScreen() {
           {TERMS_INTRO}
         </Text>
 
-        {TERMS_SECTIONS.map((section, index) => (
+        {/* La numeración viene DENTRO de `section.title` ("1. Definiciones"),
+            no de un `index + 1` acá: desde la Versión Final 11 el número es
+            parte del texto legal —las cláusulas se citan por número— y tiene
+            que coincidir con el PDF y con la web (/legal/tyc), que renderiza
+            el título tal cual. Numerar por índice haría que insertar o quitar
+            una cláusula corriera la numeración en silencio. */}
+        {TERMS_SECTIONS.map((section) => (
           <View key={section.title} className="mb-6">
             <Text className="font-display mb-2 text-lg uppercase tracking-wider text-brand-primary">
-              {index + 1}. {section.title}
+              {section.title}
             </Text>
             {section.paragraphs.map((paragraph) => (
               <Text

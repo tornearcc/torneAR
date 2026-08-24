@@ -9,7 +9,7 @@ const PUBLIC_DEEP_LINK_PATHS = new Set<string>(['login', 'forgot-password']);
 
 /**
  * Scheme propio de la app (ver `app.json`). Todo el gating de abajo trabaja
- * sobre este scheme — un Universal Link `https://tornear.app/...` se traduce
+ * sobre este scheme — un Universal Link `https://tornear.vercel.app/...` se traduce
  * primero a este formato (`normalizeUniversalLink`) antes de llegar a
  * cualquiera de los chequeos. Cualquier otro scheme ajeno, o una URL sin
  * scheme, se sigue descartando tal cual.
@@ -19,18 +19,18 @@ const APP_SCHEME = 'tornear';
 /**
  * Dominio asociado a Universal Links / App Links (Fase 6.1 — ver
  * `associatedDomains`/`intentFilters` en `app.json` y
- * `tornear.app/.well-known/*` en torneAR/dashboard). Si el SO interceptó
+ * `tornear.vercel.app/.well-known/*` en torneAR/dashboard). Si el SO interceptó
  * bien el link, la app recibe esta URL `https://` cruda en vez del
  * `tornear://` que se comparte (`lib/referral-link.ts`).
  */
-const UNIVERSAL_LINK_HOST = 'tornear.app';
+const UNIVERSAL_LINK_HOST = 'tornear.vercel.app';
 
 /**
  * Prefijo de path de los links de referido en la web
  * (`torneAR/dashboard/app/(public)/i/[username]`). Es el único patrón de
  * Universal Link que esta función sabe traducir — mantenerlo en sync con
  * `REFERRAL_LINK_BASE_URL` de `lib/referral-link.ts` si alguno cambia.
- * Cualquier otro path bajo `tornear.app` (ej. la landing en `/`) no tiene
+ * Cualquier otro path bajo `tornear.vercel.app` (ej. la landing en `/`) no tiene
  * pantalla equivalente dentro de la app y se sigue ignorando como
  * cualquier https ajeno.
  */
@@ -75,11 +75,11 @@ function extractPath(parsed: Linking.ParsedURL): string {
 }
 
 /**
- * Traduce un Universal Link de referido (`https://tornear.app/i/<username>`)
+ * Traduce un Universal Link de referido (`https://tornear.vercel.app/i/<username>`)
  * al `tornear://login?ref=<username>` que el resto de este módulo ya sabe
  * resolver — mismo destino final que si el link hubiera llegado con el
  * scheme propio desde el vamos. Cualquier otra URL, incluido cualquier otro
- * path bajo `tornear.app`, se devuelve sin tocar.
+ * path bajo `tornear.vercel.app`, se devuelve sin tocar.
  *
  * Se llama al principio de `isOAuthCallback`, `deepLinkToHref` e
  * `isProtectedDeepLink` — las tres, no solo una — para que el gating de
@@ -103,9 +103,9 @@ function normalizeUniversalLink(url: string): string {
   // OJO: acá NO se usa `extractPath()`. Esa función combina hostname+path
   // porque en un `tornear://...` el host ES el primer segmento de la ruta
   // (`tornear://match-detail` → hostname: 'match-detail'). Para un
-  // `https://`, `parsed.hostname` ya es el dominio real (`tornear.app`,
+  // `https://`, `parsed.hostname` ya es el dominio real (`tornear.vercel.app`,
   // recién validado arriba) y NO forma parte de la ruta — combinarlo
-  // armaría `tornear.app/i/juan` en vez de `i/juan`.
+  // armaría `tornear.vercel.app/i/juan` en vez de `i/juan`.
   const path = (parsed.path ?? '').replace(/^\/+/, '').replace(/\/+$/, '');
   if (!path.startsWith(REFERRAL_UNIVERSAL_LINK_PREFIX)) {
     return url;

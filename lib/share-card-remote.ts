@@ -44,7 +44,7 @@ import { Logger } from '@/lib/logger';
  * sólo una herramienta de prueba y nunca el camino de producción.
  */
 const SHARE_CARD_BASE_URL =
-  process.env.EXPO_PUBLIC_SHARE_CARD_BASE_URL ?? 'https://admin.tornear.app';
+  process.env.EXPO_PUBLIC_SHARE_CARD_BASE_URL ?? 'https://tornear.vercel.app';
 
 const SHARE_CARD_ENDPOINT = `${SHARE_CARD_BASE_URL}/api/og/share-match`;
 

@@ -6,7 +6,7 @@ import { PRIVACY_LAST_UPDATED } from '@/components/legal/privacyContent';
 /**
  * Destinos de los documentos legales.
  *
- * Modo activo: `'external'`. `tornear.app/legal/tyc` y `/legal/privacidad`
+ * Modo activo: `'external'`. `tornear.vercel.app/legal/tyc` y `/legal/privacidad`
  * ya están publicados (torneAR/dashboard, Hito 1) con el mismo texto
  * versionado que `components/legal/` — dejaron de ser un placeholder.
  *
@@ -18,8 +18,8 @@ import { PRIVACY_LAST_UPDATED } from '@/components/legal/privacyContent';
 export const LEGAL_LINK_MODE: 'external' | 'in-app' = 'external';
 
 export const LEGAL_URLS = {
-  terms: 'https://tornear.app/legal/tyc',
-  privacy: 'https://tornear.app/legal/privacidad',
+  terms: 'https://tornear.vercel.app/legal/tyc',
+  privacy: 'https://tornear.vercel.app/legal/privacidad',
 } as const;
 
 /** Rutas equivalentes dentro de la app, ya implementadas y con contenido real. */
