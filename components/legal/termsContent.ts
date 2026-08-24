@@ -294,7 +294,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Para completar el registro, el usuario deberá aceptar expresamente estos Términos y Condiciones y, una vez publicada, la Política de Privacidad vigente, mediante los mecanismos electrónicos habilitados por TorneAR. Cuando un tratamiento requiera un consentimiento específico, éste deberá recabarse en forma separada de la aceptación general de los Términos y Condiciones, cuando así lo exija la normativa aplicable.',
       'Los Titulares conservarán evidencia electrónica razonable de las aceptaciones y consentimientos que correspondan, incluyendo la versión del documento aceptado, la cuenta asociada y la fecha y hora, de acuerdo con la Política de Privacidad vigente, los plazos de conservación aplicables y la normativa correspondiente.',
       'La utilización posterior de la plataforma quedará sujeta a la versión vigente de los documentos debidamente comunicada al usuario.',
-      'La versión vigente de este documento siempre está disponible en https://tornear.app/legal/tyc.',
+      'La versión vigente de este documento siempre está disponible en https://tornear.vercel.app/legal/tyc.',
     ],
   },
 ];

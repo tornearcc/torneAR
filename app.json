@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.agussala2003.tornear",
-      "associatedDomains": ["applinks:tornear.app"],
+      "associatedDomains": ["applinks:tornear.vercel.app"],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "TorneAR necesita tu ubicación para verificar que estás en la cancha al hacer check-in.",
         "LSApplicationQueriesSchemes": ["instagram"]
@@ -31,7 +31,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "tornear.app",
+              "host": "tornear.vercel.app",
               "pathPrefix": "/i/"
             }
           ],

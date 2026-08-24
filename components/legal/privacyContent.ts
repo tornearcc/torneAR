@@ -132,7 +132,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     title: '11. Modificaciones a la Política',
     paragraphs: [
       'Podemos actualizar esta Política de Privacidad periódicamente para reflejar mejoras técnicas o cambios legales. Si realizamos cambios sustanciales, te lo notificaremos a través de la aplicación para que puedas revisar y aceptar las nuevas condiciones antes de seguir utilizando TorneAR.',
-      'La versión vigente de este documento siempre está disponible en https://tornear.app/legal/privacidad.',
+      'La versión vigente de este documento siempre está disponible en https://tornear.vercel.app/legal/privacidad.',
     ],
   },
 ];
