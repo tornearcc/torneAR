@@ -8,8 +8,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { TEAM_CATEGORY_OPTIONS, TEAM_FORMAT_OPTIONS, TeamCategory, TeamFormat } from '@/lib/team-options';
-import { fetchZones, createTeam } from '@/lib/team-create-data';
-import { ZonePickerModal } from '@/components/team-create/ZonePickerModal';
+import { createTeam } from '@/lib/team-create-data';
+import { ZoneSelectField } from '@/components/ui/ZoneSelect';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { Logger } from '@/lib/logger';
 
@@ -23,9 +23,6 @@ export default function TeamCreateScreen() {
   const [zone, setZone] = useState(profile?.zone ?? '');
   const [category, setCategory] = useState<TeamCategory>('MIXTO');
   const [format, setFormat] = useState<TeamFormat>('FUTBOL_7');
-  const [zones, setZones] = useState<string[]>([]);
-  const [loadingZones, setLoadingZones] = useState(true);
-  const [showZonePicker, setShowZonePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   /*
@@ -49,28 +46,6 @@ export default function TeamCreateScreen() {
 
     zoneHydratedRef.current = true;
     setZone((current) => (current.trim() ? current : profileZone));
-  }, [profile?.zone]);
-
-  useEffect(() => {
-    async function loadZones() {
-      try {
-        setLoadingZones(true);
-        const data = await fetchZones();
-        setZones(data);
-      } catch (error) {
-        // El fallback deja el picker con una sola zona: el usuario cree que no
-        // hay más opciones en vez de enterarse de que la carga falló.
-        Logger.warn('No se pudieron cargar las zonas; se usa la zona del perfil como único fallback', {
-          scope: 'team-create.loadZones',
-          fallbackZone: profile?.zone ?? null,
-          error,
-        });
-        setZones(profile?.zone ? [profile.zone] : []);
-      } finally {
-        setLoadingZones(false);
-      }
-    }
-    void loadZones();
   }, [profile?.zone]);
 
   const handleCreateTeam = async () => {
@@ -151,23 +126,13 @@ export default function TeamCreateScreen() {
             />
           </View>
 
-          <View>
-            <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Zona</Text>
-            <TouchableOpacity
-              onPress={() => setShowZonePicker(true)}
-              activeOpacity={0.9}
-              className="rounded-xl border border-neutral-outline-variant/15 bg-surface-low px-4 py-4"
-            >
-              <View className="flex-row items-center justify-between">
-                <Text className={zone ? 'text-neutral-on-surface' : 'text-surface-bright'}>{zone || 'Selecciona una zona'}</Text>
-                {loadingZones ? (
-                  <ActivityIndicator size="small" color="#53E076" />
-                ) : (
-                  <AppIcon family="material-icons" name="keyboard-arrow-down" size={22} color="#BCCBB9" />
-                )}
-              </View>
-            </TouchableOpacity>
-          </View>
+          <ZoneSelectField
+            label="Zona"
+            value={zone || null}
+            onChange={(selected) => setZone(selected ?? '')}
+            title="Zona del equipo"
+            suggestedValue={profile?.zone ?? null}
+          />
 
           <View>
             <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Categoria</Text>
@@ -224,15 +189,6 @@ export default function TeamCreateScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
-
-      <ZonePickerModal
-        visible={showZonePicker}
-        zones={zones}
-        loadingZones={loadingZones}
-        selectedZone={zone}
-        onSelectZone={(selected) => { setZone(selected); setShowZonePicker(false); }}
-        onClose={() => setShowZonePicker(false)}
-      />
 
       {AlertComponent}
     </SafeAreaView>

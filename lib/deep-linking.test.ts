@@ -3,6 +3,7 @@ import {
   deepLinkToHref,
   extractDeepLinkUrl,
   isOAuthCallback,
+  isPasswordRecoveryLink,
   isProtectedDeepLink,
   resolveDeepLink,
 } from './deep-linking';
@@ -360,5 +361,67 @@ describe('isProtectedDeepLink', () => {
     // el set — y trataría un link público como protegido, diriéndolo en vez
     // de navegar aunque el usuario no tenga sesión.
     expect(isProtectedDeepLink('https://tornear.vercel.app/i/agussala')).toBe(false);
+  });
+});
+
+describe('isPasswordRecoveryLink', () => {
+  it('reconoce el link de recuperación pelado', () => {
+    expect(isPasswordRecoveryLink('tornear://reset-password')).toBe(true);
+  });
+
+  it('lo reconoce con triple barra, que es como puede salir de Linking.createURL', () => {
+    expect(isPasswordRecoveryLink('tornear:///reset-password#access_token=abc')).toBe(true);
+  });
+
+  it('lo reconoce con los tokens colgados del fragment (flujo implicit)', () => {
+    expect(
+      isPasswordRecoveryLink(
+        'tornear://reset-password#access_token=abc&refresh_token=def&type=recovery',
+      ),
+    ).toBe(true);
+  });
+
+  it('lo reconoce con el code de PKCE y con el token_hash de la plantilla mobile', () => {
+    expect(isPasswordRecoveryLink('tornear://reset-password?code=abc')).toBe(true);
+    expect(
+      isPasswordRecoveryLink('tornear://reset-password?token_hash=abc&type=recovery'),
+    ).toBe(true);
+  });
+
+  it('rechaza otras rutas y otros schemes', () => {
+    expect(isPasswordRecoveryLink('tornear://forgot-password')).toBe(false);
+    expect(isPasswordRecoveryLink('tornear://auth/callback#access_token=abc')).toBe(false);
+    // Un scheme ajeno no puede empujar a nadie a la pantalla de cambiar clave.
+    expect(isPasswordRecoveryLink('evilapp://reset-password#access_token=abc')).toBe(false);
+  });
+});
+
+describe('resolveDeepLink · Recuperación de contraseña', () => {
+  it('devuelve `recover` con la URL entera, sin tocar el fragment', () => {
+    const url = 'tornear://reset-password#access_token=abc&refresh_token=def&type=recovery';
+    expect(resolveDeepLink(url, false)).toEqual({ kind: 'recover', url });
+  });
+
+  it('devuelve `recover` también con sesión activa', () => {
+    // Caso real: el usuario ya está logueado en el teléfono y abre igual el
+    // link del mail. Tiene que poder cambiar la clave, no caer en /(tabs).
+    const url = 'tornear://reset-password#access_token=abc&type=recovery';
+    expect(resolveDeepLink(url, true)).toEqual({ kind: 'recover', url });
+  });
+
+  it('devuelve `recover` cuando el link viene vencido (sin tokens, con error)', () => {
+    // Supabase no manda tokens sino el error en el fragment. Igual tiene que
+    // llegar a la pantalla: es la única que sabe explicar qué pasó.
+    const url =
+      'tornear://reset-password#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired';
+    expect(resolveDeepLink(url, false)).toEqual({ kind: 'recover', url });
+  });
+
+  it('NO difiere el link aunque no haya sesión', () => {
+    // Regresión: `reset-password` tiene que estar en PUBLIC_DEEP_LINK_PATHS.
+    // Sin eso el link se guardaba como pendiente y el guard lo consumía recién
+    // después del login — es decir, nunca, porque el usuario no puede loguearse
+    // (a eso vino). Y para entonces el link ya habría vencido.
+    expect(isProtectedDeepLink('tornear://reset-password')).toBe(false);
   });
 });

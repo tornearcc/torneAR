@@ -17,7 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { PitchSelector } from '@/components/ui/PitchSelector';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
-import { ZonePickerDialog } from '@/components/ui/ZonePickerDialog';
+import { ZoneSelectField } from '@/components/ui/ZoneSelect';
 import { OptionPickerDialog } from '@/components/ui/OptionPickerDialog';
 import { ProfileFormFields } from '@/components/profile/ProfileFormFields';
 import { FAVORITE_TEAM_OPTIONS } from '@/lib/favorite-teams';
@@ -53,7 +53,6 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [showZonePicker, setShowZonePicker] = useState(false);
   const [showFavoriteTeamPicker, setShowFavoriteTeamPicker] = useState(false);
 
   /**
@@ -347,33 +346,12 @@ export default function OnboardingScreen() {
               </View>
 
               {/* ZONE */}
-              <View>
-                <Text className="font-display text-xs uppercase tracking-wider mb-2 text-neutral-on-surface-variant">
-                  Zona de Juego Principal
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowZonePicker(true)}
-                  activeOpacity={0.8}
-                  className={`w-full rounded-xl px-4 py-4 flex-row justify-between items-center border ${errors.zone ? 'border-red-500' : 'border-neutral-outline-variant/15'} bg-surface-low`}
-                >
-                  <Text
-                    className={`flex-1 ${selectedZone ? 'text-neutral-on-surface' : 'text-surface-bright'}`}
-                    style={{ minWidth: 0 }}
-                    numberOfLines={1}
-                  >
-                    {selectedZone || 'Selecciona una zona'}
-                  </Text>
-                  <AppIcon
-                    family="material-icons"
-                    name="keyboard-arrow-down"
-                    size={22}
-                    color="#BCCBB9"
-                  />
-                </TouchableOpacity>
-                {errors.zone && (
-                  <Text className="text-red-500 text-xs mt-1">{errors.zone.message}</Text>
-                )}
-              </View>
+              <ZoneSelectField
+                label="Zona de Juego Principal"
+                value={selectedZone || null}
+                onChange={(zone) => setValue('zone', zone ?? '', { shouldValidate: true })}
+                error={errors.zone?.message}
+              />
             </View>
 
             <HeroButton onPress={handleNextStep} disabled={!isStepValid} label="Siguiente" style={{ width: '100%' }} />
@@ -503,13 +481,6 @@ export default function OnboardingScreen() {
           </View>
         )}
       </ScrollView>
-
-      <ZonePickerDialog
-        visible={showZonePicker}
-        onClose={() => setShowZonePicker(false)}
-        selectedZone={selectedZone}
-        onSelect={(val) => setValue('zone', val, { shouldValidate: true })}
-      />
 
       <OptionPickerDialog
         visible={showFavoriteTeamPicker}

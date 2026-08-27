@@ -5,7 +5,7 @@ import type { Href } from 'expo-router';
  * Rutas públicas alcanzables sin sesión. Cualquier otra ruta se considera
  * protegida y exige autenticación antes de navegar (ver `isProtectedDeepLink`).
  */
-const PUBLIC_DEEP_LINK_PATHS = new Set<string>(['login', 'forgot-password']);
+const PUBLIC_DEEP_LINK_PATHS = new Set<string>(['login', 'forgot-password', 'reset-password']);
 
 /**
  * Scheme propio de la app (ver `app.json`). Todo el gating de abajo trabaja
@@ -59,6 +59,19 @@ const UTM_PARAM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign'] as const;
  * explícitamente.
  */
 export const OAUTH_CALLBACK_PATH = 'auth/callback';
+
+/**
+ * Destino del link del mail de recuperación (`tornear://reset-password`).
+ *
+ * A diferencia de `OAUTH_CALLBACK_PATH`, este SÍ es una pantalla real
+ * (`app/reset-password.tsx`), pero tampoco se navega con `deepLinkToHref`: la
+ * URL trae la sesión de recuperación colgada del fragment
+ * (`#access_token=…&refresh_token=…&type=recovery`) y `Linking.parse` no lee
+ * fragments — navegar directo perdería los tokens y la pantalla se quedaría sin
+ * sesión con la cual llamar a `updateUser`. Por eso `resolveDeepLink` la marca
+ * como `recover` y el `_layout` primero canjea y después navega.
+ */
+export const PASSWORD_RECOVERY_PATH = 'reset-password';
 
 /**
  * Normaliza el path de una URL `tornear://...`. `Linking.parse` reparte el
@@ -146,6 +159,22 @@ export function isOAuthCallback(url: string): boolean {
 }
 
 /**
+ * Reconoce el link de recuperación de contraseña. Compara sobre la URL sin
+ * query ni fragment, por el mismo motivo que `isOAuthCallback`: Supabase cuelga
+ * ahí los tokens (implicit), el `code` (PKCE) o el error si el link venció.
+ */
+export function isPasswordRecoveryLink(url: string): boolean {
+  const withoutParams = normalizeUniversalLink(url).split('#')[0].split('?')[0];
+  const parsed = Linking.parse(withoutParams);
+
+  if (parsed.scheme !== APP_SCHEME) {
+    return false;
+  }
+
+  return extractPath(parsed) === PASSWORD_RECOVERY_PATH;
+}
+
+/**
  * Convierte una URL de deep link en un `Href` navegable por expo-router,
  * preservando los query params. Devuelve `null` si la URL no apunta a
  * ninguna ruta concreta (ej. `tornear://` a secas), o si el scheme/host no
@@ -172,9 +201,10 @@ export function deepLinkToHref(url: string): Href | null {
 }
 
 /**
- * Indica si la URL apunta a una ruta protegida (todo lo que no sea `login`
- * ni `forgot-password`). Se usa para decidir si guardamos el link como
- * pendiente cuando el usuario todavía no está autenticado.
+ * Indica si la URL apunta a una ruta protegida (todo lo que no esté en
+ * `PUBLIC_DEEP_LINK_PATHS`: `login`, `forgot-password` y `reset-password`). Se
+ * usa para decidir si guardamos el link como pendiente cuando el usuario
+ * todavía no está autenticado.
  */
 export function isProtectedDeepLink(url: string): boolean {
   const parsed = Linking.parse(normalizeUniversalLink(url));
@@ -189,6 +219,8 @@ export function isProtectedDeepLink(url: string): boolean {
  *  - `defer`    → ruta protegida y sin sesión: guardar como pendiente y que el
  *                 guard de `_layout` la consuma tras el login (Auth Gating).
  *  - `navigate` → ruta pública, o protegida con sesión activa: navegar ya.
+ *  - `recover`  → link del mail de recuperación: hay que canjear la sesión de
+ *                 la URL ANTES de navegar (ver `PASSWORD_RECOVERY_PATH`).
  *
  * No produce efectos: el llamante aplica el store/router según el resultado,
  * de modo que la misma decisión sirve dentro y fuera de React.
@@ -196,7 +228,8 @@ export function isProtectedDeepLink(url: string): boolean {
 export type DeepLinkAction =
   | { kind: 'ignore' }
   | { kind: 'defer'; url: string }
-  | { kind: 'navigate'; href: Href };
+  | { kind: 'navigate'; href: Href }
+  | { kind: 'recover'; url: string };
 
 export function resolveDeepLink(url: string, isAuthenticated: boolean): DeepLinkAction {
   // El callback de OAuth ya lo consume signInWithGoogle(): acá sólo llega el
@@ -204,6 +237,19 @@ export function resolveDeepLink(url: string, isAuthenticated: boolean): DeepLink
   // ruta inexistente, y diferirlo dejaría un deep link pendiente envenenado.
   if (isOAuthCallback(url)) {
     return { kind: 'ignore' };
+  }
+
+  /*
+   * Antes que `deepLinkToHref`, y antes que el gating de sesión.
+   *
+   * Es la única URL entrante que trae credenciales adentro: si cayera en la
+   * rama genérica, `deepLinkToHref` armaría un `/reset-password` pelado —el
+   * fragment con los tokens no sobrevive a `Linking.parse`— y el usuario
+   * llegaría a la pantalla sin sesión de recuperación, o sea sin poder cambiar
+   * nada. Tampoco puede diferirse: el link tiene un solo uso y vence.
+   */
+  if (isPasswordRecoveryLink(url)) {
+    return { kind: 'recover', url };
   }
 
   const href = deepLinkToHref(url);

@@ -1,5 +1,5 @@
 import '../global.css';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { Inter_500Medium, Inter_700Bold, Inter_900Black } from '@expo-google-fonts/inter';
 import { BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold } from '@expo-google-fonts/barlow-condensed';
@@ -19,9 +19,11 @@ import { ColdStartPushLinkGate } from '@/components/push/ColdStartPushLinkGate';
 import { Colors } from '@/constants/theme';
 import { useForceUpdate } from '@/hooks/useForceUpdate';
 import { isProfileComplete } from '@/lib/auth-utils';
-import { needsLegalAcceptance } from '@/lib/auth-data';
+import { completePasswordRecovery, needsLegalAcceptance } from '@/lib/auth-data';
+import { getRecoveryLinkErrorMessage } from '@/lib/auth-error-messages';
 import { deepLinkToHref, resolveDeepLink } from '@/lib/deep-linking';
-import { initLogger } from '@/lib/logger';
+import { initLogger, Logger } from '@/lib/logger';
+import { supabase } from '@/lib/supabase';
 import { useDeepLinkStore } from '@/stores/deepLinkStore';
 import { useSignupGateStore } from '@/stores/signupGateStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -119,6 +121,38 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
   const router = useRouter();
   const [showIntro, setShowIntro] = useState(true);
 
+  /*
+   * Canje del link de recuperación + navegación a la pantalla de clave nueva.
+   *
+   * Estable (`useCallback` sobre `router`) porque lo consumen los DOS listeners
+   * de deep link: el de arranque en frío —que es por donde entra el caso real,
+   * ya que el usuario viene del mail con la app cerrada— y el de app abierta.
+   *
+   * El error no se traga: si el link venció, la pantalla lo cuenta en vez de
+   * mostrar un formulario que va a fallar al guardar. El mensaje viaja por
+   * params y no por un store porque muere con esta navegación.
+   */
+  const handlePasswordRecovery = useCallback(
+    async (url: string) => {
+      const { error } = await completePasswordRecovery(url);
+
+      if (error) {
+        Logger.warn('El link de recuperación de contraseña no pudo canjearse', {
+          scope: 'RootNavigation.handlePasswordRecovery',
+          error,
+        });
+        router.replace({
+          pathname: '/reset-password',
+          params: { status: 'invalid', message: getRecoveryLinkErrorMessage(error) },
+        });
+        return;
+      }
+
+      router.replace({ pathname: '/reset-password', params: { status: 'ready' } });
+    },
+    [router],
+  );
+
   // Push notifications: configura handler, ataja el tap (→ deepLinkStore / Auth
   // Gating) y refresca el expo_push_token del perfil. Se auto-gatea por sesión.
   usePushNotifications();
@@ -174,9 +208,12 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         useDeepLinkStore.getState().setPendingDeepLink(action.url);
       } else if (action.kind === 'navigate') {
         router.replace(action.href);
+      } else if (action.kind === 'recover') {
+        // Camino real del flujo: el usuario viene del mail con la app cerrada.
+        void handlePasswordRecovery(action.url);
       }
     });
-  }, [router]);
+  }, [router, handlePasswordRecovery]);
 
   // Deep links en caliente (app ya abierta): acá la sesión sí es confiable.
   // Si es protegido y no hay sesión lo guardamos como pendiente; si no, navega.
@@ -187,11 +224,39 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         useDeepLinkStore.getState().setPendingDeepLink(action.url);
       } else if (action.kind === 'navigate') {
         router.replace(action.href);
+      } else if (action.kind === 'recover') {
+        void handlePasswordRecovery(action.url);
       }
     });
 
     return () => subscription.remove();
-  }, [session, router]);
+  }, [session, router, handlePasswordRecovery]);
+
+  /*
+   * `PASSWORD_RECOVERY` de `onAuthStateChange`.
+   *
+   * OJO con lo que este listener cubre y lo que no: el evento lo emite
+   * `detectSessionInUrl`, que en `lib/supabase.ts` está encendido SOLO en web.
+   * En iOS/Android nunca se dispara —no hay `window.location` que inspeccionar—
+   * y el flujo nativo entra entero por `handlePasswordRecovery`, arriba.
+   *
+   * O sea: esto no es el listener del flujo mobile, es su equivalente para la
+   * build web (`expo start --web` / el export estático). Dejarlo solo, sin el
+   * canje del deep link, es la trampa clásica de este feature: en el teléfono
+   * no corre jamás y el link parece "no hacer nada".
+   */
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== 'PASSWORD_RECOVERY') return;
+
+      Logger.info('Evento PASSWORD_RECOVERY recibido', { scope: 'RootNavigation' });
+      router.replace({ pathname: '/reset-password', params: { status: 'ready' } });
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   useEffect(() => {
     // El guard espera a la hidratación inicial antes de tocar la navegación,
@@ -205,6 +270,29 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
     // de esa condición lo devolvería a `/onboarding` igual que la de `!session`
     // lo devuelve a `/login`. Salir temprano los exime de las tres ramas.
     if (segments[0] === '(modals)' && PUBLIC_MODAL_ROUTES.has(segments[1] ?? '')) {
+      return;
+    }
+
+    /*
+     * `reset-password` queda exenta de las TRES ramas, como los legales.
+     *
+     * No alcanza con sumarla al conjunto público de abajo, y tampoco con
+     * dejarla afuera: la pantalla es legítimamente alcanzable en los dos
+     * estados de sesión, y cada rama la expulsa por un motivo distinto.
+     *
+     *   · Mientras `handlePasswordRecovery` canjea el link todavía no hay
+     *     sesión, así que la rama `!session` la patearía a /login — con los
+     *     tokens ya consumidos, o sea sin manera de volver a entrar salvo
+     *     pidiendo otro mail.
+     *   · Apenas el canje escribe la sesión, `isProfileComplete` pasa a ser
+     *     verdadero (es un usuario viejo, con perfil) y la rama de abajo la
+     *     mandaría a /(tabs) antes de que llegue a tipear la clave nueva.
+     *
+     * Salir temprano es lo único que cubre los dos. Quién sale de acá lo decide
+     * la propia pantalla: navega a /(tabs) al guardar, o a /forgot-password si
+     * el link venía vencido.
+     */
+    if (segments[0] === 'reset-password') {
       return;
     }
 
@@ -286,6 +374,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
         <Stack.Screen name="forgot-password" />
+        <Stack.Screen name="reset-password" />
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="profile-stats" />
