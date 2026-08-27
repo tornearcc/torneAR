@@ -8,7 +8,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { PitchSelector } from '@/components/ui/PitchSelector';
-import { ZonePickerDialog } from '@/components/ui/ZonePickerDialog';
+import { ZoneSelectSheet } from '@/components/ui/ZoneSelect';
 import { ActiveTeamSelector } from '@/components/ui/ActiveTeamSelector';
 import { useAuth } from '@/context/AuthContext';
 import { useUI } from '@/context/UIContext';
@@ -514,11 +514,13 @@ export default function MarketCreateModal() {
       </ScrollView>
       </KeyboardAvoidingView>
 
-      <ZonePickerDialog
+      <ZoneSelectSheet
         visible={showZonePicker}
         onClose={() => setShowZonePicker(false)}
-        selectedZone={zone}
-        onSelect={(val) => setZone(val)}
+        selectedValue={zone || null}
+        onSelect={(selected) => setZone(selected.value)}
+        title="Zona del partido"
+        suggestedValue={profile?.zone ?? null}
       />
 
       {showDatePicker && (

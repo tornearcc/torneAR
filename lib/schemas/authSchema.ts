@@ -43,8 +43,28 @@ export const signUpSchema = z.object({
     .min(PASSWORD_MIN_LENGTH, `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`),
 });
 
+/**
+ * RECUPERACIÓN — mismo mínimo que el registro, más la confirmación.
+ *
+ * La repetición no es decorativa acá: el usuario está tipeando a ciegas una
+ * clave que va a necesitar para volver a entrar, y un error de tipeo lo deja
+ * afuera obligándolo a repetir todo el circuito del mail.
+ */
+export const updatePasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`),
+    confirmPassword: z.string().min(1, 'Repetí la contraseña'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirmPassword'],
+  });
+
 export type SignInFormData = z.infer<typeof signInSchema>;
 export type SignUpFormData = z.infer<typeof signUpSchema>;
+export type UpdatePasswordFormData = z.infer<typeof updatePasswordSchema>;
 
 /**
  * Ambos schemas producen la misma forma ({ email, password }), asi que el

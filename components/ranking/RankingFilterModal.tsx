@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
+import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
 import type { RankingFiltersState } from './types';
 
 const CATEGORIES = ['HOMBRES', 'MUJERES', 'MIXTO'] as const;
@@ -12,11 +13,11 @@ interface Props {
     onClose: () => void;
     filters: RankingFiltersState;
     onApply: (filters: RankingFiltersState) => void;
-    availableZones: string[];
 }
 
-export function RankingFilterModal({ visible, onClose, filters, onApply, availableZones }: Props) {
+export function RankingFilterModal({ visible, onClose, filters, onApply }: Props) {
     const [localFilters, setLocalFilters] = useState<RankingFiltersState>(filters);
+    const [zonePickerOpen, setZonePickerOpen] = useState(false);
 
     useEffect(() => {
         if (visible) setLocalFilters(filters);
@@ -32,20 +33,36 @@ export function RankingFilterModal({ visible, onClose, filters, onApply, availab
             onClose={onClose}
             dismissOnBackdropPress
             surfaceClassName="bg-[#1C1B1B]"
+            /* Hermano del sheet DENTRO del <Modal>: anidar dos Modal nativos
+               rompe el back y el teclado en Android. */
+            overlay={
+                <ZoneSelectSheet
+                    inline
+                    visible={zonePickerOpen}
+                    onClose={() => setZonePickerOpen(false)}
+                    selectedValue={localFilters.zone}
+                    onSelect={(zone) => setLocalFilters(prev => ({ ...prev, zone: zone.value }))}
+                    title="Filtrar por zona"
+                    clearLabel="Global (todas)"
+                    onClear={() => setLocalFilters(prev => ({ ...prev, zone: null }))}
+                />
+            }
         >
             <View className="px-5 pt-3" style={{ flexShrink: 1 }}>
                 <View className="mx-auto mb-5 h-1 w-9 rounded-full bg-surface-high" />
                 <Text className="mb-5 font-displayBlack text-lg uppercase tracking-widest text-neutral-on-surface">Filtros</Text>
 
                 <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Zona */}
-                    <Text className="text-neutral-on-surface-variant text-sm font-medium mb-3 uppercase tracking-wider">Zona</Text>
-                    <View className="mb-5 flex-row flex-wrap gap-2">
-                        {availableZones.map(zone => (
-                            <TouchableOpacity key={zone} onPress={() => updateFilter('zone', zone)} className={`rounded-full border px-3.5 py-2 ${localFilters.zone === zone ? 'border-transparent bg-brand-primary' : 'border-transparent bg-surface-high'}`}>
-                                <Text className={`font-uiBold text-xs ${localFilters.zone === zone ? 'text-surface-base' : 'text-neutral-on-surface-variant'}`}>{zone}</Text>
-                            </TouchableOpacity>
-                        ))}
+                    {/* Zona — un chip por zona era una grilla de 245 vistas
+                        montadas de golpe, y empujaba Formato y Categoría fuera
+                        de la pantalla. */}
+                    <View className="mb-5">
+                        <ZoneSelectTrigger
+                            label="Zona"
+                            value={localFilters.zone}
+                            placeholder="Global"
+                            onPress={() => setZonePickerOpen(true)}
+                        />
                     </View>
 
                     {/* Formato */}

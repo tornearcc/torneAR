@@ -11,7 +11,6 @@ import {
   fetchRankingWithFilters, searchRivalTeams, fetchPlayerLeaderboard,
   fetchActiveSeason, fetchActiveTeamRankingInfo,
 } from '@/lib/ranking-data';
-import { fetchActiveZoneNames } from '@/lib/zones-data';
 import { Logger } from '@/lib/logger';
 import type { RankingFiltersState, RankingMode, LeaderboardStat, RankingTeamEntry, RivalTeamEntry, PlayerLeaderboardEntry } from '@/components/ranking/types';
 
@@ -87,7 +86,6 @@ export default function RankingScreen() {
   const [activeSeason, setActiveSeason] = useState<{ id: string; name: string } | null>(null);
 
   // NUEVO: Estado para guardar las zonas de la BD
-  const [availableZones, setAvailableZones] = useState<string[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RivalTeamEntry[]>([]);
@@ -170,14 +168,13 @@ export default function RankingScreen() {
     void (async () => {
       try {
         setLoading(true);
-        const [season, zones] = await Promise.all([
-          fetchActiveSeason(),
-          fetchActiveZoneNames(),
-        ]);
+        // El catálogo de zonas ya no se pide acá: el sheet de filtros lo carga
+        // por su cuenta (cacheado por sesión en `fetchZoneCatalog`) y así el
+        // ranking no espera una query que sólo se usa al abrir los filtros.
+        const season = await fetchActiveSeason();
         if (cancelled) return;
 
         setActiveSeason(season);
-        setAvailableZones(zones);
 
         let elo: number | null = null;
         let defaults: RankingFiltersState = { zone: null, category: null, format: null, rivalesIdeales: false };
@@ -544,7 +541,6 @@ export default function RankingScreen() {
         onClose={() => setFilterModalVisible(false)}
         filters={filters}
         onApply={handleApplyFilters}
-        availableZones={availableZones}
       />
       {AlertComponent}
     </View>

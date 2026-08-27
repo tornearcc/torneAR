@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
-import { OAUTH_CALLBACK_PATH } from '@/lib/deep-linking';
+import { OAUTH_CALLBACK_PATH, PASSWORD_RECOVERY_PATH } from '@/lib/deep-linking';
 import { LEGAL_VERSIONS } from '@/constants/legal';
 import { AuthError, User } from '@supabase/supabase-js';
 
@@ -103,8 +103,85 @@ export async function signUp(
   });
 }
 
+/**
+ * Envía el mail de recuperación apuntando de vuelta a la app.
+ *
+ * Sin `redirectTo`, Supabase usa el **Site URL** del proyecto — la landing de
+ * `tornear.vercel.app` — y el link terminaba abriendo la web, que no tiene
+ * pantalla de cambio de contraseña. De ahí el síntoma original.
+ *
+ * `Linking.createURL` en vez del literal `'tornear://reset-password'`, igual
+ * que en `signInWithGoogle()`: la URL sale del scheme declarado en `app.json`,
+ * así que no hay una constante que se desincronice si ese scheme cambia.
+ *
+ * En dev-client y en producción resuelve a `tornear://reset-password` — el
+ * MISMO valor en los dos, así que una sola entrada `tornear://**` en la
+ * allowlist cubre desarrollo y producción y no hay nada que tocar al publicar.
+ *
+ * En Expo Go devolvería `exp://<ip>:8081/--/reset-password`, pero eso acá es
+ * teórico: esta app no corre en Expo Go (config plugin propio en
+ * `plugins/withInstagramQueries.js`, más `react-native-share` y
+ * `react-native-view-shot`, que no vienen en ese runtime), y aunque corriera,
+ * el gating de `lib/deep-linking.ts` descarta todo scheme distinto de
+ * `tornear`. El flujo se prueba con `npx expo run:android`.
+ *
+ * ⚠️ La URL resultante tiene que estar en la allowlist de **Authentication →
+ * URL Configuration → Redirect URLs** del proyecto. Supabase ignora en silencio
+ * cualquier `redirectTo` que no esté ahí y cae de nuevo al Site URL — es decir,
+ * el bug vuelve sin ningún error visible.
+ */
 export async function sendPasswordReset(email: string): Promise<{ error: AuthError | null }> {
-  return supabase.auth.resetPasswordForEmail(email);
+  return supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: Linking.createURL(PASSWORD_RECOVERY_PATH),
+  });
+}
+
+/**
+ * Canjea la sesión de recuperación que viene en el link del mail.
+ *
+ * En nativo esto NO ocurre solo: `detectSessionInUrl` está apagado fuera de web
+ * (ver lib/supabase.ts) porque no hay `window.location` que inspeccionar. Sin
+ * este canje explícito no hay sesión, `updateUser` falla con "Auth session
+ * missing" y —esto es lo que sorprende— `onAuthStateChange` **nunca emite
+ * `PASSWORD_RECOVERY`**: ese evento lo produce el propio `detectSessionInUrl`,
+ * así que en iOS/Android no se dispara jamás.
+ *
+ * Reusa `establishSessionFromUrl`, el mismo canje del callback de Google:
+ * Supabase devuelve los tokens con idéntica forma en los dos flujos.
+ */
+export async function completePasswordRecovery(url: string): Promise<{ error: AuthError | null }> {
+  const params = parseCallbackParams(url);
+
+  /*
+   * Plantilla con `{{ .TokenHash }}`: el mail linkea DIRECTO a la app
+   * (`tornear://reset-password?token_hash=…&type=recovery`) en vez de pasar por
+   * `/auth/v1/verify`. Es la variante que Supabase recomienda para mobile
+   * porque evita el salto por el navegador, y ahí no hay tokens que leer sino
+   * un hash que se canjea con `verifyOtp`.
+   *
+   * Se chequea primero porque es el único caso que `establishSessionFromUrl` no
+   * sabría resolver: no trae ni `code` ni `access_token`, así que caería en
+   * "el proveedor no devolvió una sesión válida".
+   */
+  const tokenHash = params.get('token_hash');
+  if (tokenHash) {
+    const { error } = await supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash });
+    return { error };
+  }
+
+  return establishSessionFromUrl(url);
+}
+
+/**
+ * Escribe la contraseña nueva sobre la sesión de recuperación vigente.
+ *
+ * `updateUser` opera sobre el usuario de la sesión actual: si el canje de
+ * arriba no corrió, esto falla — no hay forma de cambiarle la contraseña a
+ * alguien sin su sesión, que es justamente la garantía del flujo.
+ */
+export async function updatePassword(newPassword: string): Promise<{ error: AuthError | null }> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  return { error };
 }
 
 /**
@@ -136,11 +213,22 @@ function parseCallbackParams(url: string): URLSearchParams {
   return new URLSearchParams(fragment || query);
 }
 
-async function completeOAuthSession(url: string): Promise<{ error: AuthError | null }> {
+/**
+ * Arma la sesión a partir de una URL de vuelta de Supabase.
+ *
+ * Compartida por los DOS flujos que reciben credenciales por deep link —el
+ * callback de Google y el link de recuperación— porque Supabase devuelve los
+ * tokens con la misma forma en ambos. Antes esto era `completeOAuthSession` y
+ * vivía atado al login federado; duplicarlo para recuperación habría dejado dos
+ * copias del parseo implicit/PKCE que hay que mantener en sync.
+ */
+async function establishSessionFromUrl(url: string): Promise<{ error: AuthError | null }> {
   const params = parseCallbackParams(url);
 
   // Google/Supabase reportan el rechazo por la propia URL de vuelta, no por una
   // excepción: si no lo miramos, terminaríamos con un "sesión inválida" opaco.
+  // En recuperación es el caso más frecuente de todos: `error_code=otp_expired`
+  // cuando el link ya venció o ya se usó.
   const providerError = params.get('error_description') ?? params.get('error');
   if (providerError) {
     return { error: oauthError(providerError) };
@@ -222,6 +310,6 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
     return { error: null, cancelled: true };
   }
 
-  const { error: sessionError } = await completeOAuthSession(result.url);
+  const { error: sessionError } = await establishSessionFromUrl(result.url);
   return { error: sessionError, cancelled: false };
 }

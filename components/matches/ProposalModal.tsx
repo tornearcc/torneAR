@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { useDistanceResolver } from '@/hooks/useDistanceResolver';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
+import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
+import type { ZoneOption } from '@/components/ui/ZoneSelect';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getProposalErrorMessage } from '@/lib/match-actions';
 import type { MatchProposalFormData } from '@/components/matches/types';
@@ -66,6 +68,7 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   // desactivaba la validación geoespacial sin ningún aviso.
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const [venues, setVenues] = useState<VenueEntry[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<VenueEntry | null>(null);
   const [loadingVenues, setLoadingVenues] = useState(false);
@@ -197,6 +200,21 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
 
   const selectedZoneName = zones.find((z) => z.id === selectedZoneId)?.name ?? null;
 
+  /*
+   * Acá el `value` es el uuid y no el nombre: lo que se guarda en la propuesta
+   * es `venues.zone_id`. El subtítulo con la cantidad de complejos evita el
+   * callejón de elegir una zona y encontrarla vacía.
+   */
+  const zoneOptions = useMemo<ZoneOption[]>(
+    () =>
+      zones.map((z) => ({
+        value: z.id,
+        name: z.name,
+        subtitle: `${z.venueCount} ${z.venueCount === 1 ? 'complejo' : 'complejos'}`,
+      })),
+    [zones],
+  );
+
   // Un partido de RANKING mueve ELO y se valida con geofence al hacer check-in:
   // sin `venue_id` no hay coordenadas contra las cuales medir, así que la cancha
   // oficial es obligatoria. En AMISTOSO queda opcional, pero si se define tiene
@@ -220,8 +238,23 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
       onClose={handleClose}
       maxHeight="80%"
       /* Dentro del <Modal>: si se montara en la pantalla padre quedaría detrás
-         de esa ventana nativa y el error sería invisible. */
-      overlay={AlertComponent}
+         de esa ventana nativa y el error sería invisible. Mismo motivo para el
+         selector de zonas, que además evita anidar dos Modal nativos. */
+      overlay={
+        <>
+          {AlertComponent}
+          <ZoneSelectSheet
+            inline
+            visible={zonePickerOpen}
+            onClose={() => setZonePickerOpen(false)}
+            selectedValue={selectedZoneId}
+            onSelect={(zone) => setSelectedZoneId(zone.value)}
+            title="Zona del partido"
+            options={zoneOptions}
+            optionsLoading={!zonesLoaded}
+          />
+        </>
+      }
     >
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4">
@@ -355,42 +388,22 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
         <Text className="font-ui mb-2 text-xs uppercase tracking-widest text-neutral-outline">
           Zona
         </Text>
-        {!zonesLoaded ? (
-          <ActivityIndicator color="#53E076" style={{ marginBottom: 16, alignSelf: 'flex-start' }} />
-        ) : zones.length === 0 ? (
+        {zonesLoaded && zones.length === 0 ? (
           <View className="mb-4 rounded-xl bg-surface-high px-4 py-3">
             <Text className="font-ui text-sm text-neutral-on-surface-variant">
               Todavía no hay zonas con complejos cargados.
             </Text>
           </View>
         ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="mb-4"
-            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-          >
-            {zones.map((z) => (
-              <TouchableOpacity
-                key={z.id}
-                onPress={() => setSelectedZoneId(z.id === selectedZoneId ? null : z.id)}
-                activeOpacity={0.8}
-                className={`rounded-xl px-4 py-2.5 ${
-                  selectedZoneId === z.id
-                    ? 'bg-brand-primary'
-                    : 'bg-surface-high'
-                }`}
-              >
-                <Text
-                  className={`font-uiBold text-sm ${
-                    selectedZoneId === z.id ? 'text-[#003914]' : 'text-neutral-on-surface-variant'
-                  }`}
-                >
-                  {z.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View className="mb-4">
+            <ZoneSelectTrigger
+              value={selectedZoneName}
+              placeholder="Elegí la zona"
+              loading={!zonesLoaded}
+              disabled={!zonesLoaded}
+              onPress={() => setZonePickerOpen(true)}
+            />
+          </View>
         )}
 
         {/* ── Venue (shown after zone is selected) ── */}

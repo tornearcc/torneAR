@@ -9,7 +9,7 @@ import {
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
 import { HeroButton } from '@/components/ui/HeroButton';
-import { fetchZones } from '@/lib/team-create-data';
+import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
 import { MarketSortBy, TabType } from './types';
 
 const DAYS_OF_WEEK = [
@@ -44,7 +44,7 @@ export function FilterModal({
   const [localZone, setLocalZone] = useState<string | null>(zone);
   const [localDays, setLocalDays] = useState<string[]>(selectedDays);
   const [localSortBy, setLocalSortBy] = useState<MarketSortBy>(sortBy);
-  const [zones, setZones] = useState<string[]>([]);
+  const [zonePickerOpen, setZonePickerOpen] = useState(false);
 
   // Initialize local state from props when modal opens
   useEffect(() => {
@@ -54,11 +54,6 @@ export function FilterModal({
       setLocalSortBy(sortBy);
     }
   }, [visible, zone, selectedDays, sortBy]);
-
-  // Fetch zones once on mount
-  useEffect(() => {
-    fetchZones().then((fetched) => setZones(fetched));
-  }, []);
 
   function toggleDay(day: string) {
     setLocalDays((prev) =>
@@ -72,7 +67,25 @@ export function FilterModal({
   }
 
   return (
-    <SafeAreaBottomSheet visible={visible} onClose={onClose} maxHeight="85%">
+    <SafeAreaBottomSheet
+      visible={visible}
+      onClose={onClose}
+      maxHeight="85%"
+      /* Adentro del <Modal>, no como hermano del sheet en la pantalla: dos
+         ventanas nativas anidadas se pelean el back y el teclado en Android. */
+      overlay={
+        <ZoneSelectSheet
+          inline
+          visible={zonePickerOpen}
+          onClose={() => setZonePickerOpen(false)}
+          selectedValue={localZone}
+          onSelect={(selected) => setLocalZone(selected.value)}
+          title="Filtrar por zona"
+          clearLabel="Cualquier zona"
+          onClear={() => setLocalZone(null)}
+        />
+      }
+    >
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 pt-5 pb-4">
         <Text className="text-neutral-on-surface text-xl font-semibold">
@@ -92,55 +105,17 @@ export function FilterModal({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
-        {/* Zone Section */}
+        {/* Zone Section
+            Antes: un chip por zona. Con 245 zonas activas eran 245 vistas
+            montadas de una dentro del ScrollView del sheet, y el filtro más
+            usado quedaba a varias pantallas de scroll de distancia. */}
         <View className="px-5 mb-6">
-          <Text className="text-neutral-on-surface-variant text-sm font-medium mb-3 uppercase tracking-wider">
-            Zona
-          </Text>
-          <View className="flex-row flex-wrap gap-2">
-            {/* "Cualquiera" chip */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setLocalZone(null)}
-              className={`px-4 py-2 rounded-full border ${
-                localZone === null
-                  ? 'bg-brand-primary border-brand-primary'
-                  : 'bg-surface-high border-surface-high'
-              }`}
-            >
-              <Text
-                className={`text-sm font-medium ${
-                  localZone === null ? 'text-black' : 'text-neutral-on-surface'
-                }`}
-              >
-                Cualquiera
-              </Text>
-            </TouchableOpacity>
-
-            {zones.map((z) => {
-              const isSelected = localZone === z;
-              return (
-                <TouchableOpacity
-                  key={z}
-                  activeOpacity={0.7}
-                  onPress={() => setLocalZone(z)}
-                  className={`px-4 py-2 rounded-full border ${
-                    isSelected
-                      ? 'bg-brand-primary border-brand-primary'
-                      : 'bg-surface-high border-surface-high'
-                  }`}
-                >
-                  <Text
-                    className={`text-sm font-medium ${
-                      isSelected ? 'text-black' : 'text-neutral-on-surface'
-                    }`}
-                  >
-                    {z}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ZoneSelectTrigger
+            label="Zona"
+            value={localZone}
+            placeholder="Cualquiera"
+            onPress={() => setZonePickerOpen(true)}
+          />
         </View>
 
         {/* Day Section — only for TEAMS_LOOKING */}

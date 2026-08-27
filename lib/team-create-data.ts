@@ -1,16 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import { TeamCategory, TeamFormat } from '@/lib/team-options';
 
-export async function fetchZones(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('zones')
-    .select('name')
-    .eq('is_active', true)
-    .order('name', { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []).map((zoneRow) => zoneRow.name);
-}
+// `fetchZones()` vivía acá y era un tercer camino para la misma query que
+// `zones-data.ts`, sin caché. Quedó sin consumidores al unificar el selector;
+// las zonas se piden con `fetchZoneCatalog()` / `fetchActiveZoneNames()`.
 
 export async function createTeam(
   profileId: string,
