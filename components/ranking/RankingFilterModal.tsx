@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
 import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
@@ -19,9 +19,15 @@ export function RankingFilterModal({ visible, onClose, filters, onApply }: Props
     const [localFilters, setLocalFilters] = useState<RankingFiltersState>(filters);
     const [zonePickerOpen, setZonePickerOpen] = useState(false);
 
-    useEffect(() => {
+    // El estado local se re-inicializa desde las props en el flanco de apertura,
+    // ajustándolo durante el render en vez de copiarlo con un efecto: así el
+    // sheet nunca llega a pintar un frame con los filtros de la apertura
+    // anterior. `wasVisible` es lo que detecta ese flanco.
+    const [wasVisible, setWasVisible] = useState(visible);
+    if (visible !== wasVisible) {
+        setWasVisible(visible);
         if (visible) setLocalFilters(filters);
-    }, [visible, filters]);
+    }
 
     const updateFilter = <K extends keyof RankingFiltersState>(key: K, value: RankingFiltersState[K] | null) => {
         setLocalFilters(prev => ({ ...prev, [key]: prev[key] === value ? null : value }));

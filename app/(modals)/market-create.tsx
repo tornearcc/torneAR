@@ -51,10 +51,13 @@ export default function MarketCreateModal() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [zone, setZone] = useState('');
   const [showZonePicker, setShowZonePicker] = useState(false);
-  const [complex, setComplex] = useState('');
-  const [venues, setVenues] = useState<VenueEntry[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<VenueEntry | null>(null);
-  const [loadingVenues, setLoadingVenues] = useState(false);
+  // Canchas de la última zona resuelta. Guardar la zona junto al resultado deja
+  // derivar `venues` y `loadingVenues` en el render, sin encenderlos a mano al
+  // arrancar cada carga (eso sería un setState síncrono dentro del efecto).
+  const [venuesByZone, setVenuesByZone] = useState<{ zone: string; venues: VenueEntry[] } | null>(
+    null,
+  );
   const { label: distanceLabel } = useDistanceResolver();
   const [pitchType, setPitchType] = useState<TeamFormat | null>(null);
 
@@ -111,19 +114,35 @@ export default function MarketCreateModal() {
     }
   }, [profile?.id, fetchMyTeams]);
 
+  const venues = venuesByZone?.zone === zone ? venuesByZone.venues : [];
+  const loadingVenues = Boolean(zone) && venuesByZone?.zone !== zone;
+  // `complex` era un estado que sólo se copiaba desde `selectedVenue`. Derivarlo
+  // además arregla un caso: al deseleccionar la cancha el estado se quedaba con
+  // el nombre viejo y el payload viajaba con `complex` cargado y `venueId`
+  // vacío.
+  const complex = selectedVenue?.name ?? '';
+
+  // Cambiar de zona invalida la cancha elegida. Se ajusta durante el render y no
+  // en un efecto para que no exista un frame con una cancha de la zona anterior
+  // todavía seleccionada.
+  const [venueZone, setVenueZone] = useState(zone);
+  if (zone !== venueZone) {
+    setVenueZone(zone);
+    setSelectedVenue(null);
+  }
+
   // Fetch venues when zone changes
   useEffect(() => {
-    if (!zone) {
-      setVenues([]);
-      setSelectedVenue(null);
-      setComplex('');
-      return;
-    }
-    setLoadingVenues(true);
-    setSelectedVenue(null);
-    setComplex('');
+    if (!zone) return;
+
+    // El flag descarta la respuesta de una zona que ya no es la elegida: sin
+    // esto una respuesta lenta pisaría la caché con la zona vieja y la lista
+    // quedaría cargando para siempre.
+    let cancelled = false;
     fetchVenuesByZoneName(zone)
-      .then(setVenues)
+      .then((list) => {
+        if (!cancelled) setVenuesByZone({ zone, venues: list });
+      })
       .catch((err: unknown) => {
         // Vaciar la lista es indistinguible de "esta zona no tiene canchas":
         // el usuario publica sin sede y nadie se entera de que la carga falló.
@@ -132,15 +151,13 @@ export default function MarketCreateModal() {
           zone,
           error: err,
         });
-        setVenues([]);
-      })
-      .finally(() => setLoadingVenues(false));
-  }, [zone]);
+        if (!cancelled) setVenuesByZone({ zone, venues: [] });
+      });
 
-  // Keep `complex` string in sync with the selected venue (used by createTeamPost)
-  useEffect(() => {
-    if (selectedVenue) setComplex(selectedVenue.name);
-  }, [selectedVenue]);
+    return () => {
+      cancelled = true;
+    };
+  }, [zone]);
 
   const formatDate = (date: Date): string => {
     const dd = String(date.getDate()).padStart(2, '0');

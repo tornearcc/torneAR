@@ -27,32 +27,42 @@ interface ZoneCatalogState {
  */
 export function useZoneCatalog(enabled = true): ZoneCatalogState {
   const [zones, setZones] = useState<ZoneOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // Resultado del último intento terminado. `attempt: -1` es «todavía ninguno».
+  // `loading` y `failed` se derivan de comparar este intento con el actual, en
+  // vez de escribirse a mano al arrancar cada carga: así el efecto no tiene
+  // ningún setState síncrono y no hay un render intermedio donde `loading`
+  // todavía diga `false` con la request ya en vuelo.
+  const [outcome, setOutcome] = useState<{ attempt: number; ok: boolean }>({
+    attempt: -1,
+    ok: false,
+  });
+
+  const settled = outcome.attempt === attempt;
+  const loading = enabled && !settled;
+  const failed = settled && !outcome.ok;
 
   useEffect(() => {
     if (!enabled) return;
 
     let cancelled = false;
-    setLoading(true);
-    setFailed(false);
+    const runAttempt = attempt;
 
     fetchZoneCatalog()
       .then((catalog) => {
         if (cancelled) return;
         setZones(catalog);
+        setOutcome({ attempt: runAttempt, ok: true });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setFailed(true);
+        // `zones` se deja como está: si había un catálogo cargado, seguir
+        // mostrándolo es mejor que vaciar la lista.
+        setOutcome({ attempt: runAttempt, ok: false });
         Logger.warn('No se pudo cargar el catálogo de zonas', {
           scope: 'useZoneCatalog',
           error,
         });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
 
     return () => {

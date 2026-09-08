@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from "expo-router/react-navigation";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
@@ -73,6 +73,12 @@ export default function HomeScreen() {
   // ─── Reloj de la cuenta regresiva ──────────────────────────────────────────
   const [nowTs, setNowTs] = useState(() => Date.now());
 
+  // Instante contra el que se decide cuál es el «próximo partido». Se sella
+  // junto con `viewData` y no en cada tick del reloj a propósito: si avanzara
+  // con el reloj, apenas el partido cruza su horario dejaría de contar como
+  // próximo y la tarjeta saltaría al siguiente en vez de mostrar «ya empezó».
+  const [upcomingRefTs, setUpcomingRefTs] = useState(() => Date.now());
+
   const loadData = useCallback(async () => {
     /*
      * `profile` puede ser un objeto VERDADERO y aun así no tener `id`.
@@ -112,10 +118,12 @@ export default function HomeScreen() {
     try {
       setLoading(true);
       const data = await fetchHomeViewData(profileId);
+      const loadedAt = Date.now();
       setViewData(data);
       // El reloj se resincroniza con cada carga: si la pantalla estuvo horas en
       // segundo plano, `nowTs` quedó viejo y la cuenta arrancaría atrasada.
-      setNowTs(Date.now());
+      setNowTs(loadedAt);
+      setUpcomingRefTs(loadedAt);
 
       // ── TAREA 2 — mini-ranking del contexto de mi equipo ──────────────────
       // Va acá, dentro de la pantalla, y no en `lib/home-data.ts`: son dos pasos
@@ -254,7 +262,7 @@ export default function HomeScreen() {
   // a propósito: ése ya empezó y no hay nada que contar.
   const nextMatch = useMemo(() => {
     if (!viewData) return null;
-    const reference = Date.now();
+    const reference = upcomingRefTs;
     return (
       viewData.upcomingMatches
         .filter(
@@ -269,7 +277,7 @@ export default function HomeScreen() {
             new Date(b.scheduledAt as string).getTime(),
         )[0] ?? null
     );
-  }, [viewData]);
+  }, [viewData, upcomingRefTs]);
 
   const targetTs = nextMatch?.scheduledAt ? new Date(nextMatch.scheduledAt).getTime() : null;
   const msLeft = targetTs === null ? null : targetTs - nowTs;
@@ -283,13 +291,18 @@ export default function HomeScreen() {
   useEffect(() => {
     if (targetTs === null || !isFocused) return;
 
-    setNowTs(Date.now());
-    const intervalId = setInterval(
-      () => setNowTs(Date.now()),
-      isCountingDown ? COUNTDOWN_TICK_MS : IDLE_TICK_MS,
-    );
+    const tick = () => setNowTs(Date.now());
+    // Primera muestra apenas arranca el efecto, pero diferida un turno del
+    // event loop en vez de sincrónica en su cuerpo: al volver del segundo
+    // plano `nowTs` quedó viejo y esperar hasta 30 s mostraría la cuenta
+    // atrasada.
+    const firstTickId = setTimeout(tick, 0);
+    const intervalId = setInterval(tick, isCountingDown ? COUNTDOWN_TICK_MS : IDLE_TICK_MS);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearTimeout(firstTickId);
+      clearInterval(intervalId);
+    };
   }, [targetTs, isCountingDown, isFocused]);
 
   const countdown = useMemo(() => {

@@ -35,7 +35,9 @@ export function usePushNotifications(): void {
   // Guardamos la sesión en un ref para que el listener de taps (registrado una
   // sola vez) siempre lea el estado de auth actual sin re-suscribirse.
   const sessionRef = useRef<Session | null>(session);
-  sessionRef.current = session;
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   // Enruta una URL entrante reutilizando la decisión de gating compartida:
   // si es protegida y no hay sesión la difiere (pending) y el guard la consume

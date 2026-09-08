@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { GlobalLoader } from '@/components/GlobalLoader';
@@ -28,37 +28,46 @@ export default function ProfileStatsScreen() {
   // stats propias tambien se llega con el id explicito desde la tab de Perfil.
   const isOwnProfile = !!profile?.id && profileId === profile.id;
 
-  const [loading, setLoading] = useState(true);
-  const [viewData, setViewData] = useState<ProfileStatsViewData | null>(null);
+  // Resultado de la carga del perfil pedido. Guardar el `profileId` junto al
+  // dato deja derivar `loading` y `viewData` en el render: el efecto no tiene
+  // que encender ni apagar un flag desde su cuerpo síncrono, que es lo que
+  // dispara renders en cascada. `data: null` es «se intentó y falló».
+  const [result, setResult] = useState<{
+    profileId: string;
+    data: ProfileStatsViewData | null;
+  } | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const { showAlert, AlertComponent } = useCustomAlert();
 
-  const loadData = useCallback(async () => {
-    if (!profileId) {
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      setViewData(await fetchProfileStatsViewData(profileId));
-    } catch (error) {
-      Logger.error('No se pudo cargar el detalle de estadísticas del perfil', {
-        scope: 'profile-stats.loadData',
-        profileId,
-        error,
-      });
-      showAlert(
-        'Error al cargar stats',
-        getGenericSupabaseErrorMessage(error, 'No se pudo cargar el detalle de estadísticas.'),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId, showAlert]);
+  const loading = Boolean(profileId) && result?.profileId !== profileId;
+  const viewData = result?.profileId === profileId ? result.data : null;
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (!profileId) return;
+
+    let cancelled = false;
+    fetchProfileStatsViewData(profileId)
+      .then((data) => {
+        if (!cancelled) setResult({ profileId, data });
+      })
+      .catch((error: unknown) => {
+        Logger.error('No se pudo cargar el detalle de estadísticas del perfil', {
+          scope: 'profile-stats.loadData',
+          profileId,
+          error,
+        });
+        if (cancelled) return;
+        setResult({ profileId, data: null });
+        showAlert(
+          'Error al cargar stats',
+          getGenericSupabaseErrorMessage(error, 'No se pudo cargar el detalle de estadísticas.'),
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, showAlert]);
 
   if (loading) return <GlobalLoader label="Cargando stats" />;
 

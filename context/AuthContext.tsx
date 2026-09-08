@@ -21,6 +21,17 @@ type AuthContextType = {
   hydrated: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /**
+   * Conteo de notificaciones sin leer, mantenido acá (no en GlobalHeader) porque
+   * GlobalHeader se monta una vez por tab (5 instancias en simultáneo): si cada
+   * una abre su propio canal realtime `notifications-unread-${profile.id}`,
+   * todas piden el mismo nombre de canal y supabase-js devuelve la misma
+   * instancia ya suscripta a la segunda, lo que revienta con
+   * "cannot add postgres_changes callbacks ... after subscribe()".
+   * Con un único suscriptor acá, GlobalHeader solo lee el valor.
+   */
+  unreadNotificationCount: number;
+  refreshUnreadNotificationCount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -31,6 +42,8 @@ const AuthContext = createContext<AuthContextType>({
   hydrated: false,
   signOut: async () => {},
   refreshProfile: async () => {},
+  unreadNotificationCount: 0,
+  refreshUnreadNotificationCount: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -41,6 +54,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [hydrated, setHydrated] = useState(false);
+  // Conteo crudo del ultimo fetch. Lo que se expone al arbol se deriva abajo:
+  // sin perfil el badge es 0 sin importar lo que haya quedado del anterior.
+  const [unreadCount, setUnreadCount] = useState(0);
   const syncVersionRef = useRef(0);
   const authUserIdRef = useRef<string | null>(null);
 
@@ -189,6 +205,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Declararla explicitamente satisface exhaustive-deps sin silenciar la regla.
   }, [syncAuthState]);
 
+  // Cadena de promesas y no `async`/`await`: esta funcion la llama un efecto, y
+  // todo lo que un `async` hace antes de suspenderse cuenta como setState
+  // sincrono dentro de el. Dentro del callback de `.then`, no.
+  const loadUnreadNotificationsCount = useCallback((): Promise<void> => {
+    const profileId = profile?.id;
+    // Sin perfil no hay nada que contar: el 0 ya lo pone la derivacion de
+    // `unreadNotificationCount`, no hace falta escribirlo.
+    if (!profileId) return Promise.resolve();
+
+    // `Promise.resolve(...)`: el builder de supabase-js es un thenable, no una
+    // Promise, y el contrato del contexto declara `Promise<void>`.
+    return Promise.resolve(
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', profileId)
+        .eq('is_read', false),
+    ).then(({ count, error }) => {
+      // Mismo criterio que ya usaba GlobalHeader: un badge es informacion
+      // accesoria, si el conteo falla lo llevamos a 0 en vez de dejar un
+      // numero viejo colgado.
+      if (error) {
+        Logger.warn('No se pudo contar las notificaciones sin leer; el badge queda en 0', {
+          scope: 'AuthContext.loadUnreadNotificationsCount',
+          profileId,
+          error,
+        });
+      }
+      setUnreadCount(error ? 0 : (count ?? 0));
+    });
+  }, [profile?.id]);
+
+  const unreadNotificationCount = profile?.id ? unreadCount : 0;
+
+  useEffect(() => {
+    void loadUnreadNotificationsCount();
+
+    if (!profile?.id) {
+      return;
+    }
+
+
+    // Único suscriptor de este canal en toda la app: vive acá (una vez), no en
+    // GlobalHeader (una vez por tab montada).
+    const channel = supabase
+      .channel(`notifications-unread-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `profile_id=eq.${profile.id}`,
+        },
+        () => {
+          void loadUnreadNotificationsCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profile?.id, loadUnreadNotificationsCount]);
+
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -206,8 +287,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * cuando cambia alguno de los datos que expone; las tres funciones son estables.
    */
   const value = useMemo(
-    () => ({ session, user, profile, loading, hydrated, signOut, refreshProfile }),
-    [session, user, profile, loading, hydrated, signOut, refreshProfile],
+    () => ({
+      session,
+      user,
+      profile,
+      loading,
+      hydrated,
+      signOut,
+      refreshProfile,
+      unreadNotificationCount,
+      refreshUnreadNotificationCount: loadUnreadNotificationsCount,
+    }),
+    [
+      session,
+      user,
+      profile,
+      loading,
+      hydrated,
+      signOut,
+      refreshProfile,
+      unreadNotificationCount,
+      loadUnreadNotificationsCount,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

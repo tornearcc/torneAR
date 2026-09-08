@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Animated } from 'react-native';
 import { TeamShield } from '@/components/ui/TeamShield';
 import { LiveTimer } from '@/components/matches/LiveTimer';
@@ -45,7 +45,10 @@ function VenueBadge({ isHome }: { isHome: boolean }) {
 }
 
 function LiveBadge() {
-  const pulse = useRef(new Animated.Value(1)).current;
+  // `useState` con inicializador lazy en vez de `useRef(new Animated.Value(1)).current`:
+  // da el mismo valor estable sin leer una ref durante el render (y sin construir
+  // un Animated.Value nuevo que se descarta en cada render).
+  const [pulse] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     const anim = Animated.loop(

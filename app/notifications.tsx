@@ -23,23 +23,29 @@ export default function NotificationsScreen() {
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [openingNotificationId, setOpeningNotificationId] = useState<string | null>(null);
 
+  // Se extrae el id antes de los callbacks: con `profile?.id` directo en el
+  // array de deps, el React Compiler infiere `profile` entero como dependencia
+  // (menos específica que la declarada) y desactiva la memoización de la
+  // pantalla. Con la variable, lo inferido y lo declarado coinciden.
+  const profileId = profile?.id ?? null;
+
   const notifications = useMemo(() => viewData?.notifications ?? [], [viewData?.notifications]);
   const unreadCount = useMemo(() => notifications.filter((item) => !item.is_read).length, [notifications]);
 
   const loadNotificationsData = useCallback(async (showBaseLoader = true) => {
-    if (!profile?.id) {
+    if (!profileId) {
       setLoading(false);
       return;
     }
 
     try {
       if (showBaseLoader) setLoading(true);
-      const data = await fetchNotificationsViewData(profile.id);
+      const data = await fetchNotificationsViewData(profileId);
       setViewData(data);
     } catch (error) {
       Logger.error('No se pudieron cargar las notificaciones', {
         scope: 'notifications.loadNotificationsData',
-        profileId: profile.id,
+        profileId,
         error,
       });
       showAlert(
@@ -49,7 +55,7 @@ export default function NotificationsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [profile?.id, showAlert]);
+  }, [profileId, showAlert]);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,19 +64,19 @@ export default function NotificationsScreen() {
   );
 
   useEffect(() => {
-    if (!profile?.id) {
+    if (!profileId) {
       return;
     }
 
     const channel = supabase
-      .channel(`notifications-screen-${profile.id}`)
+      .channel(`notifications-screen-${profileId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'notifications',
-          filter: `profile_id=eq.${profile.id}`,
+          filter: `profile_id=eq.${profileId}`,
         },
         () => {
           void loadNotificationsData(false);
@@ -81,16 +87,16 @@ export default function NotificationsScreen() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadNotificationsData, profile?.id]);
+  }, [loadNotificationsData, profileId]);
 
   const markAllAsRead = async () => {
-    if (!profile?.id || unreadCount === 0 || !viewData) {
+    if (!profileId || unreadCount === 0 || !viewData) {
       return;
     }
 
     try {
       setMarkingAllRead(true);
-      await markAllNotificationsAsRead(profile.id);
+      await markAllNotificationsAsRead(profileId);
 
       setViewData({
         ...viewData,
@@ -99,7 +105,7 @@ export default function NotificationsScreen() {
     } catch (error) {
       Logger.error('No se pudieron marcar todas las notificaciones como leídas', {
         scope: 'notifications.markAllAsRead',
-        profileId: profile.id,
+        profileId,
         unreadCount,
         error,
       });
