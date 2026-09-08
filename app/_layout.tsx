@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { Inter_500Medium, Inter_700Bold, Inter_900Black } from '@expo-google-fonts/inter';
 import { BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold } from '@expo-google-fonts/barlow-condensed';
 import { Epilogue_700Bold } from '@expo-google-fonts/epilogue';
-import { DarkTheme, ThemeProvider, Theme } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider, Theme } from "expo-router/react-navigation";
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox, StyleSheet, View } from 'react-native';

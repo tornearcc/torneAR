@@ -9,18 +9,15 @@
     "scheme": "tornear",
     "userInterfaceStyle": "dark",
     "primaryColor": "#53E076",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.agussala2003.tornear",
       "associatedDomains": [
-        "applinks:tornear.vercel.app",
         "applinks:tornear.vercel.app"
       ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "TorneAR necesita tu ubicación para verificar que estás en la cancha al hacer check-in.",
         "LSApplicationQueriesSchemes": [
-          "instagram",
           "instagram"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -53,7 +50,6 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.agussala2003.tornear"
     },
