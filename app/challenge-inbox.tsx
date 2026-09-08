@@ -6,7 +6,7 @@ import { useTeamStore } from '@/stores/teamStore';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
-import { fetchChallengesInbox, acceptChallengeWithNotification, updateChallengeStatus, cancelChallenge } from '@/lib/challenge-actions';
+import { fetchChallengesInbox, acceptChallengeWithNotification, updateChallengeStatus, cancelChallenge, getChallengeErrorMessage, isChallengeRuleRejection } from '@/lib/challenge-actions';
 import type { ChallengeInboxEntry } from '@/components/ranking/types';
 import { Logger } from '@/lib/logger';
 
@@ -68,15 +68,29 @@ export default function ChallengesInboxScreen() {
                 'El desafío fue aceptado. Ya tienen un partido en estado Pendiente.',
                 () => router.push({ pathname: '/match-detail' as never, params: { matchId } }),
             );
-        } catch (error: any) {
-            Logger.error('No se pudo aceptar el desafío', {
+        } catch (error: unknown) {
+            const detail = {
                 scope: 'challenge-inbox.handleAccept',
                 challengeId: c.challengeId,
                 opponentTeamId: c.opponentTeamId,
                 activeTeamId,
                 error,
-            });
-            showAlert('Error', error.message || 'No se pudo aceptar el desafío.');
+            };
+
+            // Mismo criterio que ChallengeButton: una regla de negocio se
+            // registra como `info`, no como incidente. Acá el caso típico es un
+            // desafío que quedó viejo — el rival ya no está disponible, o el par
+            // estrenó otro partido de ranking mientras tanto.
+            if (isChallengeRuleRejection(error)) {
+                Logger.info('Aceptación rechazada por una regla de negocio', detail);
+            } else {
+                Logger.error('No se pudo aceptar el desafío', detail);
+            }
+
+            // `accept_challenge` también rechaza con RANKING_MATCH_ACTIVE: entre
+            // que se mandó el desafío y que el rival lo acepta pueden pasar
+            // días, y en el medio el par puede haber estrenado otro partido.
+            showAlert('Error', getChallengeErrorMessage(error, 'No se pudo aceptar el desafío.'));
         } finally {
             setActionLoading(null);
         }

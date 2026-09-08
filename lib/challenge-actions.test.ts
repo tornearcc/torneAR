@@ -7,6 +7,8 @@ import {
   cancelChallenge,
   getActiveChallengeWithTeam,
   fetchChallengesInbox,
+  getChallengeErrorMessage,
+  isChallengeRuleRejection,
 } from './challenge-actions';
 
 const { supabaseMock } = vi.hoisted(() => ({
@@ -57,6 +59,108 @@ describe('sendChallenge', () => {
 
     await expect(sendChallenge('teamA', 'teamB', 'RANKING')).rejects.toThrow('cooldown activo');
   });
+
+  it('propaga el rechazo por partido de ranking sin resolver contra el mismo rival', async () => {
+    supabaseRpcMock.mockResolvedValueOnce({
+      data: null,
+      error: new Error('RANKING_MATCH_ACTIVE: ya hay un partido de ranking sin resolver contra este equipo.'),
+    });
+
+    await expect(sendChallenge('teamA', 'teamB', 'RANKING')).rejects.toThrow('RANKING_MATCH_ACTIVE');
+  });
+});
+
+describe('getChallengeErrorMessage', () => {
+  // El caso que motiva el código: send_challenge rechaza el desafío de ranking
+  // porque el par ya tiene un partido sin resolver (PENDIENTE / CONFIRMADO /
+  // EN_VIVO / EN_DISPUTA). El usuario tiene que entender qué hacer, no leer el
+  // texto del RAISE EXCEPTION.
+  it('traduce RANKING_MATCH_ACTIVE a un mensaje accionable', () => {
+    const error = new Error(
+      'RANKING_MATCH_ACTIVE: ya hay un partido de ranking sin resolver contra este equipo.',
+    );
+
+    const message = getChallengeErrorMessage(error);
+
+    expect(message).toBe(
+      'Ya tenés un partido de ranking sin resolver contra este equipo. Jugalo y cargá el resultado antes de volver a desafiarlos.',
+    );
+    // Nunca el texto crudo del servidor, ni el código pelado.
+    expect(message).not.toContain('RANKING_MATCH_ACTIVE');
+  });
+
+  it('traduce los otros códigos de las RPCs de desafío', () => {
+    expect(getChallengeErrorMessage(new Error('TEAM_INACTIVE: ese equipo está dado de baja.')))
+      .toContain('dado de baja');
+    expect(getChallengeErrorMessage(new Error('TEAM_NOT_FOUND: alguno de los equipos no existe')))
+      .toContain('No encontramos');
+  });
+
+  it('deja pasar los mensajes de dominio que ya vienen redactados', () => {
+    // Sin prefijo de código: el texto de la RPC es la explicación. Mandarlo al
+    // traductor genérico lo reemplazaría por "No se pudo completar la operación".
+    const cooldown = 'Deben pasar 30 días desde el último partido de ranking entre estos equipos.';
+
+    expect(getChallengeErrorMessage(new Error(cooldown))).toBe(cooldown);
+  });
+
+  it('usa el traductor genérico para los errores técnicos', () => {
+    expect(getChallengeErrorMessage(new Error('Network request failed')))
+      .toContain('No hay conexion con el servidor');
+    expect(getChallengeErrorMessage(new Error('new row violates row-level security policy')))
+      .toContain('No tienes permisos');
+  });
+
+  it('cae al fallback cuando el error no trae mensaje', () => {
+    expect(getChallengeErrorMessage({}, 'No se pudo enviar el desafío.')).toBe(
+      'No se pudo enviar el desafío.',
+    );
+  });
+});
+
+describe('isChallengeRuleRejection', () => {
+  // Forma real del error que devuelve supabase-js cuando una RPC hace
+  // RAISE EXCEPTION: el SQLSTATE de plpgsql sin código explícito es P0001.
+  const rpcError = (message: string, code = 'P0001') => ({
+    code,
+    details: null,
+    hint: null,
+    message,
+  });
+
+  it('reconoce los frenos de negocio por el SQLSTATE P0001', () => {
+    expect(
+      isChallengeRuleRejection(
+        rpcError('RANKING_MATCH_ACTIVE: ya hay un partido de ranking sin resolver contra este equipo.'),
+      ),
+    ).toBe(true);
+
+    // Los que no llevan prefijo de código también entran: lo que los define es
+    // el P0001, no el texto.
+    expect(
+      isChallengeRuleRejection(
+        rpcError('Deben pasar 30 días desde el último partido de ranking entre estos equipos.'),
+      ),
+    ).toBe(true);
+    expect(isChallengeRuleRejection(rpcError('Máximo 3 partidos de ranking por temporada entre los mismos equipos.'))).toBe(true);
+  });
+
+  it('NO marca como regla de negocio a las fallas del sistema', () => {
+    // Unique violation, RLS y red: esos sí tienen que seguir siendo `error`.
+    expect(isChallengeRuleRejection(rpcError('duplicate key value violates unique constraint', '23505'))).toBe(false);
+    expect(isChallengeRuleRejection(rpcError('new row violates row-level security policy', '42501'))).toBe(false);
+    expect(isChallengeRuleRejection(new Error('Network request failed'))).toBe(false);
+    expect(isChallengeRuleRejection(null)).toBe(false);
+    expect(isChallengeRuleRejection('boom')).toBe(false);
+  });
+
+  it('cae al prefijo de dominio si se perdió el `code` en el camino', () => {
+    // Un wrapper que sólo conserva el mensaje sigue siendo reconocible.
+    expect(
+      isChallengeRuleRejection(new Error('RANKING_MATCH_ACTIVE: ya hay un partido sin resolver.')),
+    ).toBe(true);
+    expect(isChallengeRuleRejection(new Error('TEAM_INACTIVE: ese equipo está dado de baja.'))).toBe(true);
+  });
 });
 
 describe('acceptChallengeWithNotification', () => {
@@ -76,6 +180,19 @@ describe('acceptChallengeWithNotification', () => {
     supabaseRpcMock.mockResolvedValueOnce({ data: null, error: new Error('No autorizado') });
 
     await expect(acceptChallengeWithNotification('c1', 'teamFrom')).rejects.toThrow('No autorizado');
+  });
+
+  // La guarda de partido de ranking activo vive también en accept_challenge:
+  // entre el envío del desafío y su aceptación pueden pasar días.
+  it('propaga el rechazo por partido de ranking sin resolver', async () => {
+    supabaseRpcMock.mockResolvedValueOnce({
+      data: null,
+      error: new Error('RANKING_MATCH_ACTIVE: ya hay un partido de ranking sin resolver contra este equipo.'),
+    });
+
+    await expect(acceptChallengeWithNotification('c1', 'teamFrom')).rejects.toThrow(
+      'RANKING_MATCH_ACTIVE',
+    );
   });
 });
 
