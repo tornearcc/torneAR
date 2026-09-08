@@ -1,4 +1,4 @@
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -255,10 +255,13 @@ export function ZoneSelectSheet({
   }, [clearLabel, suggestions, suggestedValue, suggestedLabel, results, selectedValue]);
 
   // Cada apertura arranca limpia: encontrarse el sheet filtrado por lo que se
-  // buscó la vez anterior parece una lista incompleta.
-  useEffect(() => {
+  // buscó la vez anterior parece una lista incompleta. Se ajusta durante el
+  // render en el flanco de cierre, en lugar de con un efecto que copie estado.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (!visible) setQuery('');
-  }, [visible]);
+  }
 
   const handleSelect = useCallback(
     (option: ZoneOption) => {
@@ -430,6 +433,8 @@ export function ZoneSelectSheet({
  * Repite el cálculo de padding inferior de `SafeAreaBottomSheet` (inset en
  * reposo, alto del teclado cuando está abierto) porque acá no hay ventana
  * nativa propia que reciba los insets: los toma de la que ya está montada.
+ * Eso incluye repetir que la compensación es sólo de iOS — ver el punto 3 del
+ * comentario de `SafeAreaBottomSheet`.
  */
 function ZoneSelectOverlay({
   visible,
@@ -446,7 +451,10 @@ function ZoneSelectOverlay({
 
   if (!visible) return null;
 
-  const paddingBottom = keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : restingInset;
+  // Sólo iOS: en Android la ventana ya se redimensiona con el teclado y sumar
+  // este padding lo empujaría el doble. Mismo criterio que `SafeAreaBottomSheet`.
+  const paddingBottom =
+    Platform.OS === 'ios' && keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : restingInset;
 
   return (
     // `elevation` además de `zIndex`: en Android el orden de pintado lo decide

@@ -166,6 +166,10 @@ export function GuestJoinModal({ visible, onClose, onJoined }: Props) {
       onClose={handleClose}
       overlay={AlertComponent}
       maxHeight="80%"
+      /* El campo del código de invitado necesita que el sheet se levante con el
+         teclado: en iOS un <Modal> nativo no reacciona salvo que el
+         KeyboardAvoidingView esté adentro, que es lo que monta esta prop. */
+      avoidKeyboard
     >
       {/* Header fijo: queda fuera del ScrollView para que no se vaya con el
           contenido al scrollear. */}
