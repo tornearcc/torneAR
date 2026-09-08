@@ -25,7 +25,10 @@ export default function TeamStatsScreen() {
   const { profile } = useAuth();
   const { teamId, viewerTeamId } = useLocalSearchParams<{ teamId: string, viewerTeamId?: string }>();
 
-  const [loading, setLoading] = useState(true);
+  // `loading` se deriva de si la carga del equipo pedido ya terminó. El efecto
+  // no enciende ni apaga el flag desde su cuerpo síncrono —eso dispara renders
+  // en cascada—: sólo lo marca como terminado desde el `.finally`.
+  const [settled, setSettled] = useState(false);
   const [viewData, setViewData] = useState<TeamStatsViewData | null>(null);
   const { showAlert, AlertComponent } = useCustomAlert();
   const [h2hMatches, setH2hMatches] = useState<H2HMatch[]>([]);
@@ -33,16 +36,23 @@ export default function TeamStatsScreen() {
   const [teamBadges, setTeamBadges] = useState<TeamBadgeItem[]>([]);
 
   const isRival = Boolean(viewerTeamId && viewerTeamId !== teamId);
+  // Se extrae el id antes del callback: con `profile?.id` directo en el array
+  // de deps, el React Compiler infiere `profile` entero como dependencia
+  // —menos específica que la declarada— y desactiva la memoización de la
+  // pantalla. Con la variable, lo inferido y lo declarado coinciden.
+  const profileId = profile?.id ?? null;
 
-  const loadData = useCallback(async () => {
-    if (!teamId) {
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      const data = await fetchTeamStatsViewData(teamId, profile?.id ?? null);
-      setViewData(data);
+  const loading = Boolean(teamId) && !settled;
+
+  // La parte async no toca estado: junta todo y lo devuelve. Las escrituras
+  // viven en los callbacks de `.then`/`.catch`/`.finally`, que es lo único que
+  // el React Compiler no considera síncrono respecto del efecto que llama a
+  // esta función.
+  const loadData = useCallback(() => {
+    if (!teamId) return;
+
+    const fetchAll = async () => {
+      const data = await fetchTeamStatsViewData(teamId, profileId);
 
       // Los tres `.catch` de abajo degradan a vacío a propósito (una sección
       // secundaria no debe tumbar la pantalla), pero sin telemetría eran
@@ -55,51 +65,69 @@ export default function TeamStatsScreen() {
         });
         return [];
       });
-      setTeamBadges(badges);
 
-      if (isRival && viewerTeamId) {
-        const [h2h, challenged] = await Promise.all([
-          fetchTeamH2H(viewerTeamId, teamId).catch((error: unknown) => {
-            Logger.warn('No se pudo cargar el head-to-head; se muestra vacío', {
-              scope: 'team-stats.loadData',
-              teamId,
-              viewerTeamId,
-              error,
-            });
-            return [];
-          }),
-          getActiveChallengeWithTeam(viewerTeamId, teamId).catch((error: unknown) => {
-            // Degradar a `false` habilita el botón de desafío: si ya había uno
-            // activo, el usuario se come el rechazo del servidor sin saber por qué.
-            Logger.warn('No se pudo verificar si ya existe un desafío activo; se asume que no', {
-              scope: 'team-stats.loadData',
-              teamId,
-              viewerTeamId,
-              error,
-            });
-            return false;
-          }),
-        ]);
-        setH2hMatches(h2h as H2HMatch[]);
-        setAlreadyChallenged(challenged as boolean);
+      if (!isRival || !viewerTeamId) {
+        return { data, badges, h2h: [] as H2HMatch[], challenged: false };
       }
-    } catch (error) {
-      Logger.error('No se pudo cargar el detalle de stats del equipo', {
-        scope: 'team-stats.loadData',
-        teamId,
-        viewerTeamId,
-        error,
-      });
-      showAlert(
-        'Error al cargar stats',
-        getGenericSupabaseErrorMessage(error, 'No se pudo cargar el detalle del equipo.'),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [teamId, viewerTeamId, isRival, profile?.id, showAlert]);
+
+      const [h2h, challenged] = await Promise.all([
+        fetchTeamH2H(viewerTeamId, teamId).catch((error: unknown) => {
+          Logger.warn('No se pudo cargar el head-to-head; se muestra vacío', {
+            scope: 'team-stats.loadData',
+            teamId,
+            viewerTeamId,
+            error,
+          });
+          return [];
+        }),
+        getActiveChallengeWithTeam(viewerTeamId, teamId).catch((error: unknown) => {
+          // Degradar a `false` habilita el botón de desafío: si ya había uno
+          // activo, el usuario se come el rechazo del servidor sin saber por qué.
+          Logger.warn('No se pudo verificar si ya existe un desafío activo; se asume que no', {
+            scope: 'team-stats.loadData',
+            teamId,
+            viewerTeamId,
+            error,
+          });
+          return false;
+        }),
+      ]);
+
+      return { data, badges, h2h: h2h as H2HMatch[], challenged: challenged as boolean };
+    };
+
+    return fetchAll()
+      .then(({ data, badges, h2h, challenged }) => {
+        setViewData(data);
+        setTeamBadges(badges);
+        setH2hMatches(h2h);
+        setAlreadyChallenged(challenged);
+      })
+      .catch((error: unknown) => {
+        Logger.error('No se pudo cargar el detalle de stats del equipo', {
+          scope: 'team-stats.loadData',
+          teamId,
+          viewerTeamId,
+          error,
+        });
+        showAlert(
+          'Error al cargar stats',
+          getGenericSupabaseErrorMessage(error, 'No se pudo cargar el detalle del equipo.'),
+        );
+      })
+      .finally(() => setSettled(true));
+  }, [teamId, viewerTeamId, isRival, profileId, showAlert]);
 
   useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  // Al recargar tras un desafío se vuelve a mostrar el loader de pantalla
+  // completa, como hacía el `setLoading(true)` que había al principio de la
+  // carga. Va acá —en el handler del evento— y no dentro de `loadData`, que
+  // también la llama el efecto.
+  const reloadAfterChallenge = useCallback(() => {
+    setSettled(false);
     void loadData();
   }, [loadData]);
 
@@ -154,7 +182,7 @@ export default function TeamStatsScreen() {
               matchType="RANKING"
               showAlert={showAlert}
               alreadyChallenged={alreadyChallenged}
-              onSuccess={loadData}
+              onSuccess={reloadAfterChallenge}
             />
             <ChallengeButton
               challengerTeamId={viewerTeamId}
@@ -162,7 +190,7 @@ export default function TeamStatsScreen() {
               matchType="AMISTOSO"
               showAlert={showAlert}
               alreadyChallenged={alreadyChallenged}
-              onSuccess={loadData}
+              onSuccess={reloadAfterChallenge}
             />
           </View>
         )}

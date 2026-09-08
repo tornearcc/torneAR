@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isUsernameTaken } from '@/lib/username-availability';
 import { userProfileSchema } from '@/lib/schemas/userSchema';
 import { Logger } from '@/lib/logger';
@@ -48,35 +48,36 @@ export function useUsernameAvailability(
   username: string,
   { currentUsername, excludeProfileId }: Options = {},
 ): UsernameAvailability {
-  const [status, setStatus] = useState<UsernameAvailability>('idle');
-  const cacheRef = useRef(new Map<string, boolean>());
+  // La caché vive en estado y no en una ref porque el resultado del hook se
+  // deriva de ella durante el render, y leer una ref en render no está
+  // permitido. Se reemplaza el Map entero en cada escritura para que el cambio
+  // se propague.
+  const [cache, setCache] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+  // Valor cuya consulta falló. Se guarda el texto y no un booleano para que el
+  // 'error' no se arrastre al siguiente username tipeado.
+  const [failedValue, setFailedValue] = useState<string | null>(null);
 
   const normalized = username.trim().toLowerCase();
   const hasValidFormat = userProfileSchema.shape.username.safeParse(normalized).success;
   const isOwnUsername = normalized === currentUsername?.trim().toLowerCase();
+  const isInactive = !hasValidFormat || isOwnUsername;
 
   useEffect(() => {
-    if (!hasValidFormat || isOwnUsername) {
-      setStatus('idle');
-      return;
-    }
-
-    const cached = cacheRef.current.get(normalized);
-    if (cached !== undefined) {
-      setStatus(cached ? 'taken' : 'available');
-      return;
-    }
-
-    setStatus('checking');
+    // Sin consulta que hacer: 'idle' y el resultado cacheado se derivan abajo,
+    // no hace falta escribirlos en un estado desde acá.
+    if (isInactive || cache.has(normalized)) return;
 
     // El flag de cancelación cubre las dos vías por las que este efecto queda
     // obsoleto: otra tecla (cambia `normalized`) o el desmontaje.
     let cancelled = false;
     const timer = setTimeout(() => {
+      // Si este valor había fallado antes, se limpia al reintentar para que
+      // vuelva a leerse como 'checking' mientras viaja la consulta.
+      setFailedValue((prev) => (prev === normalized ? null : prev));
       isUsernameTaken(normalized, excludeProfileId)
         .then((taken) => {
-          cacheRef.current.set(normalized, taken);
-          if (!cancelled) setStatus(taken ? 'taken' : 'available');
+          if (cancelled) return;
+          setCache((prev) => new Map(prev).set(normalized, taken));
         })
         .catch((error: unknown) => {
           // Sin red no se puede afirmar que esté libre NI que esté tomado. Se
@@ -86,7 +87,7 @@ export function useUsernameAvailability(
             scope: 'useUsernameAvailability',
             error,
           });
-          if (!cancelled) setStatus('error');
+          if (!cancelled) setFailedValue(normalized);
         });
     }, DEBOUNCE_MS);
 
@@ -94,7 +95,10 @@ export function useUsernameAvailability(
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [normalized, hasValidFormat, isOwnUsername, excludeProfileId]);
+  }, [normalized, isInactive, excludeProfileId, cache]);
 
-  return status;
+  if (isInactive) return 'idle';
+  const cached = cache.get(normalized);
+  if (cached !== undefined) return cached ? 'taken' : 'available';
+  return failedValue === normalized ? 'error' : 'checking';
 }

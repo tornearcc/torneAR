@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -44,6 +44,9 @@ type CardState =
   | { status: 'ready'; uri: string }
   | { status: 'error'; message: string; retryable: boolean };
 
+/** Los dos estados terminales: lo único que la descarga llega a producir. */
+type CardOutcome = Extract<CardState, { status: 'ready' } | { status: 'error' }>;
+
 /**
  * Botón + modal de preview de la tarjeta compartible.
  *
@@ -66,7 +69,15 @@ type CardState =
  */
 export function ShareMatchButton({ matchId, myTeamId }: Props) {
   const [visible, setVisible] = useState(false);
-  const [card, setCard] = useState<CardState>({ status: 'idle' });
+  // Sólo el desenlace de la descarga. `idle` y `loading` no son estado: se
+  // derivan de si el modal está abierto y de si ya hay desenlace. Guardarlos
+  // obligaba a encenderlos a mano desde el efecto, que es un setState síncrono
+  // dentro de él.
+  const [outcome, setOutcome] = useState<CardOutcome | null>(null);
+  const card = useMemo<CardState>(
+    () => (!visible ? { status: 'idle' } : (outcome ?? { status: 'loading' })),
+    [visible, outcome],
+  );
   // Cuál de los dos botones está en vuelo — null = ninguno. Se usa para
   // deshabilitar ambos y mostrar el spinner en el que corresponde, en vez de
   // un solo booleano que no distinguiría cuál se tocó.
@@ -94,12 +105,8 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
   );
   const previewHeight = previewWidth / CARD_RATIO;
 
-  const loadCard = useCallback(async () => {
-    setCard({ status: 'loading' });
-    try {
-      const uri = await downloadShareCard(matchId);
-      setCard({ status: 'ready', uri });
-    } catch (error) {
+  const toOutcome = useCallback(
+    (error: unknown): CardOutcome => {
       if (error instanceof ShareCardError) {
         Logger.warn('No se pudo preparar la tarjeta compartible', {
           scope: 'ShareMatchButton.loadCard',
@@ -109,12 +116,11 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
         // `not-shareable` y `not-found` no se arreglan reintentando: el
         // partido no tiene un resultado publicable. Los otros dos (sesión,
         // red) sí, y por eso el botón de reintentar aparece sólo ahí.
-        setCard({
+        return {
           status: 'error',
           message: error.message,
           retryable: error.reason === 'network' || error.reason === 'unauthenticated',
-        });
-        return;
+        };
       }
 
       Logger.error('Fallo inesperado al preparar la tarjeta compartible', {
@@ -122,13 +128,14 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
         matchId,
         error,
       });
-      setCard({
+      return {
         status: 'error',
         message: 'No se pudo generar la imagen. Intentá de nuevo.',
         retryable: true,
-      });
-    }
-  }, [matchId]);
+      };
+    },
+    [matchId],
+  );
 
   /**
    * Dispara la descarga al abrir, y limpia al cerrar.
@@ -138,13 +145,34 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
    * apertura tiene que mostrar el resultado nuevo. El costo es un request por
    * apertura, con el spinner a la vista.
    */
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    // Limpiar en el flanco de cierre, durante el render: si se hiciera desde el
+    // efecto quedaría un frame con la tarjeta anterior a la vista mientras el
+    // modal se cierra.
+    setWasVisible(visible);
+    if (!visible) setOutcome(null);
+  }
+
+  // `outcome === null` es la señal de "hay que descargar": la pone la apertura
+  // y la vuelve a poner el botón de reintentar. Así el efecto no necesita
+  // encender un 'loading' desde su cuerpo.
   useEffect(() => {
-    if (!visible) {
-      setCard({ status: 'idle' });
-      return;
-    }
-    void loadCard();
-  }, [visible, loadCard]);
+    if (!visible || outcome !== null) return;
+
+    let cancelled = false;
+    downloadShareCard(matchId)
+      .then((uri) => {
+        if (!cancelled) setOutcome({ status: 'ready', uri });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setOutcome(toOutcome(error));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, outcome, matchId, toOutcome]);
 
   const closePreview = useCallback(() => {
     if (sharing) return; // no cerrar a mitad de un share en vuelo
@@ -235,7 +263,7 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
                 {card.retryable ? (
                   <TouchableOpacity
                     activeOpacity={0.85}
-                    onPress={() => void loadCard()}
+                    onPress={() => setOutcome(null)}
                     className="mt-4 rounded-lg border border-brand-primary px-5 py-2"
                   >
                     <Text className="font-displayBlack text-xs uppercase tracking-wide text-brand-primary">

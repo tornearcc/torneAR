@@ -1,10 +1,100 @@
 import { supabase } from '@/lib/supabase';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { Logger } from '@/lib/logger';
 import type { ChallengeInboxEntry } from '@/components/ranking/types';
 import type { Database } from '@/types/supabase';
 
 type NotificationType = Database['public']['Enums']['notification_type'];
+
+// ─── Errores de dominio de send_challenge / accept_challenge ─────────────────
+// Las RPCs marcan con un prefijo estable los rechazos sobre los que el cliente
+// tiene algo mejor que decir que el texto del servidor. El resto de los
+// `RAISE EXCEPTION` de esas funciones ya vienen redactados para el usuario
+// (cooldown de 30 días, tope de 3 por temporada, jugadores en común) y se
+// muestran tal cual: traducirlos acá sería mantener el mismo texto dos veces.
+const CHALLENGE_ERROR_CODES = ['RANKING_MATCH_ACTIVE', 'TEAM_INACTIVE', 'TEAM_NOT_FOUND'] as const;
+
+type ChallengeErrorCode = (typeof CHALLENGE_ERROR_CODES)[number];
+
+const CHALLENGE_ERROR_MESSAGES: Record<ChallengeErrorCode, string> = {
+  RANKING_MATCH_ACTIVE:
+    'Ya tenés un partido de ranking sin resolver contra este equipo. Jugalo y cargá el resultado antes de volver a desafiarlos.',
+  TEAM_INACTIVE:
+    'Uno de los dos equipos está dado de baja. Si es el tuyo, reactivalo desde la gestión del equipo.',
+  TEAM_NOT_FOUND:
+    'No encontramos alguno de los dos equipos. Actualizá la pantalla y probá de nuevo.',
+};
+
+function readErrorMessage(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'message' in error
+    ? String((error as { message?: unknown }).message ?? '')
+    : '';
+}
+
+function parseChallengeErrorCode(message: string): ChallengeErrorCode | null {
+  const prefix = message.split(':')[0]?.trim();
+  return (CHALLENGE_ERROR_CODES as readonly string[]).includes(prefix ?? '')
+    ? (prefix as ChallengeErrorCode)
+    : null;
+}
+
+/**
+ * Convierte el error de `sendChallenge` / `acceptChallengeWithNotification` en
+ * un mensaje presentable.
+ *
+ * Tres niveles, en este orden:
+ *   1. Código conocido → el texto de {@link CHALLENGE_ERROR_MESSAGES}.
+ *   2. Error técnico (sin red, RLS, clave duplicada) → el traductor genérico.
+ *   3. Cualquier otra cosa → el texto del `RAISE EXCEPTION`, que para estas dos
+ *      RPCs ya está escrito para que lo lea un usuario.
+ *
+ * El paso 3 es el que evita el pantallazo de "No se pudo completar la
+ * operación": `getGenericSupabaseErrorMessage` descarta el `message` de todo lo
+ * que no reconoce, y acá justamente ese `message` es la explicación.
+ */
+export function getChallengeErrorMessage(
+  error: unknown,
+  fallback = 'No se pudo completar la acción sobre el desafío.',
+): string {
+  const raw = readErrorMessage(error).trim();
+
+  const code = parseChallengeErrorCode(raw);
+  if (code) return CHALLENGE_ERROR_MESSAGES[code];
+
+  // Con fallback vacío, el genérico devuelve '' cuando no reconoce el error:
+  // eso es la señal de "no es un error técnico, dejá pasar el texto original".
+  const technical = getGenericSupabaseErrorMessage(error, '');
+  if (technical) return technical;
+
+  return raw.length > 0 ? raw : fallback;
+}
+
+/**
+ * `true` si el error es una regla de negocio de `send_challenge` /
+ * `accept_challenge`, y no una falla del sistema.
+ *
+ * Discrimina por el SQLSTATE **P0001** (`raise_exception`), que es el que
+ * Postgres le asigna a un `RAISE EXCEPTION` de plpgsql sin código explícito —o
+ * sea, exactamente los frenos que estas dos RPCs levantan a propósito:
+ * cooldown de 30 días, tope por temporada, jugadores en común, desafío ya
+ * enviado, partido de ranking sin resolver, equipo dado de baja, no autorizado.
+ * Una violación de unique (23505), un rechazo de RLS (42501) o un fallo de red
+ * no son P0001 y no entran acá.
+ *
+ * Existe para elegir el NIVEL DE LOG, no el mensaje: que un usuario choque
+ * contra una regla es el sistema funcionando, no un incidente. Registrarlo como
+ * `error` llena `app_logs` de ruido y le saca sentido a la métrica que se usa
+ * justamente para detectar problemas reales.
+ */
+export function isChallengeRuleRejection(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  if ((error as { code?: unknown }).code === 'P0001') return true;
+
+  // Red de seguridad: si el `code` se pierde en el camino (un wrapper que sólo
+  // conserva el `message`), el prefijo de dominio alcanza para reconocerlo.
+  return parseChallengeErrorCode(readErrorMessage(error)) !== null;
+}
 
 // Row shape returned by the get_team_challenges_inbox RPC
 type ChallengesInboxRow = {

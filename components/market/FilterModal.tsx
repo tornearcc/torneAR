@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView,
   Text,
@@ -46,14 +46,24 @@ export function FilterModal({
   const [localSortBy, setLocalSortBy] = useState<MarketSortBy>(sortBy);
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
 
-  // Initialize local state from props when modal opens
-  useEffect(() => {
+  // El estado local se re-inicializa desde las props en el flanco de apertura,
+  // ajustándolo durante el render en vez de copiarlo con un efecto: así el
+  // sheet nunca llega a pintar un frame con los filtros de la apertura
+  // anterior. `wasVisible` es lo que detecta ese flanco.
+  //
+  // De paso desaparece un problema del efecto: tenía `selectedDays` en deps y
+  // esa prop es un array, así que si el padre lo recreaba en un render
+  // cualquiera, la selección en curso se pisaba con la del padre en medio de
+  // la edición.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) {
       setLocalZone(zone);
       setLocalDays(selectedDays);
       setLocalSortBy(sortBy);
     }
-  }, [visible, zone, selectedDays, sortBy]);
+  }
 
   function toggleDay(day: string) {
     setLocalDays((prev) =>

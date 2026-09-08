@@ -47,123 +47,76 @@ const LOGO_WIDTH = wordmarkWidthFor(LOGO_HEIGHT);
 
 export function GlobalHeader({ onNotificationPress, notificationCount, isMarketTab, isRankingTab }: GlobalHeaderProps) {
   const insets = useSafeAreaInsets();
-  const { profile } = useAuth();
+  const { profile, unreadNotificationCount } = useAuth();
   // Selector puntual: el header solo necesita el equipo activo para el badge de
   // desafios. Suscribirse al store entero lo re-renderizaba ante cualquier cambio.
   // La carga de `myTeams` vive en app/(tabs)/_layout.tsx — no aca: GlobalHeader se
   // monta en las 5 tabs y disparaba un fetch por tab, y cada uno reemplazaba
   // `myTeams` por un array nuevo, invalidando los useCallback que lo tenian en deps.
   const activeTeamId = useTeamStore((state) => state.activeTeamId);
-  const [internalNotificationCount, setInternalNotificationCount] = useState(0);
+  // Se extrae el id antes de los callbacks: con `profile?.id` directo en el
+  // array de deps, el React Compiler infiere `profile` entero como dependencia
+  // (menos específica que la declarada) y desactiva la memoización del
+  // componente. Con la variable, lo inferido y lo declarado coinciden.
+  const profileId = profile?.id ?? null;
   const [chatCount, setChatCount] = useState(0);
   const [challengeCount, setChallengeCount] = useState(0); // NUEVO
 
-  const loadUnreadNotificationsCount = useCallback(async () => {
-    if (!profile?.id) {
-      setInternalNotificationCount(0);
-      return;
-    }
-
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('profile_id', profile.id)
-      .eq('is_read', false);
-
-    // Un badge es informacion accesoria: si el conteo falla lo llevamos a 0 para
-    // que desaparezca, en vez de dejar colgado un numero viejo que ya no
-    // corresponde. El header se renderiza igual — nunca lo bloqueamos por esto.
-    if (error) {
-      // Supabase devuelve el fallo como valor: sin esto, un badge en 0 por RLS
-      // es indistinguible de "no tenés notificaciones sin leer".
-      Logger.warn('No se pudo contar las notificaciones sin leer; el badge queda en 0', {
-        scope: 'GlobalHeader.loadUnreadNotificationsCount',
-        profileId: profile.id,
-        error,
-      });
-    }
-    setInternalNotificationCount(error ? 0 : (count ?? 0));
-  }, [profile?.id]);
-
-  useEffect(() => {
-    void loadUnreadNotificationsCount();
-
-    if (!profile?.id) {
-      return;
-    }
-
-    const channel = supabase
-      .channel(`notifications-unread-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `profile_id=eq.${profile.id}`,
-        },
-        () => {
-          void loadUnreadNotificationsCount();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [loadUnreadNotificationsCount, profile?.id]);
-
   // -- Lógica de Mercado --
-  const loadChatCount = useCallback(async () => {
-    if (!profile?.id) return;
-    try {
-      const count = await fetchUnreadChatCount();
-      setChatCount(count);
-    } catch (error) {
-      // Mismo criterio que las notificaciones: ocultamos el badge y seguimos.
-      Logger.warn('No se pudo contar los chats sin leer; el badge queda en 0', {
-        scope: 'GlobalHeader.loadChatCount',
-        profileId: profile.id,
-        error,
+  // Cadena de promesas y no `async`/`await`: esta función la llama un efecto, y
+  // todo lo que un `async` hace antes de suspenderse cuenta como setState
+  // síncrono dentro de él. Dentro de `.then`/`.catch`, no.
+  const loadChatCount = useCallback(() => {
+    if (!profileId) return;
+    fetchUnreadChatCount()
+      .then(setChatCount)
+      .catch((error: unknown) => {
+        // Mismo criterio que las notificaciones: ocultamos el badge y seguimos.
+        Logger.warn('No se pudo contar los chats sin leer; el badge queda en 0', {
+          scope: 'GlobalHeader.loadChatCount',
+          profileId,
+          error,
+        });
+        setChatCount(0);
       });
-      setChatCount(0);
-    }
-  }, [profile?.id]);
+  }, [profileId]);
 
   useEffect(() => {
-    if (!isMarketTab || !profile?.id) return;
-    void loadChatCount();
+    if (!isMarketTab || !profileId) return;
+    loadChatCount();
     const channel = supabase
-      .channel(`market-messages-badge-${profile.id}`)
+      .channel(`market-messages-badge-${profileId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => { void loadChatCount(); }
+        () => loadChatCount()
       )
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [isMarketTab, profile?.id, loadChatCount]);
+  }, [isMarketTab, profileId, loadChatCount]);
 
   // -- NUEVO: Lógica de Ranking (Desafíos) --
-  const loadChallengeCount = useCallback(async () => {
+  // Mismo motivo que `loadChatCount` para la cadena de promesas.
+  const loadChallengeCount = useCallback(() => {
     if (!activeTeamId) return;
-    try {
-      const inbox = await fetchChallengesInbox(activeTeamId);
-      setChallengeCount(inbox.filter(c => c.direction === 'RECIBIDO' && c.status === 'ENVIADA').length);
-    } catch (error) {
-      Logger.warn('No se pudo contar los desafíos recibidos; el badge queda en 0', {
-        scope: 'GlobalHeader.loadChallengeCount',
-        activeTeamId,
-        error,
+    fetchChallengesInbox(activeTeamId)
+      .then((inbox) => {
+        setChallengeCount(inbox.filter(c => c.direction === 'RECIBIDO' && c.status === 'ENVIADA').length);
+      })
+      .catch((error: unknown) => {
+        Logger.warn('No se pudo contar los desafíos recibidos; el badge queda en 0', {
+          scope: 'GlobalHeader.loadChallengeCount',
+          activeTeamId,
+          error,
+        });
+        setChallengeCount(0);
       });
-      setChallengeCount(0);
-    }
   }, [activeTeamId]);
 
   useEffect(() => {
     if (!isRankingTab || !activeTeamId) return;
-    void loadChallengeCount();
+    loadChallengeCount();
 
     // Escuchamos cambios en los desafíos dirigidos a nuestro equipo
     const channel = supabase
@@ -171,14 +124,14 @@ export function GlobalHeader({ onNotificationPress, notificationCount, isMarketT
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'challenges', filter: `to_team_id=eq.${activeTeamId}` },
-        () => { void loadChallengeCount(); }
+        () => loadChallengeCount()
       )
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
   }, [isRankingTab, activeTeamId, loadChallengeCount]);
 
-  const resolvedNotificationCount = notificationCount ?? internalNotificationCount;
+  const resolvedNotificationCount = notificationCount ?? unreadNotificationCount;
   const handleNotificationPress = onNotificationPress ?? (() => router.push('/notifications'));
 
   return (

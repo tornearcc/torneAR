@@ -20,37 +20,47 @@ const DEFAULT_MINIMUM_MS = 500;
  * formulario quedaría bloqueado más tiempo del que dura la operación.
  */
 export function useMinimumVisible(active: boolean, minimumMs = DEFAULT_MINIMUM_MS): boolean {
-  const [visible, setVisible] = useState(active);
-  const shownAtRef = useRef<number | null>(active ? Date.now() : null);
+  // Único estado propio: si hay que seguir mostrando el indicador DESPUÉS de
+  // que `active` se apagó. Lo que devuelve el hook se deriva de `active` y de
+  // esto, sin duplicar `active` en un estado espejo.
+  const [holding, setHolding] = useState(false);
+  const [wasActive, setWasActive] = useState(active);
+  // Arranca en `null` incluso con `active` en true: el efecto de abajo sella el
+  // instante apenas monta. Llamar a `Date.now()` en el cuerpo del hook sería
+  // una impureza en render, y la diferencia es el tiempo hasta el commit.
+  const shownAtRef = useRef<number | null>(null);
+
+  // El flanco se atiende durante el render y no en un efecto: sostener recién
+  // en el efecto dejaría pasar un frame con el indicador apagado, que es
+  // exactamente el parpadeo que este hook existe para evitar.
+  if (active !== wasActive) {
+    setWasActive(active);
+    setHolding(!active);
+  }
 
   useEffect(() => {
     if (active) {
       // Sólo se sella el arranque la primera vez: si `active` parpadea, el
       // mínimo se cuenta desde que el indicador se vio por primera vez.
       if (shownAtRef.current === null) shownAtRef.current = Date.now();
-      setVisible(true);
       return;
     }
 
-    if (shownAtRef.current === null) {
-      setVisible(false);
-      return;
-    }
+    const shownAt = shownAtRef.current;
+    if (shownAt === null) return;
 
-    const remaining = minimumMs - (Date.now() - shownAtRef.current);
-    if (remaining <= 0) {
-      shownAtRef.current = null;
-      setVisible(false);
-      return;
-    }
-
+    // `Math.max(0, …)`: si el mínimo ya se cumplió el timer igual se programa,
+    // con 0 ms. Apagar `holding` en el cuerpo del efecto sería un setState
+    // síncrono; el costo de diferirlo es un tick, imperceptible para un
+    // indicador de carga.
+    const remaining = Math.max(0, minimumMs - (Date.now() - shownAt));
     const timer = setTimeout(() => {
       shownAtRef.current = null;
-      setVisible(false);
+      setHolding(false);
     }, remaining);
 
     return () => clearTimeout(timer);
   }, [active, minimumMs]);
 
-  return visible;
+  return active || holding;
 }

@@ -265,9 +265,11 @@ export function resolveDeepLink(url: string, isAuthenticated: boolean): DeepLink
 }
 
 /** Forma mínima de un `NotificationResponse` de expo-notifications, tipada
- *  estructuralmente para no arrastrar el módulo nativo a esta capa pura. */
+ *  estructuralmente para no arrastrar el módulo nativo a esta capa pura.
+ *  `data` es opcional porque así lo declara `NotificationContent` en
+ *  expo-notifications: una push sin payload de datos no trae la propiedad. */
 export interface NotificationResponseLike {
-  notification: { request: { content: { data: unknown } } };
+  notification: { request: { content: { data?: unknown } } };
 }
 
 /**

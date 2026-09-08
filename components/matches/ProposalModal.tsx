@@ -69,9 +69,13 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
-  const [venues, setVenues] = useState<VenueEntry[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<VenueEntry | null>(null);
-  const [loadingVenues, setLoadingVenues] = useState(false);
+  // Canchas de la última zona resuelta. Guardar la zona junto al resultado deja
+  // derivar `venues` y `loadingVenues` en el render, sin encenderlos a mano al
+  // arrancar cada carga (eso sería un setState síncrono dentro del efecto).
+  const [venuesByZone, setVenuesByZone] = useState<{ zoneId: string; venues: VenueEntry[] } | null>(
+    null,
+  );
   const [zonesLoaded, setZonesLoaded] = useState(false);
   /** A14: `venueId` → metros. Vacío si no hay ubicación disponible. */
   /*
@@ -107,27 +111,61 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   }, [visible, zonesLoaded]);
 
 
+  const venues = venuesByZone?.zoneId === selectedZoneId ? venuesByZone.venues : [];
+  const loadingVenues = Boolean(selectedZoneId) && venuesByZone?.zoneId !== selectedZoneId;
+
+  // Cambiar de zona invalida la cancha elegida. Se ajusta durante el render y no
+  // en un efecto para que no exista un frame con una cancha de la zona anterior
+  // todavía seleccionada.
+  const [venueZoneId, setVenueZoneId] = useState(selectedZoneId);
+  if (selectedZoneId !== venueZoneId) {
+    setVenueZoneId(selectedZoneId);
+    setSelectedVenue(null);
+  }
+
   // Load venues when zone changes
   useEffect(() => {
-    if (!selectedZoneId) {
-      setVenues([]);
-      setSelectedVenue(null);
-      return;
-    }
-    setLoadingVenues(true);
-    setSelectedVenue(null);
+    if (!selectedZoneId) return;
+
+    // El flag descarta la respuesta de una zona que ya no es la elegida: sin
+    // esto una respuesta lenta pisaría la caché con la zona vieja y la lista
+    // quedaría cargando para siempre.
+    let cancelled = false;
     fetchVenuesByZone(selectedZoneId)
-      .then(setVenues)
+      .then((list) => {
+        if (!cancelled) setVenuesByZone({ zoneId: selectedZoneId, venues: list });
+      })
       .catch((err: unknown) => {
         Logger.warn('No se pudieron cargar las canchas de la zona; el selector queda vacío', {
           scope: 'ProposalModal.fetchVenues',
           zoneId: selectedZoneId,
           error: err,
         });
-        setVenues([]);
-      })
-      .finally(() => setLoadingVenues(false));
+        if (!cancelled) setVenuesByZone({ zoneId: selectedZoneId, venues: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedZoneId]);
+
+  // D13 (bis): reloj contra el que se compara la fecha propuesta. Leer
+  // `Date.now()` durante el render es impuro y, además, un sheet abierto y
+  // quieto no vuelve a renderizar solo: el aviso de «la fecha ya pasó» podía
+  // no aparecer nunca. El tick corre sólo mientras el modal está visible.
+  //
+  // Sin resincronización al abrir: el primer tick llega a los 5 s, así que
+  // recién reabierto el reloj puede estar hasta 5 s atrasado. Es irrelevante
+  // acá —el default de la fecha es dentro de 2 h y el picker tiene
+  // granularidad de minutos— y el rechazo real lo hace el servidor con
+  // `scheduled_at <= now()`; este aviso es sólo para no mandar el submit a
+  // ciegas.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!visible) return;
+    const intervalId = setInterval(() => setNowTs(Date.now()), 5_000);
+    return () => clearInterval(intervalId);
+  }, [visible]);
 
   function handleClose() {
     // Reset state
@@ -224,7 +262,7 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   // `minimumDate` del picker sólo acota la fecha al abrirlo — no impide dejar
   // el sheet abierto hasta que la hora elegida quede atrás.
   const blockReason: string | null =
-    scheduledDate.getTime() <= Date.now()
+    scheduledDate.getTime() <= nowTs
       ? 'La fecha y hora propuestas ya pasaron: elegí un horario futuro.'
       : matchType === 'RANKING' && !selectedVenue
         ? zonesLoaded && zones.length === 0
@@ -237,6 +275,11 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
       visible={visible}
       onClose={handleClose}
       maxHeight="80%"
+      /* Los campos de Seña y Costo total viven abajo del todo del sheet y en
+         iOS el teclado los tapaba. La prop sólo aplica en iOS —Android
+         redimensiona la ventana solo—, pero esa decisión vive dentro de
+         SafeAreaBottomSheet, no acá. */
+      avoidKeyboard
       /* Dentro del <Modal>: si se montara en la pantalla padre quedaría detrás
          de esa ventana nativa y el error sería invisible. Mismo motivo para el
          selector de zonas, que además evita anidar dos Modal nativos. */

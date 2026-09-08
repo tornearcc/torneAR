@@ -33,7 +33,26 @@ interface NotificationRow {
 
 interface ExpoTicket {
   status: string;
+  id?: string;
+  message?: string;
   details?: { error?: string };
+}
+
+/**
+ * Deja rastro en `public.app_logs` (la misma tabla que usa el cliente vía
+ * `lib/logger.ts`, así aparece en el panel del dashboard).
+ *
+ * `console` solo no alcanza: los logs de Edge Functions rotan y no son
+ * consultables desde el panel, que es donde se mira cuando un usuario reporta
+ * que no le llegan las notificaciones.
+ */
+async function log(
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  details: Record<string, unknown>,
+) {
+  console[level === 'info' ? 'log' : level](message, details);
+  await supabase.from('app_logs').insert({ level, message, details });
 }
 
 Deno.serve(async (req) => {
@@ -92,19 +111,71 @@ Deno.serve(async (req) => {
   });
 
   if (!expoResponse.ok) {
-    console.error('Expo push API error:', expoResponse.status);
+    await log('error', 'push-dispatch: el endpoint de Expo respondió con error HTTP', {
+      scope: 'push-dispatch',
+      notificationId: notif.id,
+      httpStatus: expoResponse.status,
+    });
     return new Response('ok (push failed)', { status: 200 });
   }
 
-  // 7. Limpieza de tokens muertos (DeviceNotRegistered).
+  // 7. Lectura del ticket.
+  //
+  // ⚠️ Expo responde 200 con el fallo ADENTRO del cuerpo: un token inválido,
+  // credenciales de APNs sin cargar o un payload mal formado llegan como
+  // `{ data: { status: 'error', details: { error: '…' } } }`. Antes sólo se
+  // miraba `DeviceNotRegistered` y todo lo demás se descartaba en silencio:
+  // desde afuera, un push rechazado por Expo se veía idéntico a uno entregado,
+  // y `notifications.pushed_at` —que se sella ANTES de enviar— reforzaba la
+  // ilusión de que había salido.
   const expoResult = await expoResponse.json();
   const ticket = expoResult?.data as ExpoTicket | undefined;
-  if (ticket?.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
-    await supabase
-      .from('profiles')
-      .update({ expo_push_token: null })
-      .eq('id', notif.profile_id);
+
+  // Errores de nivel request (payload rechazado entero), fuera del ticket.
+  if (Array.isArray(expoResult?.errors) && expoResult.errors.length > 0) {
+    await log('error', 'push-dispatch: Expo rechazó la request', {
+      scope: 'push-dispatch',
+      notificationId: notif.id,
+      profileId: notif.profile_id,
+      errors: expoResult.errors,
+    });
+    return new Response('ok (rejected)', { status: 200 });
   }
+
+  if (ticket?.status === 'error') {
+    const reason = ticket.details?.error ?? 'UNKNOWN';
+
+    // `DeviceNotRegistered` es el único que se limpia solo: el token murió
+    // (app desinstalada, permiso revocado) y guardarlo sólo genera reintentos.
+    if (reason === 'DeviceNotRegistered') {
+      await supabase
+        .from('profiles')
+        .update({ expo_push_token: null })
+        .eq('id', notif.profile_id);
+    }
+
+    await log('error', 'push-dispatch: Expo rechazó el envío', {
+      scope: 'push-dispatch',
+      notificationId: notif.id,
+      profileId: notif.profile_id,
+      reason,
+      expoMessage: ticket.message ?? null,
+      tokenCleared: reason === 'DeviceNotRegistered',
+    });
+    return new Response('ok (ticket error)', { status: 200 });
+  }
+
+  // 8. Ticket aceptado. El id queda en el log porque es lo ÚNICO con lo que
+  // después se puede consultar el receipt de Expo (/push/getReceipts): el
+  // ticket sólo dice "lo recibí", el receipt dice si APNs/FCM lo entregó de
+  // verdad. Consultarlos automáticamente (a los ~15 min) es el paso siguiente
+  // y necesita una columna donde persistirlos.
+  await log('info', 'push-dispatch: entregado a Expo', {
+    scope: 'push-dispatch',
+    notificationId: notif.id,
+    profileId: notif.profile_id,
+    ticketId: ticket?.id ?? null,
+  });
 
   return new Response('ok', { status: 200 });
 });

@@ -25,13 +25,6 @@ export interface AppVersionPolicy {
   updateUrl: string;
 }
 
-interface RawAppVersion {
-  platform: string;
-  min_required_version: string;
-  latest_version: string;
-  update_url: string;
-}
-
 /** La versión de este build, según app.json. */
 export function getCurrentAppVersion(): string | null {
   return Constants.expoConfig?.version ?? null;
@@ -56,7 +49,7 @@ export async function fetchAppVersionPolicy(): Promise<AppVersionPolicy | null> 
   if (!platform) return null;
 
   const { data, error } = await supabase
-    .from('app_versions' as Parameters<typeof supabase.from>[0])
+    .from('app_versions')
     .select('platform, min_required_version, latest_version, update_url')
     .eq('platform', platform)
     .maybeSingle();
@@ -73,11 +66,10 @@ export async function fetchAppVersionPolicy(): Promise<AppVersionPolicy | null> 
   }
   if (!data) return null;
 
-  const raw = data as unknown as RawAppVersion;
   return {
-    platform: raw.platform,
-    minRequiredVersion: raw.min_required_version,
-    latestVersion: raw.latest_version,
-    updateUrl: raw.update_url,
+    platform: data.platform,
+    minRequiredVersion: data.min_required_version,
+    latestVersion: data.latest_version,
+    updateUrl: data.update_url,
   };
 }

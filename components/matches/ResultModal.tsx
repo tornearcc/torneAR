@@ -76,15 +76,25 @@ export function ResultModal({ visible, onClose, onSubmit, myParticipants }: Prop
   const submittingRef = useRef(false);
 
   // Reset al reabrir: sin esto el modal arrastra los goles de una carga
-  // anterior y el usuario podría enviar sin querer un resultado viejo.
-  useEffect(() => {
+  // anterior y el usuario podría enviar sin querer un resultado viejo. Se
+  // ajusta durante el render, en el flanco de apertura, en vez de copiar los
+  // valores desde un efecto.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) {
       setGoalsScored(0);
       setGoalsAgainst(0);
       setScorers({});
       setMvpId(null);
-      submittingRef.current = false;
     }
+  }
+
+  // El guard de doble tap se libera aparte: escribir una ref durante el render
+  // no está permitido, y en un efecto no molesta a nadie (nada lo lee hasta el
+  // primer tap).
+  useEffect(() => {
+    if (visible) submittingRef.current = false;
   }, [visible]);
 
   function setScorerGoals(profileId: string, goals: number) {

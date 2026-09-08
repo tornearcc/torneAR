@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -36,17 +36,16 @@ export default function TeamCreateScreen() {
    * eligio zona antes de que llegara el perfil, el updater funcional la respeta.
    * Sin ese guard, un refreshProfile() posterior le revertiria la seleccion.
    */
-  const zoneHydratedRef = useRef(false);
+  // El flag va en estado y no en una ref porque se lee durante el render: la
+  // hidratacion se resuelve en el mismo commit en que llega el perfil, sin un
+  // frame con el campo de zona todavia vacio.
+  const [zoneHydrated, setZoneHydrated] = useState(false);
 
-  useEffect(() => {
-    if (zoneHydratedRef.current) return;
-
-    const profileZone = profile?.zone;
-    if (!profileZone) return; // el perfil todavia no llego
-
-    zoneHydratedRef.current = true;
+  const profileZone = profile?.zone;
+  if (!zoneHydrated && profileZone) {
+    setZoneHydrated(true);
     setZone((current) => (current.trim() ? current : profileZone));
-  }, [profile?.zone]);
+  }
 
   const handleCreateTeam = async () => {
     if (!profile) {
