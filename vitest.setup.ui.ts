@@ -44,3 +44,28 @@ vi.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
+
+/*
+ * `react-native-safe-area-context` se distribuye con fuentes en sintaxis Flow
+ * (`import typeof ...`), que el parser de Vite no entiende: cualquier test que
+ * termine importándolo muere con "Unexpected token 'typeof'" antes de correr.
+ *
+ * Entra en juego desde que `AppDateTimePicker` presenta la rueda de iOS dentro
+ * de `SafeAreaBottomSheet`, y el sheet lee el inset real del dispositivo. Los
+ * insets son una medición del sistema operativo: en jsdom no hay nada que
+ * medir, así que devolver ceros es la respuesta correcta y no una simplificación.
+ */
+vi.mock('react-native-safe-area-context', async () => {
+  const { createElement } = await import('react');
+  const zeroInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+  const passthrough = ({ children }: { children?: unknown }) =>
+    createElement('div', null, children as never);
+
+  return {
+    useSafeAreaInsets: () => zeroInsets,
+    useSafeAreaFrame: () => ({ x: 0, y: 0, width: 0, height: 0 }),
+    initialWindowMetrics: { insets: zeroInsets, frame: { x: 0, y: 0, width: 0, height: 0 } },
+    SafeAreaProvider: passthrough,
+    SafeAreaView: passthrough,
+  };
+});

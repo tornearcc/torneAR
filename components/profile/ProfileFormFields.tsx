@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from '@/components/ui/AppDateTimePicker';
 import {
   Controller,
   useWatch,
@@ -132,21 +132,20 @@ export function ProfileFormFields({
                 </TouchableOpacity>
               </View>
 
-              {showBirthPicker && (
-                <DateTimePicker
-                  value={birthPickerValue}
-                  mode="date"
-                  display="spinner"
-                  locale="es-AR"
-                  /* El bloqueo visual del backlog: el calendario no ofrece
-                     ninguna fecha que deje al usuario con menos de 18. */
-                  maximumDate={maxBirthDate}
-                  onChange={(event, date) => {
-                    setShowBirthPicker(false);
-                    if (event.type !== 'dismissed' && date) onChange(fromDateToDisplay(date));
-                  }}
-                />
-              )}
+              <AppDateTimePicker
+                visible={showBirthPicker}
+                value={birthPickerValue}
+                mode="date"
+                title="Fecha de nacimiento"
+                /* El bloqueo visual del backlog: el calendario no ofrece
+                   ninguna fecha que deje al usuario con menos de 18. */
+                maximumDate={maxBirthDate}
+                onCancel={() => setShowBirthPicker(false)}
+                onConfirm={(date) => {
+                  setShowBirthPicker(false);
+                  onChange(fromDateToDisplay(date));
+                }}
+              />
             </>
           )}
         />

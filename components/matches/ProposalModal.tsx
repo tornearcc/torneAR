@@ -5,11 +5,10 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { AppDateTimePicker } from '@/components/ui/AppDateTimePicker';
 import { useDistanceResolver } from '@/hooks/useDistanceResolver';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
 import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
@@ -330,22 +329,20 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
             {formatDateDisplay(scheduledDate)}
           </Text>
         </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={scheduledDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            minimumDate={new Date()}
-            onChange={(_e, d) => {
-              setShowDatePicker(false);
-              if (d) {
-                const merged = new Date(scheduledDate);
-                merged.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                setScheduledDate(merged);
-              }
-            }}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showDatePicker}
+          value={scheduledDate}
+          mode="date"
+          title="Fecha del partido"
+          minimumDate={new Date()}
+          onCancel={() => setShowDatePicker(false)}
+          onConfirm={(d) => {
+            setShowDatePicker(false);
+            const merged = new Date(scheduledDate);
+            merged.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+            setScheduledDate(merged);
+          }}
+        />
 
         {/* ── Time ── */}
         <Text className="font-ui mb-2 text-xs uppercase tracking-widest text-neutral-outline">
@@ -360,22 +357,19 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
             {formatTimeDisplay(scheduledDate)}
           </Text>
         </TouchableOpacity>
-        {showTimePicker && (
-          <DateTimePicker
-            value={scheduledDate}
-            mode="time"
-            is24Hour
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(_e, d) => {
-              setShowTimePicker(false);
-              if (d) {
-                const merged = new Date(scheduledDate);
-                merged.setHours(d.getHours(), d.getMinutes());
-                setScheduledDate(merged);
-              }
-            }}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showTimePicker}
+          value={scheduledDate}
+          mode="time"
+          title="Hora del partido"
+          onCancel={() => setShowTimePicker(false)}
+          onConfirm={(d) => {
+            setShowTimePicker(false);
+            const merged = new Date(scheduledDate);
+            merged.setHours(d.getHours(), d.getMinutes());
+            setScheduledDate(merged);
+          }}
+        />
 
         {/* ── Duration ── */}
         <Text className="font-ui mb-2 text-xs uppercase tracking-widest text-neutral-outline">
