@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { AppIcon } from '@/components/ui/AppIcon';
+import { AppDateTimePicker } from '@/components/ui/AppDateTimePicker';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { PitchSelector } from '@/components/ui/PitchSelector';
@@ -540,31 +540,30 @@ export default function MarketCreateModal() {
         suggestedValue={profile?.zone ?? null}
       />
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={matchDate ?? new Date()}
-          mode="date"
-          display="default"
-          minimumDate={new Date()}
-          locale="es-AR"
-          onChange={(event, date) => {
-            setShowDatePicker(false);
-            if (event.type !== 'dismissed' && date) setMatchDate(date);
-          }}
-        />
-      )}
+      <AppDateTimePicker
+        visible={showDatePicker}
+        value={matchDate ?? new Date()}
+        mode="date"
+        title="Día del partido"
+        minimumDate={new Date()}
+        onCancel={() => setShowDatePicker(false)}
+        onConfirm={(date) => {
+          setShowDatePicker(false);
+          setMatchDate(date);
+        }}
+      />
 
-      {showTimePicker && (
-        <DateTimePicker
-          value={matchTime ?? new Date()}
-          mode="time"
-          display="default"
-          onChange={(event, date) => {
-            setShowTimePicker(false);
-            if (event.type !== 'dismissed' && date) setMatchTime(date);
-          }}
-        />
-      )}
+      <AppDateTimePicker
+        visible={showTimePicker}
+        value={matchTime ?? new Date()}
+        mode="time"
+        title="Hora del partido"
+        onCancel={() => setShowTimePicker(false)}
+        onConfirm={(date) => {
+          setShowTimePicker(false);
+          setMatchTime(date);
+        }}
+      />
     </SafeAreaView>
   );
 }
