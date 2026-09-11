@@ -1,13 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { AuthError } from '@supabase/supabase-js';
-import { buildLegalAcceptance, signIn, signInWithGoogle, signUp } from '@/lib/auth-data';
+import {
+  buildLegalAcceptance,
+  isAppleSignInAvailable,
+  signIn,
+  signInWithApple,
+  signInWithGoogle,
+  signUp,
+} from '@/lib/auth-data';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { getAuthErrorMessage } from '@/lib/auth-error-messages';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { GoogleAuthButton } from '@/components/ui/GoogleAuthButton';
+import { AppleAuthButton } from '@/components/ui/AppleAuthButton';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { Logger } from '@/lib/logger';
@@ -26,7 +34,12 @@ import { LegalLinksNotice } from '@/components/ui/LegalLinksNotice';
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  // Arranca en `false` y no en `null`: el botón de Apple aparece recién cuando
+  // el módulo nativo confirma que puede atender. Pintarlo optimistamente y
+  // retirarlo si no está haría saltar el layout del bloque de login.
+  const [appleAvailable, setAppleAvailable] = useState(false);
   // Consentimiento legal. Sólo aplica al registro: una cuenta que ya existe
   // aceptó al crearse y volver a pedírselo en cada login no aporta nada.
   const [acceptedLegal, setAcceptedLegal] = useState(false);
@@ -62,11 +75,29 @@ export default function LoginScreen() {
     }
   }, [utm_source, utm_medium, utm_campaign]);
 
+  // Disponibilidad de Sign in with Apple. Se resuelve una vez al montar: en
+  // Android y en web el módulo devuelve `false` y el bloque no se pinta.
+  useEffect(() => {
+    let active = true;
+    void isAppleSignInAvailable().then((available) => {
+      if (active) setAppleAvailable(available);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Flags de PRESENTACIÓN. Los guards de reentrada de abajo siguen mirando
-  // `loading` / `googleLoading` reales: si usaran estos, el formulario quedaría
-  // bloqueado más tiempo del que dura la operación.
+  // `loading` / `googleLoading` / `appleLoading` reales: si usaran estos, el
+  // formulario quedaría bloqueado más tiempo del que dura la operación.
   const showAuthLoader = useMinimumVisible(loading);
   const showGoogleLoader = useMinimumVisible(googleLoading);
+  const showAppleLoader = useMinimumVisible(appleLoading);
+
+  // Cualquier proveedor federado en vuelo bloquea al otro y al formulario: son
+  // tres caminos al mismo `onAuthStateChange` y dejarlos correr en paralelo
+  // dejaría dos sesiones compitiendo por el guard de `app/_layout.tsx`.
+  const anyOAuthLoading = showGoogleLoader || showAppleLoader;
 
   // El schema depende del modo: login no revalida el largo (cuentas viejas con
   // 6 caracteres deben poder entrar), registro exige PASSWORD_MIN_LENGTH.
@@ -188,7 +219,7 @@ export default function LoginScreen() {
   // modos, y el gate de onboarding (app/_layout.tsx) es el que pide los datos
   // del perfil que Google no aporta (zona, posicion, pie habil, nacimiento).
   const onGooglePress = async () => {
-    if (loading || googleLoading) return;
+    if (loading || googleLoading || appleLoading) return;
 
     setGoogleLoading(true);
     try {
@@ -219,6 +250,38 @@ export default function LoginScreen() {
       setGoogleLoading(false);
     }
     // Igual que arriba: no navegamos, el guard de _layout atrapa la sesion nueva.
+  };
+
+  // Apple, como Google, no distingue entre entrar y registrarse: el sistema crea
+  // la cuenta en el primer consentimiento. Mismo tratamiento, entonces — un solo
+  // handler para los dos modos y el checkbox legal gateándolo en registro.
+  const onApplePress = async () => {
+    if (loading || googleLoading || appleLoading) return;
+
+    setAppleLoading(true);
+    try {
+      const { error, cancelled } = await signInWithApple();
+
+      if (!cancelled && error) {
+        Logger.warn('Autenticación con Apple rechazada', {
+          scope: 'login.onApplePress',
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        showAlert('Error de autenticacion', getAuthErrorMessage(error, 'login'));
+      } else if (cancelled) {
+        Logger.info('El usuario canceló la hoja de Apple', { scope: 'login.onApplePress' });
+      } else {
+        Logger.info('Login con Apple exitoso', { scope: 'login.onApplePress' });
+      }
+    } catch (unexpectedError) {
+      Logger.error('Excepción inesperada en el login con Apple', {
+        scope: 'login.onApplePress',
+        error: unexpectedError,
+      });
+      showAlert('Error de autenticacion', getAuthErrorMessage(unexpectedError, 'login'));
+    } finally {
+      setAppleLoading(false);
+    }
   };
 
   return (
@@ -296,14 +359,14 @@ export default function LoginScreen() {
           <LegalConsentCheckbox
             checked={acceptedLegal}
             onToggle={setAcceptedLegal}
-            disabled={showAuthLoader || showGoogleLoader}
+            disabled={showAuthLoader || anyOAuthLoading}
           />
         )}
 
         <HeroButton
           onPress={handleSubmit(onSubmit)}
           isLoading={showAuthLoader}
-          disabled={showGoogleLoader || !canSubmit}
+          disabled={anyOAuthLoading || !canSubmit}
           label={isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
           style={{ marginBottom: 24, width: '100%', shadowColor: '#53E076', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
         />
@@ -314,13 +377,30 @@ export default function LoginScreen() {
           <View className="h-px flex-1 bg-neutral-outline/30" />
         </View>
 
+        {/* Apple va PRIMERO y con el mismo ancho y alto que Google. La guideline
+            4.8 pide una opción equivalente a la de terceros, y el reviewer lee
+            "equivalente" como "igual de visible": dejarlo debajo, más chico o
+            detrás de un "más opciones" es motivo de rechazo por sí solo.
+            Sólo se pinta si el módulo nativo confirmó disponibilidad — en
+            Android y web no existe. */}
+        {appleAvailable && (
+          <View className="mb-4">
+            <AppleAuthButton
+              onPress={onApplePress}
+              isLoading={showAppleLoader}
+              disabled={showAuthLoader || showGoogleLoader || (!isLogin && !acceptedLegal)}
+              isSignUp={!isLogin}
+            />
+          </View>
+        )}
+
         {/* Google da de alta la cuenta en el primer consentimiento, así que en
             modo registro queda sujeto al mismo checkbox: si sólo gateáramos el
             botón de email, registrarse con Google saltearía la aceptación. */}
         <GoogleAuthButton
           onPress={onGooglePress}
           isLoading={showGoogleLoader}
-          disabled={showAuthLoader || (!isLogin && !acceptedLegal)}
+          disabled={showAuthLoader || showAppleLoader || (!isLogin && !acceptedLegal)}
           label={isLogin ? 'Continuar con Google' : 'Registrarme con Google'}
         />
 

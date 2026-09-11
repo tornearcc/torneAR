@@ -21,10 +21,11 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [x] **A2b** — Eliminados cuatro permisos que la app nunca usa (micrófono, ubicación
       siempre/background x2, movimiento) y el `RECORD_AUDIO` de Android
 - [x] **A3** — Verificado con `npx expo config --type introspect`
-- [ ] **B3** — `expo-apple-authentication` instalado y en `plugins`
-- [ ] **B4** — `signInWithApple()` en `lib/auth-data.ts`
-- [ ] **B5** — `components/ui/AppleAuthButton.tsx`
-- [ ] **B6** — Botón de Apple en `app/login.tsx`
+- [x] **B3** — `expo-apple-authentication` instalado y en `plugins`; entitlement verificado
+- [x] **B4** — `signInWithApple()` e `isAppleSignInAvailable()` en `lib/auth-data.ts`
+- [x] **B5** — `components/ui/AppleAuthButton.tsx`
+- [x] **B6** — Botón de Apple en `app/login.tsx`, arriba de Google
+- [ ] **B9** — Probar en dispositivo físico (compartir correo, ocultar correo, re-login)
 - [ ] **B7** — Revocación del token de Apple al borrar la cuenta
 - [x] **C1.1** — Cláusula de tolerancia cero como sección 10 en los dos `termsContent.ts`
 - [x] **C1.2** — Versión Final 12 y `TERMS_LAST_UPDATED` al 11/09/2026 en ambos
@@ -276,11 +277,20 @@ entitlement `com.apple.developer.applesignin` en el prebuild.
 
 Forma, siguiendo el estilo del módulo (devolver `{ error, cancelled }` como `OAuthResult`):
 
-- `AppleAuthentication.isAvailableAsync()` como guard.
-- Generar un nonce aleatorio, pasarle a Apple el **SHA-256 en hex** y a Supabase el **raw**.
-  Si esto se invierte, Supabase rechaza el token y el error es opaco.
+- `AppleAuthentication.isAvailableAsync()` como guard, expuesto como
+  `isAppleSignInAvailable()` (agrega el chequeo de `Platform.OS === 'ios'`).
 - `signInAsync({ requestedScopes: [FULL_NAME, EMAIL] })`.
-- `supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken, nonce: rawNonce })`.
+- `supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken })`.
+
+> **Corrección: va SIN nonce.** El plan original decía generar un nonce, mandarle a Apple el
+> SHA-256 y a Supabase el valor crudo. Se descartó al revisar el paquete: `signInAsync` pasa el
+> nonce **verbatim** a `ASAuthorizationAppleIDRequest.nonce` (ver
+> `node_modules/expo-apple-authentication/ios/AppleAuthenticationRequest.swift:31`), no lo hashea.
+> O sea que el hasheo queda del lado nuestro, y si se invierte el orden el canje falla con un
+> error opaco que no se puede diagnosticar sin un dispositivo a mano. El flujo documentado por
+> Supabase para Expo omite el nonce, y es lo que se implementó: el token igual se valida por firma
+> y por audiencia contra el bundle ID del provider. `expo-crypto` quedó instalado por si más
+> adelante se quiere agregar.
 - Si el usuario cancela, `signInAsync` lanza un error con `code === 'ERR_REQUEST_CANCELED'` →
   devolver `{ error: null, cancelled: true }`, mismo criterio que Google.
 - **Capturar el nombre en el acto.** Apple manda `credential.fullName` solo en la primerísima
