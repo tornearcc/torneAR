@@ -48,7 +48,11 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
       listas del Mercado, y pantalla «Usuarios bloqueados» en Preferencias
 - [ ] **TEAM** — denunciar nombre o escudo de equipo. El tipo de entidad y la RPC ya lo
       soportan; falta el punto de entrada en el perfil del equipo
-- [ ] **C5** — Eliminar contenido denunciado desde el dashboard
+- [x] **C5.1/C5.2** — `admin_remove_reported_content` (migración `20260911170000`,
+      aplicada, 11 aserciones pgTAP) y la cola del dashboard mostrando el texto
+      denunciado, el autor resuelto y el botón de eliminar
+- [ ] **C5.3** — Aviso automático de denuncias nuevas por pg_cron. Sin esto, «24 horas»
+      depende de que alguien entre al panel por su cuenta
 - [ ] **D1** — Datos demo del revisor ampliados
 
 ### Gestiones tuyas (yo no las puedo hacer)
