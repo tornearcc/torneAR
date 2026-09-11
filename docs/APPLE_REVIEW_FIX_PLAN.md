@@ -56,7 +56,12 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
       y `20260911190000`, aplicadas, 6 aserciones pgTAP
 - [x] **TEAM** — Denunciar nombre o escudo de equipo desde la pantalla de stats del
       equipo ajeno
-- [ ] **D1** — Datos demo del revisor ampliados
+- [x] **D1** — Datos demo del revisor ampliados (bloque 6 del setup y su teardown).
+      Verificado contra producción en transacción revertida: al bloquear al capitán rival
+      la bandeja baja de 2 a 1 y las ofertas de equipo de 4 a 3, y la oferta del tercer
+      usuario queda visible
+- [x] **D4** — `review-apple/App-Review-Response-TorneAR-v2.pdf` y
+      `review-apple/Guion-Video-Revision.pdf`
 
 ### Gestiones tuyas (yo no las puedo hacer)
 

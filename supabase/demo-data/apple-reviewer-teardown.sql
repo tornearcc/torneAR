@@ -35,9 +35,41 @@ declare
   k_match_upcoming constant uuid := 'a99a0000-0000-4000-8000-000000000021';
   k_match_played   constant uuid := 'a99a0000-0000-4000-8000-000000000022';
 
+  -- Contenido del bloque 6 del setup (demostración de moderación).
+  k_extra_auth_id  constant uuid := 'a99a0000-0000-4000-8000-000000000030';
+  k_extra_profile  constant uuid := 'a99a0000-0000-4000-8000-000000000031';
+
   k_matches        constant uuid[] := array[k_match_upcoming, k_match_played];
   k_teams          constant uuid[] := array[k_team_apple, k_team_rival];
+  k_demo_profiles  constant uuid[] := array[k_rival_profile, k_extra_profile];
 begin
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- 0. RASTROS DE LA DEMOSTRACIÓN DE MODERACIÓN
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- Va PRIMERO porque son las filas que deja el propio revisor al grabar el
+  -- video —denuncias y bloqueos— y porque `content_reports.reporter_id` y
+  -- `user_blocks.*` son FKs a `profiles` sin cascada: si quedaran, el DELETE
+  -- del capitán inventado del bloque 8 fallaría con 23503.
+  --
+  -- Se barre en las dos direcciones: lo que el revisor denunció o bloqueó, y
+  -- lo que quedó apuntando a los perfiles inventados.
+  delete from public.user_blocks
+   where blocker_profile_id = any(k_demo_profiles)
+      or blocked_profile_id = any(k_demo_profiles);
+
+  delete from public.content_reports
+   where reporter_id         = any(k_demo_profiles)
+      or reported_profile_id = any(k_demo_profiles)
+      or reported_entity_id  = any(k_demo_profiles)
+      or reported_entity_id  = any(k_teams);
+
+  -- Avisos de moderación que el job pg_cron pudo haber generado por esas
+  -- denuncias (`enqueue_moderation_alerts`, migración 20260911190000). Cuelgan
+  -- del profile del admin, no del contenido, así que se buscan por su payload.
+  delete from public.notifications
+   where type = 'DENUNCIA_NUEVA'
+     and (data->>'entity_id')::uuid = any(k_demo_profiles || k_teams);
+
   -- ══════════════════════════════════════════════════════════════════════════
   -- 1. NOTIFICACIONES DE LOS PARTIDOS DEMO
   -- ══════════════════════════════════════════════════════════════════════════
@@ -104,9 +136,17 @@ begin
   -- —si algo quedara colgado— apunte a la tabla real y no al DELETE de teams.
   delete from public.challenges where from_team_id = any(k_teams) or to_team_id = any(k_teams);
   delete from public.market_player_post_applications where team_id = any(k_teams);
+  delete from public.market_team_post_applications where profile_id = any(k_demo_profiles);
   delete from public.market_team_posts where team_id = any(k_teams);
+  -- La oferta del segundo usuario inventado cuelga de su profile y no de
+  -- ningún equipo, así que no la alcanza el barrido por `k_teams`.
+  delete from public.market_player_posts where profile_id = any(k_demo_profiles);
   delete from public.team_join_requests where team_id = any(k_teams);
+  -- Cubre el MATCH_CHAT de los partidos y el MARKET_DM del bloque 6, que
+  -- también tiene `team_id` de Apple FC. Los mensajes cascadean.
   delete from public.conversations where team_id = any(k_teams);
+  delete from public.conversation_reads
+   where profile_id = any(k_demo_profiles);
 
   -- ══════════════════════════════════════════════════════════════════════════
   -- 6. PLANTELES, PASOS POR EL CLUB Y RANKINGS POR FORMATO
@@ -128,16 +168,18 @@ begin
   delete from public.teams where id = any(k_teams);
 
   -- ══════════════════════════════════════════════════════════════════════════
-  -- 8. CAPITÁN INVENTADO DEL RIVAL
+  -- 8. USUARIOS INVENTADOS
   -- ══════════════════════════════════════════════════════════════════════════
+  -- El capitán del rival (bloque 1 del setup) y el jugador libre del bloque 6.
+  --
   -- ⚠️ El profile y el auth.users del REVISOR no se tocan (ver encabezado).
   -- `profiles.auth_user_id` es ON DELETE CASCADE, así que borrar el auth user
   -- se lleva el profile y todo lo que cascadea de él (badges, atribuciones,
-  -- lecturas de chat). Las FKs NO ACTION que apuntaban a este profile ya
-  -- quedaron limpias en los bloques 3 a 6.
-  delete from public.profiles   where id      = k_rival_profile;
-  delete from auth.identities   where user_id = k_rival_auth_id;
-  delete from auth.users        where id      = k_rival_auth_id;
+  -- lecturas de chat). Las FKs NO ACTION que apuntaban a estos profiles ya
+  -- quedaron limpias en los bloques 0 y 3 a 6.
+  delete from public.profiles   where id      = any(k_demo_profiles);
+  delete from auth.identities   where user_id in (k_rival_auth_id, k_extra_auth_id);
+  delete from auth.users        where id      in (k_rival_auth_id, k_extra_auth_id);
 
   raise notice '[demo] Teardown completo. El profile y la cuenta de auth del revisor quedaron intactos.';
 end;
