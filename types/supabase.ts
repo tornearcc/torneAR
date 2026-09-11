@@ -345,33 +345,60 @@ export type Database = {
       }
       content_reports: {
         Row: {
+          content_snapshot: string | null
           created_at: string
           id: string
           reason: string
           reported_entity_id: string
           reported_entity_type: Database["public"]["Enums"]["report_entity_type"]
+          reported_profile_id: string | null
           reporter_id: string
           status: Database["public"]["Enums"]["report_status"]
         }
         Insert: {
+          content_snapshot?: string | null
           created_at?: string
           id?: string
           reason: string
           reported_entity_id: string
           reported_entity_type: Database["public"]["Enums"]["report_entity_type"]
+          reported_profile_id?: string | null
           reporter_id: string
           status?: Database["public"]["Enums"]["report_status"]
         }
         Update: {
+          content_snapshot?: string | null
           created_at?: string
           id?: string
           reason?: string
           reported_entity_id?: string
           reported_entity_type?: Database["public"]["Enums"]["report_entity_type"]
+          reported_profile_id?: string | null
           reporter_id?: string
           status?: Database["public"]["Enums"]["report_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "content_reports_reported_profile_id_fkey"
+            columns: ["reported_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_reports_reported_profile_id_fkey"
+            columns: ["reported_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_reports_reported_profile_id_fkey"
+            columns: ["reported_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "content_reports_reporter_id_fkey"
             columns: ["reporter_id"]
@@ -3374,6 +3401,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      submit_content_report: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: Database["public"]["Enums"]["report_entity_type"]
+          p_reason: string
+        }
+        Returns: string
+      }
       submit_dispute_vote: {
         Args: { p_match_id: string; p_voted_team_id: string }
         Returns: undefined
@@ -3472,7 +3507,13 @@ export type Database = {
         | "MEDIOCAMPISTA"
         | "DELANTERO"
       proposal_status: "PENDIENTE" | "ACEPTADA" | "RECHAZADA"
-      report_entity_type: "USER" | "MATCH"
+      report_entity_type:
+        | "USER"
+        | "MATCH"
+        | "MESSAGE"
+        | "MARKET_TEAM_POST"
+        | "MARKET_PLAYER_POST"
+        | "TEAM"
       report_status: "PENDING" | "REVIEWED" | "DISMISSED" | "ACTIONED"
       result_status: "PENDIENTE" | "CARGADO" | "CONFIRMADO" | "EN_DISPUTA"
       stint_leave_reason:
@@ -3671,7 +3712,14 @@ export const Constants = {
         "DELANTERO",
       ],
       proposal_status: ["PENDIENTE", "ACEPTADA", "RECHAZADA"],
-      report_entity_type: ["USER", "MATCH"],
+      report_entity_type: [
+        "USER",
+        "MATCH",
+        "MESSAGE",
+        "MARKET_TEAM_POST",
+        "MARKET_PLAYER_POST",
+        "TEAM",
+      ],
       report_status: ["PENDING", "REVIEWED", "DISMISSED", "ACTIONED"],
       result_status: ["PENDIENTE", "CARGADO", "CONFIRMADO", "EN_DISPUTA"],
       stint_leave_reason: [

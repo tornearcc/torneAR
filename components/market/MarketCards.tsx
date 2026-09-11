@@ -102,6 +102,12 @@ interface MarketTeamCardProps {
   /** Called when the owner taps "Postulaciones". Not called for non-owners. */
   onViewApplications?: () => void;
   /**
+   * Abre el menú de moderación: denunciar la publicación o bloquear a quien la
+   * publicó. Sólo se pasa para publicaciones ajenas — sobre la propia no hay
+   * nada que moderar, así que la ausencia de la prop es lo que oculta el botón.
+   */
+  onPressModerate?: () => void;
+  /**
    * Etiqueta de distancia ya resuelta (`📍 a 2.5 km`), o `null` si no hay dato.
    *
    * Llega calculada desde la pantalla y no se resuelve acá: la tarjeta es un
@@ -114,7 +120,7 @@ interface MarketTeamCardProps {
 export function MarketTeamCard({
   postId, teamName, teamZone, matchZone, logoUrl, positionWanted, pitchType, description,
   matchDate, matchTime, complex, isOwner, memberStatus, index = 0, onPressAction, onPressStats, onDelete,
-  applicationCount, onViewApplications, distanceLabel,
+  applicationCount, onViewApplications, distanceLabel, onPressModerate,
 }: MarketTeamCardProps) {
   const isUrgent = isUrgentPost(matchDate);
   const cleanDescription = sanitizeMarketDescription(description);
@@ -154,6 +160,21 @@ export function MarketTeamCard({
             {positionWanted}
           </Text>
         </View>
+        {/* Moderación. Va debajo del badge de posición y no en su lugar porque
+            ese badge es lo que identifica la búsqueda de un vistazo. Fondo
+            propio semitransparente: sobre la foto, un icono suelto se pierde. */}
+        {onPressModerate && (
+          <TouchableOpacity
+            onPress={onPressModerate}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Opciones de la publicación"
+            className="absolute right-2.5 top-9 h-7 w-7 items-center justify-center rounded-full bg-black/50"
+          >
+            <AppIcon family="material-community" name="dots-vertical" size={16} color="#E5E2E1" />
+          </TouchableOpacity>
+        )}
         {/* Team row at bottom of image */}
         <View className="absolute bottom-2 left-3 right-3 flex-row items-center gap-2">
           {shieldImage ? (
@@ -311,12 +332,14 @@ interface MarketPlayerCardProps {
   applicationCount?: number;
   /** Called when the owner taps "Postulaciones". Not called for non-owners. */
   onViewApplications?: () => void;
+  /** Ver `MarketTeamCardProps.onPressModerate`. */
+  onPressModerate?: () => void;
 }
 
 export function MarketPlayerCard({
   postId, playerName, avatarUrl, username, position, postType,
   description, isOwner, memberStatus, index = 0, onPressAction, onPressStats, onDelete,
-  applicationCount, onViewApplications,
+  applicationCount, onViewApplications, onPressModerate,
 }: MarketPlayerCardProps) {
   const subtitle = postType === 'BUSCA_EQUIPO' ? 'Busca Equipo' : 'Busca Partido';
   const cleanDescription = sanitizeMarketDescription(description);
@@ -346,6 +369,19 @@ export function MarketPlayerCard({
             {position}
           </Text>
         </View>
+        {/* Ver el comentario equivalente en MarketTeamCard. */}
+        {onPressModerate && (
+          <TouchableOpacity
+            onPress={onPressModerate}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Opciones de la publicación"
+            className="absolute right-2.5 top-9 h-7 w-7 items-center justify-center rounded-full bg-black/50"
+          >
+            <AppIcon family="material-community" name="dots-vertical" size={16} color="#E5E2E1" />
+          </TouchableOpacity>
+        )}
         <View className="absolute bottom-2 left-3 right-3 flex-row items-center gap-2">
           {avatarImage ? (
             <Image

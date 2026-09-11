@@ -33,11 +33,15 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [x] **C1.3** — Aviso legal con enlaces en el modo login (`LegalLinksNotice`)
 - [ ] **C1.4** — Deploy de la web legal con la versión 12 → depende de **G6**
 - [ ] **C2** — Filtro de palabras (tabla, función, triggers, tests)
-- [ ] **C3** — Reportes en chats, Mercado y nombres de equipo
+- [x] **C3** — Reportes con contexto en chats y Mercado. Enum ampliado, RPC
+      `submit_content_report` que resuelve autor y snapshot en el servidor, motivos por
+      tipo de contenido. Migraciones `20260911140000` y `20260911150000`, aplicadas
 - [x] **C4 backend** — `user_blocks`, helpers, RPCs, policies RESTRICTIVE, triggers y patch
       del inbox. Migración `20260911130000`, aplicada y verificada en producción
-- [ ] **C4 cliente** — `lib/blocks-data.ts`, acción de bloquear en perfil/chat/Mercado,
-      pantalla «Usuarios bloqueados» en Preferencias
+- [x] **C4 cliente** — `lib/blocks-data.ts`, menú de moderación en perfil, chat y las dos
+      listas del Mercado, y pantalla «Usuarios bloqueados» en Preferencias
+- [ ] **TEAM** — denunciar nombre o escudo de equipo. El tipo de entidad y la RPC ya lo
+      soportan; falta el punto de entrada en el perfil del equipo
 - [ ] **C5** — Eliminar contenido denunciado desde el dashboard
 - [ ] **D1** — Datos demo del revisor ampliados
 

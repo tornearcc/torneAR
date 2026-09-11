@@ -165,7 +165,6 @@ export default function ProfileStatsScreen() {
             onClose={() => setSheet('none')}
             entityType="USER"
             entityId={viewData.profile.id}
-            reporterId={profile.id}
           />
         </>
       )}
