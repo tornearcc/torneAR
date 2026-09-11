@@ -1,6 +1,9 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+// Desde el SDK 56 expo-router prohíbe importar `@react-navigation/*` directo
+// y el bundler falla. `useFocusEffect` se toma de expo-router, igual que en el
+// resto de las pantallas.
+import { useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { AppIcon } from '@/components/ui/AppIcon';
