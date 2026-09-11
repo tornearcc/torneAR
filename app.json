@@ -66,7 +66,7 @@
           "locationWhenInUsePermission": "TorneAR usa tu ubicación para dos cosas: cuando tocás «Hacer check-in» antes de un partido, para confirmar que estás a menos de 150 metros del complejo donde se juega; y, si ya diste el permiso, para mostrarte a qué distancia te queda cada cancha en el Mercado. Nunca accedemos a tu ubicación en segundo plano.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
-          "motionUsagePermission": false,
+          "motionUsagePermission": "TorneAR no accede a los datos de movimiento ni de actividad física de tu dispositivo. Esta descripción es obligatoria porque hay componentes incluidos en la app que declaran esa capacidad del sistema, pero la aplicación nunca la solicita: el check-in en la cancha se verifica únicamente con tu ubicación.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
         }
