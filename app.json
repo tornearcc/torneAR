@@ -16,7 +16,7 @@
         "applinks:tornear.vercel.app"
       ],
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "TorneAR necesita tu ubicación para verificar que estás en la cancha al hacer check-in.",
+        "NSLocationWhenInUseUsageDescription": "TorneAR usa tu ubicación para dos cosas: cuando tocás «Hacer check-in» antes de un partido, para confirmar que estás a menos de 150 metros del complejo donde se juega; y, si ya diste el permiso, para mostrarte a qué distancia te queda cada cancha en el Mercado. Nunca accedemos a tu ubicación en segundo plano.",
         "LSApplicationQueriesSchemes": [
           "instagram"
         ],
@@ -62,7 +62,20 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "TorneAR necesita tu ubicación para verificar que estás en la cancha al hacer check-in."
+          "locationWhenInUsePermission": "TorneAR usa tu ubicación para dos cosas: cuando tocás «Hacer check-in» antes de un partido, para confirmar que estás a menos de 150 metros del complejo donde se juega; y, si ya diste el permiso, para mostrarte a qué distancia te queda cada cancha en el Mercado. Nunca accedemos a tu ubicación en segundo plano.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TorneAR abre tu galería solo cuando vos tocás para elegir una foto: por ejemplo, para poner tu foto de perfil, subir el escudo de tu equipo, o adjuntar la captura que respalda un reclamo de walkover de un partido. No accedemos a tus fotos en ningún otro momento.",
+          "cameraPermission": "TorneAR abre la cámara solo cuando vos elegís sacar una foto en el momento: por ejemplo, para adjuntar la evidencia que respalda un reclamo de walkover de un partido.",
+          "microphonePermission": false
         }
       ],
       [
