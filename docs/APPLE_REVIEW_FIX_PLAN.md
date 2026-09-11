@@ -51,8 +51,11 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [x] **C5.1/C5.2** — `admin_remove_reported_content` (migración `20260911170000`,
       aplicada, 11 aserciones pgTAP) y la cola del dashboard mostrando el texto
       denunciado, el autor resuelto y el botón de eliminar
-- [ ] **C5.3** — Aviso automático de denuncias nuevas por pg_cron. Sin esto, «24 horas»
-      depende de que alguien entre al panel por su cuenta
+- [x] **C5.3** — Aviso automático de denuncias nuevas: `enqueue_moderation_alerts` +
+      job pg_cron cada 15 minutos, por push a los admins. Migraciones `20260911180000`
+      y `20260911190000`, aplicadas, 6 aserciones pgTAP
+- [x] **TEAM** — Denunciar nombre o escudo de equipo desde la pantalla de stats del
+      equipo ajeno
 - [ ] **D1** — Datos demo del revisor ampliados
 
 ### Gestiones tuyas (yo no las puedo hacer)
