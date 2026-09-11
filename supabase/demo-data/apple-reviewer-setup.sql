@@ -54,6 +54,16 @@ declare
   k_match_upcoming    constant uuid := 'a99a0000-0000-4000-8000-000000000021';
   k_match_played      constant uuid := 'a99a0000-0000-4000-8000-000000000022';
 
+  -- ── Contenido para demostrar moderación (bloque 6) ───────────────────────
+  k_extra_auth_id     constant uuid := 'a99a0000-0000-4000-8000-000000000030';
+  k_extra_profile     constant uuid := 'a99a0000-0000-4000-8000-000000000031';
+  k_market_team_post  constant uuid := 'a99a0000-0000-4000-8000-000000000041';
+  k_market_player_post constant uuid := 'a99a0000-0000-4000-8000-000000000042';
+  k_market_convo      constant uuid := 'a99a0000-0000-4000-8000-000000000051';
+  k_market_msg_1      constant uuid := 'a99a0000-0000-4000-8000-000000000061';
+  k_market_msg_2      constant uuid := 'a99a0000-0000-4000-8000-000000000062';
+  k_market_msg_3      constant uuid := 'a99a0000-0000-4000-8000-000000000063';
+
   k_zone              constant text := 'La Tablada';
   k_format            constant team_format := 'FUTBOL_5';
 
@@ -290,8 +300,120 @@ begin
     );
   end if;
 
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- 6. CONTENIDO PARA DEMOSTRAR MODERACIÓN (App Store 1.2)
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- Apple pide un video que muestre denunciar contenido y bloquear a un
+  -- usuario. Con los bloques 1 a 5 solos eso no se puede grabar: la cuenta del
+  -- revisor no tiene ni un mensaje entrante ni una publicación ajena, y sobre
+  -- el contenido propio la app no ofrece esas acciones —ni podría, porque las
+  -- RPC rechazan denunciar o bloquearse a uno mismo.
+  --
+  -- Lo que se siembra está elegido para que el bloqueo se VEA:
+  --   · El chat y la oferta de equipo son del capitán rival. Al bloquearlo,
+  --     las dos cosas desaparecen en el acto.
+  --   · La oferta de jugador es de OTRA persona, y queda a la vista después
+  --     del bloqueo. Sin ese contraste, un feed que se vacía entero se explica
+  --     igual de bien por un error de carga.
+  --
+  -- Los textos son deliberadamente inocuos: desde la migración 20260911160000
+  -- hay un filtro de contenido sobre `messages` y sobre las descripciones, así
+  -- que un texto ofensivo de utilería no entraría, y tampoco haría falta —lo
+  -- que se demuestra es el mecanismo, no el insulto.
+
+  -- 6.a. Segundo usuario inventado. Mismo patrón que el capitán rival del
+  -- bloque 1: nadie inicia sesión con esta cuenta.
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+    confirmation_token, recovery_token, email_change, email_change_token_new
+  ) values (
+    '00000000-0000-0000-0000-000000000000', k_extra_auth_id,
+    'authenticated', 'authenticated', 'demo.jugador@tornear.com',
+    crypt(gen_random_uuid()::text, gen_salt('bf')), now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"Matías Ferreyra"}'::jsonb,
+    now(), now(), '', '', '', ''
+  )
+  on conflict (id) do nothing;
+
+  insert into auth.identities (
+    id, provider_id, user_id, identity_data, provider,
+    last_sign_in_at, created_at, updated_at
+  ) values (
+    gen_random_uuid(), k_extra_auth_id::text, k_extra_auth_id,
+    jsonb_build_object(
+      'sub', k_extra_auth_id::text,
+      'email', 'demo.jugador@tornear.com',
+      'email_verified', true,
+      'phone_verified', false
+    ),
+    'email', now(), now(), now()
+  )
+  on conflict (provider, provider_id) do nothing;
+
+  insert into public.profiles (
+    id, auth_user_id, username, full_name, zone, preferred_position,
+    date_of_birth, gender, strong_foot
+  ) values (
+    k_extra_profile, k_extra_auth_id, 'demo_jugador_libre', 'Matías Ferreyra',
+    k_zone, 'DELANTERO', '1999-08-03', 'M', 'LEFT'
+  )
+  on conflict (id) do nothing;
+
+  -- 6.b. Oferta del equipo rival, publicada por su capitán.
+  -- `created_by` es la columna que mira el filtro de bloqueo, así que ES el
+  -- capitán rival y no otro: si lo publicara alguien más, bloquear al capitán
+  -- no haría desaparecer la tarjeta y el video mostraría lo contrario de lo
+  -- que queremos demostrar.
+  insert into public.market_team_posts (
+    id, team_id, created_by, position_wanted, description, zone, is_active
+  ) values (
+    k_market_team_post, k_team_rival, k_rival_profile, 'ARQUERO',
+    'Buscamos arquero para completar el plantel. Jugamos los sábados a la tarde en La Tablada.',
+    k_zone, true
+  )
+  on conflict (id) do nothing;
+
+  -- 6.c. Oferta de un jugador SIN relación con el rival: es el control del
+  -- experimento, lo que sigue visible después del bloqueo.
+  insert into public.market_player_posts (
+    id, profile_id, post_type, position, description, is_active
+  ) values (
+    k_market_player_post, k_extra_profile, 'BUSCA_EQUIPO', 'DELANTERO',
+    'Delantero zurdo, 26 años. Busco equipo para jugar los fines de semana.',
+    true
+  )
+  on conflict (id) do nothing;
+
+  -- 6.d. Chat del Mercado con mensajes ENTRANTES.
+  -- El revisor es capitán de Apple FC, así que en esta conversación el equipo
+  -- es el suyo y el jugador del otro lado es el capitán rival: todo lo que se
+  -- inserta abajo le llega como mensaje de otra persona, que es la condición
+  -- para que la app le ofrezca denunciarlo.
+  insert into public.conversations (id, type, player_id, team_id)
+  values (k_market_convo, 'MARKET_DM', k_rival_profile, k_team_apple)
+  on conflict (id) do nothing;
+
+  -- Sin fila en `conversation_reads` a propósito: el chat aparece como no
+  -- leído y con su badge, que es como lo va a encontrar el revisor.
+  insert into public.messages (id, conversation_id, sender_profile_id, content, created_at)
+  values
+    (k_market_msg_1, k_market_convo, k_rival_profile,
+     'Hola, vi que buscan jugadores. ¿Siguen armando equipo para el sábado?',
+     now() - interval '3 hours'),
+    (k_market_msg_2, k_market_convo, k_rival_profile,
+     'Juego de mediocampista. Puedo ir a La Tablada sin problema.',
+     now() - interval '2 hours 55 minutes'),
+    (k_market_msg_3, k_market_convo, k_rival_profile,
+     'Avisame cualquier cosa y coordinamos.',
+     now() - interval '2 hours 50 minutes')
+  on conflict (id) do nothing;
+
   raise notice '[demo] Listo. Equipos: % (Apple FC) / % (rival). Partidos: % (próximo) / % (jugado). Cancha: %.',
     k_team_apple, k_team_rival, k_match_upcoming, k_match_played, v_venue_id;
+  raise notice '[demo] UGC: chat % con 3 mensajes del rival, oferta de equipo %, oferta de jugador % (de %).',
+    k_market_convo, k_market_team_post, k_market_player_post, k_extra_profile;
 end;
 $$;
 

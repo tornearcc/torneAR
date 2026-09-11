@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GlobalLoader } from '@/components/GlobalLoader';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
+import { ReportModal } from '@/components/reports/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
@@ -34,6 +36,7 @@ export default function TeamStatsScreen() {
   const [h2hMatches, setH2hMatches] = useState<H2HMatch[]>([]);
   const [alreadyChallenged, setAlreadyChallenged] = useState(false);
   const [teamBadges, setTeamBadges] = useState<TeamBadgeItem[]>([]);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const isRival = Boolean(viewerTeamId && viewerTeamId !== teamId);
   // Se extrae el id antes del callback: con `profile?.id` directo en el array
@@ -131,6 +134,13 @@ export default function TeamStatsScreen() {
     void loadData();
   }, [loadData]);
 
+  // Pertenencia al equipo que se está mirando. Se deriva del plantel que la
+  // pantalla ya trajo, y no de `viewerTeamId`, que es un parámetro opcional y
+  // no llega cuando se entra desde el ranking sin equipo activo.
+  const isMemberOfTeam = Boolean(
+    profileId && viewData?.members.some((member) => member.profileId === profileId),
+  );
+
   if (loading) return <GlobalLoader label="Cargando stats del equipo" />;
 
   if (!viewData) {
@@ -153,7 +163,27 @@ export default function TeamStatsScreen() {
     <View className="flex-1 bg-surface-base">
       {/* Reemplaza al GlobalHeader + boton "Volver" con caja: esta es una
           pantalla de detalle a la que se llega desde otra, no una tab. */}
-      <SecondaryHeader title="Stats del Equipo" />
+      <SecondaryHeader
+        title="Stats del Equipo"
+        // El nombre y el escudo de un equipo los carga un usuario, así que son
+        // contenido denunciable como cualquier otro (guideline 1.2). Sólo
+        // aparece sobre equipos ajenos: la pertenencia se deriva del plantel
+        // que ya trae la pantalla, no de `viewerTeamId`, que es opcional y
+        // falta cuando se llega desde el ranking sin equipo activo.
+        rightSlot={
+          isMemberOfTeam ? null : (
+            <TouchableOpacity
+              onPress={() => setShowReportModal(true)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Denunciar equipo"
+            >
+              <AppIcon family="material-community" name="flag-outline" size={20} color="#869585" />
+            </TouchableOpacity>
+          )
+        }
+      />
       <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 16, paddingBottom: 114 }}>
         <TeamHeader header={viewData.header} />
         <TeamEloChart history={viewData.eloHistory} currentElo={viewData.header.prRating} />
@@ -196,6 +226,16 @@ export default function TeamStatsScreen() {
         )}
 
       </ScrollView>
+
+      {!isMemberOfTeam && (
+        <ReportModal
+          visible={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          entityType="TEAM"
+          entityId={teamId}
+        />
+      )}
+
       {AlertComponent}
     </View>
   );

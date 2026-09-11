@@ -131,5 +131,29 @@ export function getGenericSupabaseErrorMessage(
     return 'No tienes permisos para realizar esta accion.';
   }
 
+  // Códigos que levantan las RPCs de moderación (submit_content_report,
+  // block_user) y los triggers de bloqueo. Se mapean acá y no en cada pantalla
+  // porque son los mismos tres mensajes en las cinco superficies donde se puede
+  // denunciar o bloquear. Sin esto el usuario ve el texto crudo de Postgres.
+  if (msg.includes('content_blocked')) {
+    return 'Ese texto tiene lenguaje que no permitimos. Editalo y volvé a intentar.';
+  }
+
+  if (msg.includes('user_blocked')) {
+    return 'No podés interactuar con este usuario porque hay un bloqueo entre ustedes.';
+  }
+
+  if (msg.includes('entity_not_found')) {
+    return 'Ese contenido ya no está disponible.';
+  }
+
+  if (msg.includes('invalid_target')) {
+    return 'No podés hacer eso sobre tu propio contenido.';
+  }
+
+  if (msg.includes('invalid_reason')) {
+    return 'Elegí un motivo para la denuncia.';
+  }
+
   return fallback;
 }

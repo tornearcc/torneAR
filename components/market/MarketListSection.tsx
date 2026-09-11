@@ -5,7 +5,7 @@ import { MarketTeamCard, MarketPlayerCard } from '@/components/market/MarketCard
 import { MarketCardSkeleton } from '@/components/market/MarketCardSkeleton';
 import { MarketTeamPost, MarketPlayerPost } from '@/lib/market-api';
 import type { PostLocation } from '@/lib/market-distance';
-import { TabType } from './types';
+import { TabType, type MarketModerationTarget } from './types';
 
 interface MarketListSectionProps {
   isLoading: boolean;
@@ -20,6 +20,13 @@ interface MarketListSectionProps {
   onViewPlayerStats: (profileId: string) => void;
   onDeletePost: (postId: string, isTeamPost: boolean) => void;
   onViewApplications: (postId: string, postType: 'TEAM' | 'PLAYER') => void;
+  /**
+   * Abre el menú de moderación sobre una publicación ajena. El target se arma
+   * acá porque el autor sale de una columna distinta en cada feed —`created_by`
+   * en las ofertas de equipo, `profile_id` en las de jugador— y ese detalle no
+   * tiene por qué subir hasta la pantalla.
+   */
+  onModeratePost: (target: MarketModerationTarget) => void;
   memberStatusMap?: Record<string, 'own_team' | 'own_player'>;
   applicationCounts?: Record<string, number>;
   /**
@@ -43,6 +50,7 @@ export function MarketListSection({
   onViewPlayerStats,
   onDeletePost,
   onViewApplications,
+  onModeratePost,
   memberStatusMap,
   applicationCounts,
   resolveDistanceLabel,
@@ -84,6 +92,17 @@ export function MarketListSection({
           onDelete={() => onDeletePost(post.id, true)}
           applicationCount={applicationCounts?.[post.id]}
           onViewApplications={() => onViewApplications(post.id, 'TEAM')}
+          onPressModerate={
+            isOwner
+              ? undefined
+              : () =>
+                  onModeratePost({
+                    postId: post.id,
+                    entityType: 'MARKET_TEAM_POST',
+                    authorProfileId: post.created_by,
+                    authorName: post.teams?.name ?? 'Equipo',
+                  })
+          }
           distanceLabel={
             resolveDistanceLabel?.({
               // Coordenadas exactas cuando el aviso está enlazado al catálogo
@@ -120,6 +139,17 @@ export function MarketListSection({
           onDelete={() => onDeletePost(post.id, false)}
           applicationCount={applicationCounts?.[post.id]}
           onViewApplications={() => onViewApplications(post.id, 'PLAYER')}
+          onPressModerate={
+            isOwner
+              ? undefined
+              : () =>
+                  onModeratePost({
+                    postId: post.id,
+                    entityType: 'MARKET_PLAYER_POST',
+                    authorProfileId: post.profile_id,
+                    authorName: post.profiles?.full_name ?? 'Jugador',
+                  })
+          }
         />
       );
     }

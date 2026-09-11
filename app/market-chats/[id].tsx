@@ -7,12 +7,15 @@ import {
   FlatList,
   ActivityIndicator,
   Modal,
+  Pressable,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
+import { UserActionsSheet } from '@/components/moderation/UserActionsSheet';
+import { ReportModal } from '@/components/reports/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { getInitials } from '@/lib/market-utils';
 import { supabase } from '@/lib/supabase';
@@ -69,6 +72,11 @@ export default function MarketChatScreen() {
   // A13: mensajes optimistas que no se pudieron entregar. Estado efímero y local
   // a la pantalla a propósito — no es dominio y no sobrevive a salir del chat.
   const [failedMessageIds, setFailedMessageIds] = useState<string[]>([]);
+  // Moderación del chat. `sheet` cubre el menú del interlocutor y la denuncia
+  // del perfil; `reportMessageId` la denuncia de un mensaje puntual, que se
+  // abre con long-press y no desde el menú.
+  const [sheet, setSheet] = useState<'none' | 'actions' | 'report-user'>('none');
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile || !id) return;
@@ -277,7 +285,19 @@ export default function MarketChatScreen() {
 
     return (
       <View className={`mb-4 px-4 flex-row ${isMine ? 'justify-end' : 'justify-start'}`}>
-        <View className="max-w-[80%]">
+        {/* Long-press para denunciar, sólo sobre mensajes ajenos y ya
+            confirmados por el servidor: uno optimista todavía tiene id `temp-`
+            y no existe como fila, así que la denuncia fallaría con
+            ENTITY_NOT_FOUND. Es un Pressable y no un Touchable para no agregar
+            feedback de opacidad a cada burbuja del chat. */}
+        <Pressable
+          className="max-w-[80%]"
+          onLongPress={
+            !isMine && !item.id.startsWith('temp-') ? () => setReportMessageId(item.id) : undefined
+          }
+          delayLongPress={400}
+          accessibilityHint={!isMine ? 'Mantené presionado para denunciar este mensaje' : undefined}
+        >
           {!isMine && senderLabel ? (
             <Text className="text-neutral-on-surface-variant font-ui text-[10px] mb-1 ml-1">
               {senderLabel}
@@ -377,7 +397,7 @@ export default function MarketChatScreen() {
               </Text>
             </TouchableOpacity>
           )}
-        </View>
+        </Pressable>
       </View>
     );
   }, [profile, failedMessageIds, isSending, deliverMessage]);
@@ -402,6 +422,38 @@ export default function MarketChatScreen() {
 
   const chatSubtitle = isCaptainMode ? 'Jugador' : 'Equipo';
 
+  // Quién es «el otro» para moderar.
+  //
+  // Del lado del capitán es directo: la conversación tiene `player_id`. Del
+  // lado del jugador NO hay una columna equivalente —el otro lado es un equipo,
+  // y por él pueden escribir el capitán y el subcapitán— así que se toma a
+  // quien efectivamente escribió. Es también lo correcto en la práctica:
+  // bloquear a quien te está hablando, no a un rol abstracto.
+  //
+  // Sin mensajes entrantes queda en `null` y el menú no se ofrece: todavía no
+  // hay nadie con quien haya pasado algo.
+  const counterpartMessage = messages.find((m) => m.sender_profile_id !== profile?.id);
+  const counterpartProfileId = isCaptainMode
+    ? chatData?.player_id ?? null
+    : counterpartMessage?.sender_profile_id ?? null;
+  const counterpartName = isCaptainMode
+    ? chatData?.player?.full_name ?? chatTitle
+    : counterpartMessage?.sender_full_name ?? chatTitle;
+
+  // Una sola instancia de ReportModal para los dos casos: dos `<Modal>` nativos
+  // montados a la vez se tapan entre sí, y acá nunca hace falta más de uno.
+  const reportEntity =
+    sheet === 'report-user' && counterpartProfileId
+      ? { type: 'USER' as const, id: counterpartProfileId }
+      : reportMessageId
+        ? { type: 'MESSAGE' as const, id: reportMessageId }
+        : null;
+
+  const closeReport = () => {
+    setSheet('none');
+    setReportMessageId(null);
+  };
+
   return (
     <View className="flex-1 bg-surface-base">
       {/* El nombre del interlocutor pasa por el `uppercase` del SecondaryHeader
@@ -415,7 +467,19 @@ export default function MarketChatScreen() {
         subtitle={chatData ? chatSubtitle : undefined}
         rightSlot={
           chatData ? (
-            chatAvatarUrl ? (
+            <View className="flex-row items-center gap-2">
+              {counterpartProfileId && (
+                <TouchableOpacity
+                  onPress={() => setSheet('actions')}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Opciones del chat"
+                >
+                  <AppIcon family="material-community" name="dots-vertical" size={22} color="#869585" />
+                </TouchableOpacity>
+              )}
+              {chatAvatarUrl ? (
               <Image
                 source={{ uri: chatAvatarUrl }}
                 style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}
@@ -429,7 +493,8 @@ export default function MarketChatScreen() {
                   {getInitials(chatTitle)}
                 </Text>
               </View>
-            )
+              )}
+            </View>
           ) : null
         }
       />
@@ -580,6 +645,33 @@ export default function MarketChatScreen() {
           </View>
         </View>
       </Modal>
+
+      {counterpartProfileId && (
+        <UserActionsSheet
+          visible={sheet === 'actions'}
+          onClose={() => setSheet('none')}
+          targetProfileId={counterpartProfileId}
+          targetName={counterpartName}
+          // Si hubiera un bloqueo, el trigger del servidor no dejaría escribir y
+          // la conversación ni siquiera estaría en la bandeja. Todo chat que se
+          // puede abrir es con alguien no bloqueado.
+          isBlocked={false}
+          onReport={() => setSheet('report-user')}
+          // Al bloquear, la conversación desaparece del inbox por el filtro de
+          // `get_market_inbox`. Se vuelve atrás en vez de quedarse en un chat
+          // que ya no existe para el usuario.
+          onBlockChanged={() => router.back()}
+        />
+      )}
+
+      {reportEntity && (
+        <ReportModal
+          visible
+          onClose={closeReport}
+          entityType={reportEntity.type}
+          entityId={reportEntity.id}
+        />
+      )}
     </View>
   );
 }

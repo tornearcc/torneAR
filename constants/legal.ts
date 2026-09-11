@@ -1,4 +1,5 @@
 import { Linking } from 'react-native';
+import { router } from 'expo-router';
 import { Logger } from '@/lib/logger';
 import { TERMS_LAST_UPDATED } from '@/components/legal/termsContent';
 import { PRIVACY_LAST_UPDATED } from '@/components/legal/privacyContent';
@@ -60,4 +61,22 @@ export async function openLegalDocument(doc: LegalDocument): Promise<void> {
       error,
     });
   }
+}
+
+/**
+ * Versión para `onPress`: resuelve el destino por `LEGAL_LINK_MODE` y no
+ * devuelve promesa.
+ *
+ * Vive acá y no en cada componente porque ya son tres las superficies que
+ * linkean a los documentos —el checkbox de consentimiento, el aviso legal del
+ * login y el gate de re-aceptación— y la elección entre la ruta in-app y la URL
+ * externa tiene que ser una sola. Cuando cada pantalla hacía su propio `if`,
+ * cambiar el modo obligaba a acordarse de todas.
+ */
+export function openLegal(doc: LegalDocument): void {
+  if (LEGAL_LINK_MODE === 'in-app') {
+    router.push(LEGAL_ROUTES[doc] as never);
+    return;
+  }
+  void openLegalDocument(doc);
 }

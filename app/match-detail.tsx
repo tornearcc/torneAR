@@ -903,7 +903,6 @@ export default function MatchDetailScreen() {
           onClose={() => setShowReportModal(false)}
           entityType="MATCH"
           entityId={match.id}
-          reporterId={profile.id}
         />
       )}
 

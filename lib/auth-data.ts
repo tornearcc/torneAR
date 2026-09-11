@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '@/lib/supabase';
+import { Logger } from '@/lib/logger';
 import { OAUTH_CALLBACK_PATH, PASSWORD_RECOVERY_PATH } from '@/lib/deep-linking';
 import { LEGAL_VERSIONS } from '@/constants/legal';
 import { AuthError, User } from '@supabase/supabase-js';
@@ -312,4 +314,207 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
 
   const { error: sessionError } = await establishSessionFromUrl(result.url);
   return { error: sessionError, cancelled: false };
+}
+
+/**
+ * `true` si el dispositivo puede ofrecer Sign in with Apple.
+ *
+ * En Android y en web el módulo nativo no existe y `expo-apple-authentication`
+ * devuelve un stub cuyo `isAvailableAsync()` responde `false`, así que importar
+ * el paquete fuera de iOS es inocuo y esta llamada no rompe.
+ *
+ * Se exporta para que `app/login.tsx` decida si pinta el botón: Apple exige que
+ * la opción esté al mismo nivel que la de Google, pero pintar un botón que no
+ * puede funcionar sería peor que no pintarlo.
+ */
+export async function isAppleSignInAvailable(): Promise<boolean> {
+  if (Platform.OS !== 'ios') return false;
+  return AppleAuthentication.isAvailableAsync();
+}
+
+/**
+ * Login nativo con Apple (guideline 4.8 de la App Store).
+ *
+ * A diferencia de Google, esto NO pasa por el navegador: el sistema presenta su
+ * propia hoja, devuelve un identity token firmado y ese token se canjea por una
+ * sesión de Supabase con `signInWithIdToken`. No hay deep link ni callback que
+ * parsear, así que nada de `establishSessionFromUrl` aplica acá.
+ *
+ * ## Por qué no se manda `nonce`
+ *
+ * `signInAsync` acepta un `nonce` y lo pasa VERBATIM a
+ * `ASAuthorizationAppleIDRequest.nonce` (ver ios/AppleAuthenticationRequest.swift
+ * del paquete): el módulo no lo hashea. El patrón correcto sería mandarle a
+ * Apple el SHA-256 y a Supabase el valor crudo, y si se invierte el orden el
+ * canje falla con un error opaco que no se puede diagnosticar desde el
+ * dispositivo. El flujo documentado por Supabase para Expo omite el nonce, que
+ * es lo que se hace acá: el token igual se valida por firma y por audiencia
+ * contra el bundle ID cargado en el provider.
+ *
+ * ## El nombre viene UNA sola vez
+ *
+ * Apple entrega `fullName` únicamente en la primera autorización de cada
+ * cuenta, y el identity token no lo lleva, así que Supabase no lo guarda solo.
+ * Si no se persiste en ese momento se pierde para siempre: la segunda vez que
+ * esa persona entre, `credential.fullName` va a venir en `null`.
+ *
+ * Por eso se escribe en `user_metadata.full_name` apenas hay sesión. Ese es
+ * exactamente el campo que `app/onboarding.tsx` ya lee para prellenar el nombre
+ * en las altas de Google, así que la pantalla de onboarding no se toca.
+ *
+ * El fallo al guardarlo NO aborta el login: la cuenta ya existe y la sesión ya
+ * está activa; dejar al usuario afuera por no haber podido precargar un campo
+ * que igual puede escribir a mano sería el peor de los dos resultados.
+ */
+export async function signInWithApple(): Promise<OAuthResult> {
+  let credential: AppleAuthentication.AppleAuthenticationCredential;
+
+  try {
+    credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+  } catch (error) {
+    // Cerrar la hoja es una decisión del usuario, no un fallo: mismo criterio
+    // que el `cancelled` de Google. El paquete rechaza con
+    // `ERR_REQUEST_CANCELED`; se mira además el mensaje porque el código viaja
+    // en una propiedad no tipada y un cambio de nombre del lado nativo
+    // convertiría una cancelación en una alerta de error.
+    const code = (error as { code?: string })?.code;
+    const message = error instanceof Error ? error.message : String(error);
+    if (code === 'ERR_REQUEST_CANCELED' || /cancel/i.test(message)) {
+      return { error: null, cancelled: true };
+    }
+    return { error: oauthError(message), cancelled: false };
+  }
+
+  if (!credential.identityToken) {
+    return {
+      error: oauthError('Apple no devolvió un token de identidad.'),
+      cancelled: false,
+    };
+  }
+
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token: credential.identityToken,
+  });
+
+  if (error) {
+    return { error, cancelled: false };
+  }
+
+  await persistAppleFullName(credential.fullName);
+  await linkAppleCredential(credential.authorizationCode);
+
+  return { error: null, cancelled: false };
+}
+
+/**
+ * Manda el `authorizationCode` al backend para que lo canjee por un refresh
+ * token de Apple y lo guarde.
+ *
+ * Existe por la obligación de revocar tokens al eliminar la cuenta (Apple
+ * 5.1.1(v)): la revocación necesita un refresh token, y el único momento en que
+ * se puede conseguir es el login, porque el código vive 5 minutos. Cuando el
+ * usuario pide la baja ya no hay nada que canjear.
+ *
+ * Se llama en CADA login con Apple y no sólo en el primero: el código viene
+ * siempre, y refrescar el token guardado es más barato que descubrir que el
+ * viejo dejó de servir justo el día que alguien se da de baja.
+ *
+ * Best-effort deliberado, igual que el nombre: la sesión ya está activa cuando
+ * esto corre, y hacer fallar un login porque no se pudo guardar una credencial
+ * que recién se usa al eliminar la cuenta sería desproporcionado. La edge
+ * function además responde 200 con `linked: false` en vez de error, y deja el
+ * detalle en `app_logs`.
+ */
+async function linkAppleCredential(authorizationCode: string | null): Promise<void> {
+  if (!authorizationCode) return;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('apple-auth', {
+      body: { action: 'link', authorizationCode },
+    });
+
+    if (error || data?.linked !== true) {
+      Logger.warn('No se pudo guardar la credencial de Apple para revocación futura', {
+        scope: 'auth-data.linkAppleCredential',
+        reason: error?.message ?? data?.reason ?? 'desconocido',
+      });
+    }
+  } catch (unexpected) {
+    Logger.warn('Excepción al guardar la credencial de Apple', {
+      scope: 'auth-data.linkAppleCredential',
+      error: unexpected,
+    });
+  }
+}
+
+/**
+ * Revoca el token de Apple del usuario actual, si tiene uno.
+ *
+ * Se llama desde `deleteOwnAccount()` ANTES de la RPC de baja, porque necesita
+ * la sesión activa. Para las cuentas de Google y de email no hay credencial
+ * guardada y la función responde `no_apple_credential` sin hacer nada.
+ *
+ * Nunca lanza: ver el porqué en `lib/account-data.ts`.
+ */
+export async function revokeAppleCredential(): Promise<void> {
+  try {
+    const { data, error } = await supabase.functions.invoke('apple-auth', {
+      body: { action: 'revoke' },
+    });
+
+    if (error) {
+      Logger.error('Falló la llamada de revocación del token de Apple', {
+        scope: 'auth-data.revokeAppleCredential',
+        reason: error.message,
+      });
+      return;
+    }
+
+    if (data?.revoked !== true && data?.reason !== 'no_apple_credential') {
+      Logger.error('Apple no confirmó la revocación del token', {
+        scope: 'auth-data.revokeAppleCredential',
+        reason: data?.reason ?? 'desconocido',
+      });
+    }
+  } catch (unexpected) {
+    Logger.error('Excepción al revocar el token de Apple', {
+      scope: 'auth-data.revokeAppleCredential',
+      error: unexpected,
+    });
+  }
+}
+
+/**
+ * Guarda el nombre que Apple entrega en la primera autorización.
+ *
+ * Best-effort a propósito (ver el comentario de `signInWithApple`): loguea y
+ * sigue. `givenName` y `familyName` pueden venir sueltos o en `null` por
+ * separado si la persona editó lo que comparte, así que se arma con los que
+ * haya y no se escribe nada si no quedó ninguno.
+ */
+async function persistAppleFullName(
+  fullName: AppleAuthentication.AppleAuthenticationFullName | null,
+): Promise<void> {
+  const parts = [fullName?.givenName, fullName?.familyName].filter(
+    (part): part is string => typeof part === 'string' && part.trim().length > 0,
+  );
+
+  if (parts.length === 0) return;
+
+  const { error } = await supabase.auth.updateUser({
+    data: { full_name: parts.join(' ') },
+  });
+
+  if (error) {
+    Logger.warn('No se pudo guardar el nombre que devolvió Apple; el onboarding lo va a pedir', {
+      scope: 'auth-data.persistAppleFullName',
+      reason: error.message,
+    });
+  }
 }

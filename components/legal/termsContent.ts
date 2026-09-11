@@ -1,5 +1,5 @@
 /**
- * Términos y Condiciones de uso de torneAR — **Versión Final 11**.
+ * Términos y Condiciones de uso de torneAR — **Versión Final 12**.
  *
  * Transcripción de `docs/legales/Terminos_y_Condiciones_TorneAR_Version_11_LISTA_PARA_PUBLICAR.pdf`.
  * El texto legal NO se reescribe ni se resume: se transcribe. Si hay que
@@ -7,6 +7,22 @@
  *
  * Espejo 1:1 de dashboard/lib/legal/termsContent.ts. Sincronización manual:
  * si tocás este archivo, replicá el cambio allá (y viceversa).
+ *
+ * ── Versión 12: agregado que NO viene del PDF ───────────────────────────────
+ *
+ * La sección 10 («Tolerancia cero con el contenido objetable y los usuarios
+ * abusivos») se agregó para cumplir la guideline 1.2 de la App Store, que exige
+ * que los Términos digan explícitamente que no hay tolerancia con el contenido
+ * objetable ni con los usuarios abusivos. Rechazo del 11/09/2026, submission
+ * f80970f0 — ver docs/APPLE_REVIEW_FIX_PLAN.md.
+ *
+ * Invierte el orden que pide el encabezado de arriba (primero el documento
+ * legal, después el código) porque el plazo de la revisión no daba para
+ * esperar el PDF. ⚠️ PENDIENTE: regenerar el PDF de docs/legales como
+ * Version_12 con esta cláusula incorporada, para que la transcripción vuelva a
+ * tener un original al que corresponder. Las secciones 10 a 32 de la versión 11
+ * pasaron a ser 11 a 33; ningún párrafo se referencia por número, así que la
+ * renumeración no rompe remisiones internas.
  *
  * ── Dos desvíos deliberados respecto del PDF ─────────────────────────────────
  *
@@ -46,10 +62,10 @@ export interface LegalSection {
  * Se muestra bajo el título Y actúa como identificador de versión del
  * documento (ver el header). Cambiarlo al publicar una versión nueva.
  */
-export const TERMS_LAST_UPDATED = '20 de Agosto, 2026';
+export const TERMS_LAST_UPDATED = '11 de Septiembre, 2026';
 
 export const TERMS_INTRO =
-  'Al utilizar torneAR, aceptás someterte a estos Términos y Condiciones. Leé detenidamente esta información antes de utilizar la plataforma. Versión Final 11.';
+  'Al utilizar torneAR, aceptás someterte a estos Términos y Condiciones. Leé detenidamente esta información antes de utilizar la plataforma. Versión Final 12.';
 
 export const TERMS_SECTIONS: LegalSection[] = [
   {
@@ -128,13 +144,22 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '10. Ausencia de relación laboral, societaria o de intermediación laboral',
+    title: '10. Tolerancia cero con el contenido objetable y los usuarios abusivos',
+    paragraphs: [
+      'TorneAR aplica una política de tolerancia cero respecto del contenido objetable y de las conductas abusivas. No se tolera el acoso, el hostigamiento, las amenazas, el discurso de odio, la discriminación, el contenido sexual, la suplantación de identidad, el fraude, las estafas, el spam ni la publicación no autorizada de datos personales de terceros, en ninguna superficie de la plataforma: mensajes entre usuarios, publicaciones del Mercado, nombres de usuario, nombres y escudos de equipo, imágenes de perfil y cualquier otro contenido incorporado por los usuarios.',
+      'Al registrarse, el usuario acepta expresamente no publicar, transmitir ni incorporar contenido objetable y no incurrir en conductas abusivas respecto de otros usuarios. El incumplimiento de esta cláusula habilita a TorneAR a eliminar el contenido y a suspender o cancelar la cuenta responsable, sin aviso previo.',
+      'TorneAR revisa las denuncias recibidas dentro de las veinticuatro (24) horas, elimina el contenido objetable que verifique y da de baja la cuenta que lo originó.',
+      'Todo usuario dispone, dentro de la aplicación, de mecanismos para denunciar contenido y para bloquear a otro usuario. El bloqueo oculta de forma inmediata las publicaciones y los mensajes de la persona bloqueada. Las denuncias también pueden dirigirse a tornearcc@gmail.com.',
+    ],
+  },
+  {
+    title: '11. Ausencia de relación laboral, societaria o de intermediación laboral',
     paragraphs: [
       'La utilización de TorneAR no genera relación laboral, de dependencia, societaria, de agencia, representación ni intermediación laboral entre TorneAR y los usuarios, ni entre los usuarios entre sí. Cualquier contraprestación económica pactada entre usuarios es ajena a TorneAR y de exclusiva responsabilidad de quienes la acuerden.',
     ],
   },
   {
-    title: '11. Responsabilidad del Organizador',
+    title: '12. Responsabilidad del Organizador',
     paragraphs: [
       'Cuando un usuario o tercero cree, convoque, publique, administre u organice por iniciativa propia un partido, torneo, campeonato o actividad deportiva y utilice TorneAR como medio de intermediación, contacto o difusión, revestirá el carácter de «Organizador» a los efectos de estos Términos y Condiciones.',
       'El Organizador será responsable, en la medida de las funciones efectivamente asumidas por él, de establecer y comunicar reglas particulares; coordinar fechas, horarios y lugares; efectuar convocatorias; gestionar inscripciones; contratar o coordinar canchas, árbitros y proveedores; obtener permisos o autorizaciones exigibles; informar condiciones particulares; adoptar medidas razonables de organización y seguridad; y cumplir las obligaciones legales, administrativas, fiscales y contractuales que resulten aplicables.',
@@ -143,7 +168,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '12. Actividad deportiva y riesgos inherentes',
+    title: '13. Actividad deportiva y riesgos inherentes',
     paragraphs: [
       'La práctica del fútbol implica riesgos inherentes, incluyendo golpes, caídas, choques, esguinces, fracturas, lesiones musculares o articulares y otras contingencias propias de la actividad física.',
       'Cada usuario participa por su exclusiva voluntad, asume los riesgos propios e inherentes de la actividad, declara encontrarse en condiciones adecuadas para practicarla y es responsable de realizar los controles médicos que correspondan según su situación personal.',
@@ -152,26 +177,26 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '13. Responsabilidad por daños y pérdidas',
+    title: '14. Responsabilidad por daños y pérdidas',
     paragraphs: [
       'Los Titulares de TorneAR no serán responsables por robos, hurtos o extravíos; daños materiales; pérdida de objetos; conflictos entre usuarios; daños ocasionados por terceros; ni incumplimientos, negligencias o hechos imputables a Organizadores, árbitros, establecimientos deportivos u otros terceros ajenos a la operación de la plataforma. Esta exclusión no alcanza a responsabilidades que legalmente resulten directamente imputables a los Titulares.',
     ],
   },
   {
-    title: '14. Limitación de responsabilidad',
+    title: '15. Limitación de responsabilidad',
     paragraphs: [
       'En los casos en que legalmente se determine responsabilidad de los Titulares de TorneAR, ésta quedará limitada a los daños que guarden relación de causalidad adecuada y directa con la conducta que les resulte imputable, conforme al Código Civil y Comercial de la Nación y demás normativa aplicable.',
       'Ninguna disposición de estos Términos y Condiciones deberá interpretarse como una exclusión o limitación de responsabilidad en supuestos en los que la ley prohíba hacerlo, incluyendo los casos alcanzados por el artículo 1743 del Código Civil y Comercial de la Nación y las normas imperativas de defensa del consumidor.',
     ],
   },
   {
-    title: '15. Estado de instalaciones y canchas de terceros',
+    title: '16. Estado de instalaciones y canchas de terceros',
     paragraphs: [
       'TorneAR no garantiza las condiciones de seguridad, higiene, mantenimiento o funcionamiento de canchas o instalaciones de terceros. La elección y contratación del lugar corresponde a los usuarios, Organizadores o terceros involucrados. La mera publicación de información o facilitación del contacto con un establecimiento no convierte a TorneAR ni a sus Titulares en propietarios, explotadores ni responsables de dicho establecimiento.',
     ],
   },
   {
-    title: '16. Seguros y cobertura médica',
+    title: '17. Seguros y cobertura médica',
     paragraphs: [
       'El registro en TorneAR, la creación o incorporación a un equipo, la inscripción en un torneo o la participación en un partido coordinado mediante la plataforma no implica, por sí mismo, la contratación ni existencia de seguro alguno.',
       'Salvo información expresa en contrario para una funcionalidad determinada, los Titulares de TorneAR no proporcionan seguros de accidentes personales, cobertura médica, seguro de vida ni seguro de responsabilidad civil por el solo uso de la plataforma.',
@@ -179,25 +204,25 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '17. Disponibilidad y seguridad de la plataforma',
+    title: '18. Disponibilidad y seguridad de la plataforma',
     paragraphs: [
       'TorneAR adopta medidas técnicas y organizativas razonables para resguardar la integridad, disponibilidad y seguridad del servicio y de la información, sin garantizar la inexistencia absoluta de errores, interrupciones, fallas informáticas, pérdida de datos, ataques cibernéticos o accesos no autorizados.',
     ],
   },
   {
-    title: '18. Exclusión de garantías',
+    title: '19. Exclusión de garantías',
     paragraphs: [
       'TorneAR no es responsable de la concreción de partidos, la asistencia de jugadores o árbitros, el nivel deportivo de los equipos ni la veracidad de la información suministrada por los usuarios. TorneAR no garantiza la identidad de los usuarios salvo respecto de aquellas verificaciones que expresamente informe haber realizado, y únicamente con el alcance informado para cada mecanismo de verificación.',
     ],
   },
   {
-    title: '19. Resultados, rankings y clasificaciones',
+    title: '20. Resultados, rankings y clasificaciones',
     paragraphs: [
       'Cuando la plataforma permita a los usuarios informar resultados, rankings, puntajes o clasificaciones, dicha información será suministrada por los propios usuarios u Organizadores. TorneAR podrá establecer mecanismos técnicos de reporte, corrección o moderación ante indicios razonables de irregularidades, sin que ello implique asumir la organización o gestión del partido, torneo o competencia.',
     ],
   },
   {
-    title: '20. Cancelaciones, inasistencias, «no show», suspensiones y abandono',
+    title: '21. Cancelaciones, inasistencias, «no show», suspensiones y abandono',
     paragraphs: [
       'Los usuarios y equipos deberán actuar de buena fe y respetar los compromisos asumidos respecto de partidos y torneos.',
       'Podrán considerarse incumplimientos: confirmar participación y no presentarse sin aviso o justificación razonable («no show»); cancelar reiteradamente con escasa antelación; abandonar injustificadamente un partido o torneo; incumplir reiteradamente horarios o condiciones aceptadas; o generar deliberadamente situaciones destinadas a impedir la actividad.',
@@ -206,25 +231,25 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '21. Disputas, reportes y revisión',
+    title: '22. Disputas, reportes y revisión',
     paragraphs: [
       'Los usuarios podrán reportar usuarios, equipos, mensajes, resultados o contenidos. TorneAR podrá revisar dichos reportes únicamente a efectos de la administración y seguridad de la plataforma y adoptar medidas sobre cuentas o contenidos. TorneAR no actuará como árbitro ni resolverá controversias deportivas, contractuales o económicas entre usuarios, Organizadores o terceros, sin perjuicio de mecanismos técnicos de corrección de información manifiestamente errónea o contraria a estos Términos.',
     ],
   },
   {
-    title: '22. Pagos, comisiones y reintegros',
+    title: '23. Pagos, comisiones y reintegros',
     paragraphs: [
       'A la fecha de estos Términos y Condiciones, el uso de TorneAR no genera el cobro de comisiones a los usuarios. Si en el futuro se incorporan servicios pagos, funcionalidades premium o comisiones, sus condiciones serán informadas previamente y podrán regirse por términos específicos adicionales, de acuerdo con la normativa aplicable.',
     ],
   },
   {
-    title: '23. Cláusula de indemnidad',
+    title: '24. Cláusula de indemnidad',
     paragraphs: [
       'Cada usuario se compromete a mantener indemnes a los Titulares de TorneAR frente a reclamos de terceros derivados directamente de conductas ilícitas del usuario; incumplimientos imputables a éste; contenido que infrinja derechos de terceros; falsedad de información; o, cuando actúe como Organizador, incumplimientos propios de las obligaciones asumidas en tal carácter. Esta cláusula no alcanza a reclamos derivados de conductas legalmente imputables a los Titulares.',
     ],
   },
   {
-    title: '24. Propiedad intelectual, marca y prohibición de uso por terceros',
+    title: '25. Propiedad intelectual, marca y prohibición de uso por terceros',
     paragraphs: [
       'La denominación «TorneAR», su marca, nombre, logotipo, signos distintivos, diseños, identidad visual, software, código fuente y código objeto, interfaces, bases de datos, algoritmos, documentación, contenidos gráficos, desarrollos y demás activos de propiedad intelectual vinculados con la plataforma pertenecen a sus respectivos Titulares, conforme a los acuerdos de cotitularidad existentes entre ellos, y se encuentran protegidos por la legislación aplicable.',
       'Ninguna persona humana o jurídica distinta de los Titulares podrá utilizar, reproducir, copiar, imitar, modificar, adaptar, publicar, distribuir, comercializar, explotar, registrar, solicitar el registro, licenciar o utilizar de cualquier otra forma la marca «TorneAR», su denominación, logotipo, signos distintivos, software, código, diseños, contenidos u otros activos de propiedad intelectual, sin autorización previa y expresa de los Titulares, salvo los usos expresamente permitidos por la legislación aplicable.',
@@ -236,7 +261,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '25. Imagen y contenido audiovisual',
+    title: '26. Imagen y contenido audiovisual',
     paragraphs: [
       'El uso dentro de la plataforma de fotografías de perfil, escudos y demás contenido necesario para prestar el servicio se regirá por estos Términos y por la Política de Privacidad.',
       'El uso de imagen, nombre, voz, fotografías o videos identificables de un usuario con fines promocionales, publicitarios o comerciales fuera de las funcionalidades esenciales requerirá autorización previa, específica, informada y separada.',
@@ -245,7 +270,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '26. Datos personales y Política de Privacidad',
+    title: '27. Datos personales y Política de Privacidad',
     paragraphs: [
       'El tratamiento de datos personales se regirá por la Ley N.° 25.326, sus normas reglamentarias, las disposiciones de la Agencia de Acceso a la Información Pública y demás normativa aplicable. Mientras TorneAR no se encuentre constituida como persona jurídica independiente, serán responsables del tratamiento las personas humanas que, en su carácter de Titulares y Operadores de TorneAR, determinen las finalidades y medios del tratamiento. La regulación específica del tratamiento de datos personales se desarrollará en una Política de Privacidad independiente de estos Términos y Condiciones, que será puesta a disposición de los usuarios mediante un enlace o mecanismo accesible dentro de la plataforma y que integrará el marco contractual aplicable al uso de TorneAR.',
       'En cumplimiento del deber de información establecido por el artículo 6 de la Ley N.° 25.326, TorneAR mantendrá a disposición de los usuarios una Política de Privacidad clara, accesible y actualizada, que informará las condiciones aplicables a la recolección y tratamiento de sus datos personales.',
@@ -257,39 +282,39 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '27. Geolocalización',
+    title: '28. Geolocalización',
     paragraphs: [
       'Las funcionalidades que efectivamente utilicen ubicación aproximada o precisa deberán informar previamente al usuario la finalidad, alcance y modalidad del tratamiento. TorneAR accederá a la ubicación únicamente en la medida necesaria para la funcionalidad solicitada y de acuerdo con los permisos otorgados por el usuario. No se accederá a la ubicación en segundo plano salvo que una funcionalidad concreta lo requiera, se informe expresamente y exista la habilitación correspondiente. La negativa o revocación del permiso de ubicación podrá limitar únicamente las funcionalidades que dependan de dicho dato, conforme se detalle en la Política de Privacidad.',
     ],
   },
   {
-    title: '28. Baja, suspensión y cancelación de cuentas',
+    title: '29. Baja, suspensión y cancelación de cuentas',
     paragraphs: [
       'El usuario podrá solicitar la baja de su cuenta por los medios que se habiliten e informen en la plataforma y en la Política de Privacidad. El tratamiento posterior de los datos asociados a una cuenta dada de baja —incluyendo su eliminación, anonimización o conservación temporal— se realizará conforme a las finalidades, plazos y obligaciones legales que se detallen en la Política de Privacidad vigente y en la normativa aplicable.',
       'TorneAR podrá aplicar suspensión preventiva, suspensión temporal o cancelación definitiva ante incumplimientos, fraude, riesgos de seguridad o requerimientos legales. Salvo urgencia, se informará el motivo y se brindará una instancia razonable de descargo. Las medidas justificadas no generarán derecho a indemnización, sin perjuicio de los derechos inderogables que correspondan.',
     ],
   },
   {
-    title: '29. Emergencias',
+    title: '30. Emergencias',
     paragraphs: [
       'TorneAR no presta servicios médicos, de asistencia sanitaria ni de emergencias. Ante un accidente, lesión, descompensación o situación de riesgo, los participantes y/o el Organizador deberán contactar inmediatamente al servicio de emergencias correspondiente al lugar donde se desarrolla la actividad y adoptar las medidas razonables que las circunstancias requieran.',
       'Las herramientas de TorneAR no sustituyen la intervención de profesionales médicos, servicios de emergencia, fuerzas de seguridad ni autoridades competentes.',
     ],
   },
   {
-    title: '30. Modificaciones',
+    title: '31. Modificaciones',
     paragraphs: [
       'Los Titulares podrán modificar estos Términos y Condiciones para reflejar cambios en la plataforma, la normativa o las prácticas aplicables. Los cambios menores podrán regir desde su publicación. Los cambios relevantes en derechos u obligaciones serán informados con antelación razonable y, cuando corresponda, se solicitará una nueva aceptación.',
     ],
   },
   {
-    title: '31. Legislación aplicable y jurisdicción',
+    title: '32. Legislación aplicable y jurisdicción',
     paragraphs: [
       'Estos Términos y Condiciones se regirán e interpretarán de conformidad con las leyes de la República Argentina. Toda controversia será sometida a los tribunales que resulten competentes conforme a la legislación argentina aplicable. Cuando no resulte aplicable una norma imperativa que atribuya competencia a una jurisdicción determinada, serán competentes los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires.',
     ],
   },
   {
-    title: '32. Aceptación de los Términos y Política de Privacidad',
+    title: '33. Aceptación de los Términos y Política de Privacidad',
     paragraphs: [
       'Para completar el registro, el usuario deberá aceptar expresamente estos Términos y Condiciones y, una vez publicada, la Política de Privacidad vigente, mediante los mecanismos electrónicos habilitados por TorneAR. Cuando un tratamiento requiera un consentimiento específico, éste deberá recabarse en forma separada de la aceptación general de los Términos y Condiciones, cuando así lo exija la normativa aplicable.',
       'Los Titulares conservarán evidencia electrónica razonable de las aceptaciones y consentimientos que correspondan, incluyendo la versión del documento aceptado, la cuenta asociada y la fecha y hora, de acuerdo con la Política de Privacidad vigente, los plazos de conservación aplicables y la normativa correspondiente.',
