@@ -135,6 +135,10 @@ export function getGenericSupabaseErrorMessage(
   // block_user) y los triggers de bloqueo. Se mapean acá y no en cada pantalla
   // porque son los mismos tres mensajes en las cinco superficies donde se puede
   // denunciar o bloquear. Sin esto el usuario ve el texto crudo de Postgres.
+  if (msg.includes('content_blocked')) {
+    return 'Ese texto tiene lenguaje que no permitimos. Editalo y volvé a intentar.';
+  }
+
   if (msg.includes('user_blocked')) {
     return 'No podés interactuar con este usuario porque hay un bloqueo entre ustedes.';
   }

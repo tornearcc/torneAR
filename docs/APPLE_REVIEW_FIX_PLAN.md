@@ -32,7 +32,12 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [x] **C1.2** — Versión Final 12 y `TERMS_LAST_UPDATED` al 11/09/2026 en ambos
 - [x] **C1.3** — Aviso legal con enlaces en el modo login (`LegalLinksNotice`)
 - [ ] **C1.4** — Deploy de la web legal con la versión 12 → depende de **G6**
-- [ ] **C2** — Filtro de palabras (tabla, función, triggers, tests)
+- [x] **C2** — Filtro de palabras: `banned_words`, `normalize_for_filter`,
+      `contains_banned_word` y triggers en las cinco superficies de texto libre.
+      Migración `20260911160000`, aplicada. Spec pgTAP en
+      `supabase/tests/380-content-filter.spec.sql` ⚠️ sin correr: `supabase test db`
+      necesita Docker, que no está levantado en esta máquina. Sus aserciones se
+      verificaron a mano contra la base
 - [x] **C3** — Reportes con contexto en chats y Mercado. Enum ampliado, RPC
       `submit_content_report` que resuelve autor y snapshot en el servidor, motivos por
       tipo de contenido. Migraciones `20260911140000` y `20260911150000`, aplicadas
