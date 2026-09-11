@@ -35,9 +35,10 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [x] **C2** — Filtro de palabras: `banned_words`, `normalize_for_filter`,
       `contains_banned_word` y triggers en las cinco superficies de texto libre.
       Migración `20260911160000`, aplicada. Spec pgTAP en
-      `supabase/tests/380-content-filter.spec.sql` ⚠️ sin correr: `supabase test db`
-      necesita Docker, que no está levantado en esta máquina. Sus aserciones se
-      verificaron a mano contra la base
+      `supabase/tests/380-content-filter.spec.sql`, **14 aserciones en verde**
+- [x] **Regresión de las cuatro migraciones de hoy** — `supabase db reset` las aplica
+      limpias desde cero y `supabase test db` pasa las 29 suites completas, 290
+      aserciones, sin romper ninguna de las 28 previas
 - [x] **C3** — Reportes con contexto en chats y Mercado. Enum ampliado, RPC
       `submit_content_report` que resuelve autor y snapshot en el servidor, motivos por
       tipo de contenido. Migraciones `20260911140000` y `20260911150000`, aplicadas
