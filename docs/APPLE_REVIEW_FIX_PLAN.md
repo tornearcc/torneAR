@@ -45,9 +45,9 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 | G1 | Habilitar la capability **Sign in with Apple** en el App ID `com.agussala2003.tornear` | developer.apple.com → Certificates, IDs & Profiles → Identifiers | Build de B | [x] |
 | G2 | Regenerar el provisioning profile después de G1 | `eas credentials` (o confirmar el prompt en el primer `eas build`) | Build de B | [x] perfil viejo borrado, se regenera en el próximo build |
 | G3 | Habilitar el provider **Apple** en Supabase y poner `com.agussala2003.tornear` en **Client IDs** | Supabase → Authentication → Providers → Apple | B4 en runtime | [x] |
-| G4 | Crear una **Sign in with Apple Key** (`.p8`) y anotar Key ID + Team ID | developer.apple.com → Keys | B7 en runtime | [ ] |
-| G5 | Cargar los cuatro secretos en Supabase | Supabase → Edge Functions → Secrets | B7 en runtime | [ ] |
-| G11 | Deployar la edge function `apple-auth` | `npx supabase functions deploy apple-auth` | B7 en runtime | [ ] |
+| G4 | Crear una **Sign in with Apple Key** (`.p8`) y anotar Key ID + Team ID | developer.apple.com → Keys | B7 en runtime | [x] key `WCC3AZZR2F`, team `2W55Q48ABC` |
+| G5 | Cargar los cuatro secretos en Supabase | Supabase → Edge Functions → Secrets | B7 en runtime | [x] |
+| G11 | Deployar la edge function `apple-auth` | `npx supabase functions deploy apple-auth` | B7 en runtime | [x] verificada contra Apple |
 | G6 | **Crítico.** Deploy del dashboard con los Términos versión 12 a `tornear.vercel.app/legal/tyc` | Vercel | C1.4 — ver nota abajo | [ ] |
 | G7 | Grabar el video en dispositivo físico | iPhone/iPad real | Envío | [ ] |
 | G8 | Screenshots nuevas de iPhone **y iPad** con el login nuevo | App Store Connect | Envío | [ ] |
@@ -356,6 +356,21 @@ Cómo obtener lo que va en los secretos:
 
 Sin costo: está incluido en la membresía del Apple Developer Program. El único límite es que no se
 pueden tener más de dos keys de Sign in with Apple activas a la vez.
+
+**Cómo verificar la configuración sin un dispositivo.** No hace falta esperar al build para saber
+si los cuatro valores son correctos. Se arma el client secret y se manda un canje a
+`https://appleid.apple.com/auth/token` con un `code` inventado:
+
+| Respuesta de Apple | Qué significa |
+|---|---|
+| `invalid_grant` | Aceptó el client secret y sólo rechazó el código falso. **Los cuatro valores están bien.** |
+| `invalid_client` | El client secret no le cierra: revisar Team ID, Key ID, que la key tenga Sign in with Apple configurado contra el App ID, y que `client_id` sea el bundle y no el Services ID. |
+
+Hecho el 11/09/2026: devolvió `invalid_grant`, o sea configuración correcta. Antes de eso conviene
+validar la firma sola —importar el `.p8` como PKCS#8 EC P-256, firmar y verificar contra la clave
+pública derivada del propio archivo— porque el modo típico de fallar es que la firma salga en DER
+en vez de los 64 bytes crudos `r||s` que pide JWS, y Apple responde `invalid_client` igual que si
+el Team ID estuviera mal.
 
 **B8. "Ocultar mi correo".** Verificar que nada valide el dominio del email. Revisado:
 `lib/schemas/authSchema.ts` usa `z.email()` genérico y `delete_own_account` reescribe el mail con
