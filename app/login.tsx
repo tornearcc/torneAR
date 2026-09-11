@@ -21,6 +21,7 @@ import {
   type AuthFormData,
 } from '@/lib/schemas/authSchema';
 import { LegalConsentCheckbox } from '@/components/ui/LegalConsentCheckbox';
+import { LegalLinksNotice } from '@/components/ui/LegalLinksNotice';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
@@ -322,6 +323,14 @@ export default function LoginScreen() {
           disabled={showAuthLoader || (!isLogin && !acceptedLegal)}
           label={isLogin ? 'Continuar con Google' : 'Registrarme con Google'}
         />
+
+        {/* En registro los documentos ya están enlazados desde el checkbox de
+            arriba; repetirlos acá sería el mismo párrafo dos veces en la misma
+            pantalla. En login no hay checkbox —la cuenta que ya existe aceptó
+            al crearse— pero los botones de OAuth sí pueden dar de alta una
+            cuenta nueva desde esta pestaña, así que los documentos tienen que
+            estar a la vista igual. */}
+        {isLogin && <LegalLinksNotice />}
 
         <TouchableOpacity onPress={toggleMode} className="items-center py-4">
           <Text className="font-ui text-sm text-neutral-on-surface-variant">

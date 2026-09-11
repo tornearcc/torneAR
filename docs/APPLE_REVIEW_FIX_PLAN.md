@@ -26,9 +26,10 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [ ] **B5** — `components/ui/AppleAuthButton.tsx`
 - [ ] **B6** — Botón de Apple en `app/login.tsx`
 - [ ] **B7** — Revocación del token de Apple al borrar la cuenta
-- [ ] **C1.1** — Cláusula de tolerancia cero en los dos `termsContent.ts`
-- [ ] **C1.2** — `TERMS_LAST_UPDATED` subido en ambos
-- [ ] **C1.3** — Checkbox legal gateando OAuth también en modo login
+- [x] **C1.1** — Cláusula de tolerancia cero como sección 10 en los dos `termsContent.ts`
+- [x] **C1.2** — Versión Final 12 y `TERMS_LAST_UPDATED` al 11/09/2026 en ambos
+- [x] **C1.3** — Aviso legal con enlaces en el modo login (`LegalLinksNotice`)
+- [ ] **C1.4** — Deploy de la web legal con la versión 12 → depende de **G6**
 - [ ] **C2** — Filtro de palabras (tabla, función, triggers, tests)
 - [ ] **C3** — Reportes en chats, Mercado y nombres de equipo
 - [ ] **C4** — Bloqueo de usuarios (tabla, RPCs, filtros server-side, UI)
@@ -39,15 +40,27 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 
 | # | Gestión | Dónde | Bloquea a | Estado |
 |---|---|---|---|---|
-| G1 | Habilitar la capability **Sign in with Apple** en el App ID `com.agussala2003.tornear` | developer.apple.com → Certificates, IDs & Profiles → Identifiers | Build de B | [ ] |
-| G2 | Regenerar el provisioning profile después de G1 | `eas credentials` (o confirmar el prompt en el primer `eas build`) | Build de B | [ ] |
-| G3 | Habilitar el provider **Apple** en Supabase y poner `com.agussala2003.tornear` en **Client IDs** | Supabase → Authentication → Providers → Apple | B4 en runtime | [ ] |
+| G1 | Habilitar la capability **Sign in with Apple** en el App ID `com.agussala2003.tornear` | developer.apple.com → Certificates, IDs & Profiles → Identifiers | Build de B | [x] |
+| G2 | Regenerar el provisioning profile después de G1 | `eas credentials` (o confirmar el prompt en el primer `eas build`) | Build de B | [x] perfil viejo borrado, se regenera en el próximo build |
+| G3 | Habilitar el provider **Apple** en Supabase y poner `com.agussala2003.tornear` en **Client IDs** | Supabase → Authentication → Providers → Apple | B4 en runtime | [x] |
 | G4 | Crear una **Sign in with Apple Key** (`.p8`) y anotar Key ID + Team ID | developer.apple.com → Keys | Solo B7 (revocación) | [ ] |
 | G5 | Cargar `.p8`, Key ID y Team ID como secrets de Supabase | Supabase → Edge Functions → Secrets | Solo B7 | [ ] |
-| G6 | Deploy del dashboard con los Términos nuevos a `tornear.vercel.app/legal/tyc` | Vercel | C1.4, antes de enviar el build | [ ] |
+| G6 | **Crítico.** Deploy del dashboard con los Términos versión 12 a `tornear.vercel.app/legal/tyc` | Vercel | C1.4 — ver nota abajo | [ ] |
 | G7 | Grabar el video en dispositivo físico | iPhone/iPad real | Envío | [ ] |
 | G8 | Screenshots nuevas de iPhone **y iPad** con el login nuevo | App Store Connect | Envío | [ ] |
 | G9 | Aplicar las migraciones nuevas a producción | Supabase | Antes de enviar el build | [ ] |
+| G10 | Regenerar el PDF legal como `Terminos_y_Condiciones_TorneAR_Version_12` con la cláusula nueva | `docs/legales/` | Nada técnico; cierra la trazabilidad del documento | [ ] |
+
+> **Por qué G6 es crítico y no un trámite.** `LEGAL_LINK_MODE` está en `'external'`
+> (`constants/legal.ts`), así que todos los enlaces legales de la app —el checkbox de registro, el
+> aviso del login y el botón «Leer los Términos actualizados» de `LegalVersionGate`— abren
+> `tornear.vercel.app/legal/tyc`, no la copia embebida. Si el dashboard no está deployado con la
+> versión 12, el reviewer toca el enlace y lee el texto viejo, **sin** la cláusula de tolerancia
+> cero. Eso es un incumplimiento directo de la 1.2 mostrado en cámara.
+>
+> Contingencia si el deploy no sale a tiempo: poner `LEGAL_LINK_MODE = 'in-app'`. Las rutas
+> `/(modals)/terms` y `/(modals)/privacy` ya existen y renderizan el mismo archivo versionado que
+> acabamos de editar, así que el texto viajaría dentro del binario y no habría carrera posible.
 
 ### Decisiones cerradas
 
@@ -344,16 +357,43 @@ el reviewer busca. Borrador:
 Va en **los dos archivos**: `tornear/components/legal/termsContent.ts` y
 `dashboard/lib/legal/termsContent.ts`. Están duplicados y no hay nada que los sincronice.
 
+Quedó insertada como **sección 10**, entre «9. Contenido prohibido» y la que era «10. Ausencia de
+relación laboral», que es su lugar natural. Las secciones 10 a 32 pasaron a 11 a 33. Ningún
+párrafo del documento se refiere a otro por número, así que la renumeración no rompe remisiones
+internas; se verificó antes de tocar nada.
+
+Dos detalles de los espejos que no son evidentes: el de la app usa comillas simples y CRLF, el del
+dashboard comillas dobles y LF. Normalizar cualquiera de los dos habría reescrito el archivo
+entero y el diff real habría quedado enterrado.
+
+> ⚠️ El encabezado de ambos archivos dice que el texto legal se cambia **primero** en el PDF y
+> después en el código. Acá se invirtió por el plazo de la revisión. Queda anotado en el propio
+> header y como gestión **G10**: regenerar el PDF como Versión 12.
+
 **C1.2 — Subir `TERMS_LAST_UPDATED`** en ambos. Efecto colateral deseado: `needsLegalAcceptance()`
 compara la versión, así que `LegalVersionGate` va a pedir re-aceptación a todos los usuarios
 existentes. Es correcto y además le da al reviewer una pantalla de EULA que puede filmar aunque
 use la cuenta demo ya creada.
 
-**C1.3 — Gatear el OAuth también en modo login.** Hoy `GoogleAuthButton` solo exige el checkbox en
-modo registro, pero Google (y Apple) dan de alta la cuenta en el primer consentimiento: un usuario
-nuevo que toca "Continuar con Google" desde la pestaña de login se registra sin haber tildado nada.
-Opción más simple y la que recomiendo: mostrar el `LegalConsentCheckbox` **siempre** que haya
-botones de OAuth visibles, con un copy que cubra los dos casos ("Al continuar, acepto…").
+**C1.3 — Enlaces legales en el modo login.** El diagnóstico original decía que había que gatear el
+OAuth con el checkbox también en modo login. Revisando `app/onboarding.tsx` resultó **menos grave
+de lo previsto**: `mustAcceptLegal` deriva de `needsLegalAcceptance(user)` y gatea el botón de
+guardar (`canSubmit`, línea 147), y el guard de `app/_layout.tsx` no deja entrar a la app con el
+perfil incompleto. O sea que un alta por Google o Apple desde la pestaña de login **no puede
+terminar** sin tildar el consentimiento: solo lo hace un paso más tarde.
+
+Lo que sí faltaba es que la pantalla de login, en modo «Iniciar sesión», no mostraba los
+documentos por ningún lado. Se agregó `components/ui/LegalLinksNotice.tsx`, un aviso de una línea
+con los dos enlaces, debajo de los botones de OAuth y solo en ese modo (en registro ya están
+enlazados desde el checkbox, repetirlos sería el mismo párrafo dos veces).
+
+Se descartó forzar el checkbox en modo login: quien ya tiene cuenta aceptó al crearla, y los
+cambios de versión los atrapa `LegalVersionGate`, que bloquea la app entera hasta re-aceptar.
+Exigir un tilde para entrar sería fricción sin contrapartida.
+
+De paso, la lógica de "ruta in-app o URL externa según `LEGAL_LINK_MODE`" estaba copiada dentro de
+`LegalConsentCheckbox`. Con una tercera superficie enlazando a los mismos documentos se extrajo a
+`openLegal()` en `constants/legal.ts`, así cambiar el modo es un solo lugar.
 
 **C1.4 — Deploy de la web legal.** `tornear.vercel.app/legal/tyc` tiene que mostrar el texto nuevo
 **antes** de enviar el build, porque el checkbox linkea ahí (`LEGAL_LINK_MODE = 'external'`).
