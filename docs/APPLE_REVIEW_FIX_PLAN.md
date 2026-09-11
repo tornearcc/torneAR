@@ -34,7 +34,10 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [ ] **C1.4** — Deploy de la web legal con la versión 12 → depende de **G6**
 - [ ] **C2** — Filtro de palabras (tabla, función, triggers, tests)
 - [ ] **C3** — Reportes en chats, Mercado y nombres de equipo
-- [ ] **C4** — Bloqueo de usuarios (tabla, RPCs, filtros server-side, UI)
+- [x] **C4 backend** — `user_blocks`, helpers, RPCs, policies RESTRICTIVE, triggers y patch
+      del inbox. Migración `20260911130000`, aplicada y verificada en producción
+- [ ] **C4 cliente** — `lib/blocks-data.ts`, acción de bloquear en perfil/chat/Mercado,
+      pantalla «Usuarios bloqueados» en Preferencias
 - [ ] **C5** — Eliminar contenido denunciado desde el dashboard
 - [ ] **D1** — Datos demo del revisor ampliados
 
