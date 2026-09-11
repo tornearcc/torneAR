@@ -426,6 +426,19 @@ verify_jwt = false
 [functions.notify-market-message]
 verify_jwt = false
 
+# apple-auth — canje y revocación de tokens de Sign in with Apple.
+#
+# Caso opuesto a las dos de arriba: acá el llamador SÍ es un cliente
+# autenticado, así que la verificación del gateway se deja encendida y es la
+# primera barrera. La función además resuelve el usuario del JWT en vez de
+# aceptarlo por parámetro — si viniera en el body, cualquiera podría revocarle
+# la credencial de Apple a otra persona.
+#
+# Se declara explícitamente aunque `true` sea el default, para que quede escrito
+# que es una decisión y no un olvido.
+[functions.apple-auth]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

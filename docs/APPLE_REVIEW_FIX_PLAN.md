@@ -26,7 +26,8 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 - [x] **B5** — `components/ui/AppleAuthButton.tsx`
 - [x] **B6** — Botón de Apple en `app/login.tsx`, arriba de Google
 - [ ] **B9** — Probar en dispositivo físico (compartir correo, ocultar correo, re-login)
-- [ ] **B7** — Revocación del token de Apple al borrar la cuenta
+- [x] **B7** — Revocación del token de Apple al borrar la cuenta (tabla, edge function, cliente).
+      Queda deployarla → **G4**, **G5**, **G11**
 - [x] **C1.1** — Cláusula de tolerancia cero como sección 10 en los dos `termsContent.ts`
 - [x] **C1.2** — Versión Final 12 y `TERMS_LAST_UPDATED` al 11/09/2026 en ambos
 - [x] **C1.3** — Aviso legal con enlaces en el modo login (`LegalLinksNotice`)
@@ -44,8 +45,9 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
 | G1 | Habilitar la capability **Sign in with Apple** en el App ID `com.agussala2003.tornear` | developer.apple.com → Certificates, IDs & Profiles → Identifiers | Build de B | [x] |
 | G2 | Regenerar el provisioning profile después de G1 | `eas credentials` (o confirmar el prompt en el primer `eas build`) | Build de B | [x] perfil viejo borrado, se regenera en el próximo build |
 | G3 | Habilitar el provider **Apple** en Supabase y poner `com.agussala2003.tornear` en **Client IDs** | Supabase → Authentication → Providers → Apple | B4 en runtime | [x] |
-| G4 | Crear una **Sign in with Apple Key** (`.p8`) y anotar Key ID + Team ID | developer.apple.com → Keys | Solo B7 (revocación) | [ ] |
-| G5 | Cargar `.p8`, Key ID y Team ID como secrets de Supabase | Supabase → Edge Functions → Secrets | Solo B7 | [ ] |
+| G4 | Crear una **Sign in with Apple Key** (`.p8`) y anotar Key ID + Team ID | developer.apple.com → Keys | B7 en runtime | [ ] |
+| G5 | Cargar los cuatro secretos en Supabase | Supabase → Edge Functions → Secrets | B7 en runtime | [ ] |
+| G11 | Deployar la edge function `apple-auth` | `npx supabase functions deploy apple-auth` | B7 en runtime | [ ] |
 | G6 | **Crítico.** Deploy del dashboard con los Términos versión 12 a `tornear.vercel.app/legal/tyc` | Vercel | C1.4 — ver nota abajo | [ ] |
 | G7 | Grabar el video en dispositivo físico | iPhone/iPad real | Envío | [ ] |
 | G8 | Screenshots nuevas de iPhone **y iPad** con el login nuevo | App Store Connect | Envío | [ ] |
@@ -318,17 +320,42 @@ y es lo primero que mira el reviewer.
   `router.replace` (el guard de `app/_layout.tsx` decide el destino).
 
 **B7. Revocación de token al eliminar la cuenta (5.1.1(v)).**
-Hoy `delete_own_account()` anonimiza el perfil y banea `auth.users`. Con SIWA hay que además
-revocar el token del lado de Apple. Plan mínimo:
-- Columna `profiles.apple_refresh_token text` (o tabla aparte `apple_credentials`), escrita por una
-  Edge Function nueva `apple-token-exchange` que recibe el `authorizationCode` del login y lo
-  canjea en `https://appleid.apple.com/auth/token`.
-- Edge Function `apple-revoke-token`, llamada desde `lib/account-data.ts` **antes** de
-  `delete_own_account()`, que hace `POST https://appleid.apple.com/auth/revoke`.
-- Requiere sí o sí el `.p8`, el Key ID y el Team ID como secrets de Supabase — es decir, esta
-  pieza sí necesita lo que B2 no necesitaba.
-- Si se decide diferirlo: es riesgo bajo de detección en review pero es política escrita de Apple.
-  Dejarlo anotado como deuda explícita, no olvidado.
+`delete_own_account()` anonimiza el perfil y banea `auth.users`. Con Sign in with Apple hay que
+además revocar el token del lado de Apple. Implementado así:
+
+- **`public.apple_credentials`** (migración `20260911120000_apple_credentials.sql`): una fila por
+  `auth.users.id` con el refresh token. RLS habilitada y **cero policies**, más `REVOKE ALL` a
+  `anon` y `authenticated`: es una credencial viva y no hay ningún caso en que el cliente deba
+  leerla, ni siquiera su dueño. Sólo la toca el `service_role` de la edge function.
+- **Edge function `apple-auth`**, una sola con dos acciones. `link` canjea el `authorizationCode`
+  en `https://appleid.apple.com/auth/token` y guarda el refresh token; `revoke` lo revoca en
+  `/auth/revoke` y borra la fila. Van juntas porque comparten los secretos y la firma ES256 del
+  client secret, que es la parte delicada: partirla en dos duplicaría eso en dos deploys.
+- **`verify_jwt = true`** (declarado explícitamente en `config.toml`), y el usuario se resuelve
+  del JWT y nunca del body. Si viniera por parámetro, cualquiera podría revocarle la credencial
+  a otra persona.
+- **Cliente.** `signInWithApple()` llama a `link` en cada login, no sólo en el primero: el código
+  vive 5 minutos y al momento de pedir la baja ya no existe. `deleteOwnAccount()` llama a `revoke`
+  antes de la RPC, porque necesita la sesión activa.
+- **Las dos llamadas son best-effort.** El login no falla si no se pudo guardar la credencial, y
+  la baja de cuenta no se aborta si Apple no responde: dejar a alguien sin poder eliminar su
+  cuenta sería incumplir la 5.1.1(v) que ya teníamos resuelta, además de un problema real de
+  privacidad. Los fallos quedan en `app_logs`.
+
+Detalle que cuesta un `invalid_client` si se pasa por alto: en el login **nativo** el `client_id`
+que espera Apple es el **bundle ID**, no el Services ID. El Services ID es para el flujo web.
+
+Cómo obtener lo que va en los secretos:
+
+| Secreto | Dónde sale |
+|---|---|
+| `APPLE_TEAM_ID` | developer.apple.com → Account → **Membership details**. 10 caracteres. También aparece arriba a la derecha del portal. |
+| `APPLE_KEY_ID` | developer.apple.com → Certificates, Identifiers & Profiles → **Keys** → `+` → nombre → tildar **Sign in with Apple** → Configure → elegir el App ID `com.agussala2003.tornear` → Continue → Register. El Key ID aparece en esa pantalla. |
+| `APPLE_PRIVATE_KEY` | El `.p8` que se descarga en ese mismo paso. **Se descarga una sola vez**; si se pierde hay que crear otra key. Va el contenido completo, con las líneas `BEGIN`/`END`. |
+| `APPLE_CLIENT_ID` | `com.agussala2003.tornear` |
+
+Sin costo: está incluido en la membresía del Apple Developer Program. El único límite es que no se
+pueden tener más de dos keys de Sign in with Apple activas a la vez.
 
 **B8. "Ocultar mi correo".** Verificar que nada valide el dominio del email. Revisado:
 `lib/schemas/authSchema.ts` usa `z.email()` genérico y `delete_own_account` reescribe el mail con

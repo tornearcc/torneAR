@@ -407,8 +407,87 @@ export async function signInWithApple(): Promise<OAuthResult> {
   }
 
   await persistAppleFullName(credential.fullName);
+  await linkAppleCredential(credential.authorizationCode);
 
   return { error: null, cancelled: false };
+}
+
+/**
+ * Manda el `authorizationCode` al backend para que lo canjee por un refresh
+ * token de Apple y lo guarde.
+ *
+ * Existe por la obligación de revocar tokens al eliminar la cuenta (Apple
+ * 5.1.1(v)): la revocación necesita un refresh token, y el único momento en que
+ * se puede conseguir es el login, porque el código vive 5 minutos. Cuando el
+ * usuario pide la baja ya no hay nada que canjear.
+ *
+ * Se llama en CADA login con Apple y no sólo en el primero: el código viene
+ * siempre, y refrescar el token guardado es más barato que descubrir que el
+ * viejo dejó de servir justo el día que alguien se da de baja.
+ *
+ * Best-effort deliberado, igual que el nombre: la sesión ya está activa cuando
+ * esto corre, y hacer fallar un login porque no se pudo guardar una credencial
+ * que recién se usa al eliminar la cuenta sería desproporcionado. La edge
+ * function además responde 200 con `linked: false` en vez de error, y deja el
+ * detalle en `app_logs`.
+ */
+async function linkAppleCredential(authorizationCode: string | null): Promise<void> {
+  if (!authorizationCode) return;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('apple-auth', {
+      body: { action: 'link', authorizationCode },
+    });
+
+    if (error || data?.linked !== true) {
+      Logger.warn('No se pudo guardar la credencial de Apple para revocación futura', {
+        scope: 'auth-data.linkAppleCredential',
+        reason: error?.message ?? data?.reason ?? 'desconocido',
+      });
+    }
+  } catch (unexpected) {
+    Logger.warn('Excepción al guardar la credencial de Apple', {
+      scope: 'auth-data.linkAppleCredential',
+      error: unexpected,
+    });
+  }
+}
+
+/**
+ * Revoca el token de Apple del usuario actual, si tiene uno.
+ *
+ * Se llama desde `deleteOwnAccount()` ANTES de la RPC de baja, porque necesita
+ * la sesión activa. Para las cuentas de Google y de email no hay credencial
+ * guardada y la función responde `no_apple_credential` sin hacer nada.
+ *
+ * Nunca lanza: ver el porqué en `lib/account-data.ts`.
+ */
+export async function revokeAppleCredential(): Promise<void> {
+  try {
+    const { data, error } = await supabase.functions.invoke('apple-auth', {
+      body: { action: 'revoke' },
+    });
+
+    if (error) {
+      Logger.error('Falló la llamada de revocación del token de Apple', {
+        scope: 'auth-data.revokeAppleCredential',
+        reason: error.message,
+      });
+      return;
+    }
+
+    if (data?.revoked !== true && data?.reason !== 'no_apple_credential') {
+      Logger.error('Apple no confirmó la revocación del token', {
+        scope: 'auth-data.revokeAppleCredential',
+        reason: data?.reason ?? 'desconocido',
+      });
+    }
+  } catch (unexpected) {
+    Logger.error('Excepción al revocar el token de Apple', {
+      scope: 'auth-data.revokeAppleCredential',
+      error: unexpected,
+    });
+  }
 }
 
 /**
