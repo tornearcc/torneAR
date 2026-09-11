@@ -5,6 +5,8 @@ import { GlobalLoader } from '@/components/GlobalLoader';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { ReportModal } from '@/components/reports/ReportModal';
+import { UserActionsSheet } from '@/components/moderation/UserActionsSheet';
+import { isBlockedWith } from '@/lib/blocks-data';
 import { useAuth } from '@/context/AuthContext';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
@@ -36,7 +38,12 @@ export default function ProfileStatsScreen() {
     profileId: string;
     data: ProfileStatsViewData | null;
   } | null>(null);
-  const [showReportModal, setShowReportModal] = useState(false);
+  // Un solo estado para los dos sheets y no un booleano por cada uno:
+  // `ReportModal` y `UserActionsSheet` son `<Modal>` nativos, y con flags
+  // independientes es posible dejar los dos en `true` a la vez — en iOS el
+  // segundo queda debajo del backdrop del primero y parece que no pasó nada.
+  const [sheet, setSheet] = useState<'none' | 'actions' | 'report'>('none');
+  const [isBlocked, setIsBlocked] = useState(false);
   const { showAlert, AlertComponent } = useCustomAlert();
 
   const loading = Boolean(profileId) && result?.profileId !== profileId;
@@ -69,6 +76,31 @@ export default function ProfileStatsScreen() {
     };
   }, [profileId, showAlert]);
 
+  // Estado del bloqueo, para saber si el menú ofrece «Bloquear» o
+  // «Desbloquear». Falla en silencio a `false`: no poder resolverlo no tiene
+  // que romper la pantalla, y ofrecer «Bloquear» sobre alguien ya bloqueado es
+  // inocuo — la RPC es idempotente por el ON CONFLICT DO NOTHING.
+  useEffect(() => {
+    if (!profileId || isOwnProfile) return;
+
+    let cancelled = false;
+    isBlockedWith(profileId)
+      .then((blocked) => {
+        if (!cancelled) setIsBlocked(blocked);
+      })
+      .catch((error: unknown) => {
+        Logger.warn('No se pudo resolver el estado de bloqueo del perfil', {
+          scope: 'profile-stats.loadBlockState',
+          profileId,
+          error,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, isOwnProfile]);
+
   if (loading) return <GlobalLoader label="Cargando stats" />;
 
   if (!viewData) {
@@ -84,19 +116,19 @@ export default function ProfileStatsScreen() {
     <View className="flex-1 bg-surface-base">
       <SecondaryHeader
         title="Stats"
-        // Sólo tiene sentido denunciar el perfil de OTRO: no te podés
-        // denunciar a vos mismo, así que el botón directamente no existe en
-        // isOwnProfile — no es una validación que haga falta llevar al modal.
+        // Sólo tiene sentido moderar el perfil de OTRO: no te podés denunciar
+        // ni bloquear a vos mismo, así que el botón directamente no existe en
+        // isOwnProfile — no es una validación que haga falta llevar al menú.
         rightSlot={
           !isOwnProfile ? (
             <TouchableOpacity
-              onPress={() => setShowReportModal(true)}
+              onPress={() => setSheet('actions')}
               activeOpacity={0.7}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
-              accessibilityLabel="Denunciar perfil"
+              accessibilityLabel="Opciones del perfil"
             >
-              <AppIcon family="material-community" name="flag-outline" size={20} color="#869585" />
+              <AppIcon family="material-community" name="dots-vertical" size={22} color="#869585" />
             </TouchableOpacity>
           ) : null
         }
@@ -116,14 +148,26 @@ export default function ProfileStatsScreen() {
         <CareerTimeline profileId={viewData.profile.id} isOwnProfile={isOwnProfile} />
       </ScrollView>
 
-      {profile?.id && (
-        <ReportModal
-          visible={showReportModal}
-          onClose={() => setShowReportModal(false)}
-          entityType="USER"
-          entityId={viewData.profile.id}
-          reporterId={profile.id}
-        />
+      {profile?.id && !isOwnProfile && (
+        <>
+          <UserActionsSheet
+            visible={sheet === 'actions'}
+            onClose={() => setSheet('none')}
+            targetProfileId={viewData.profile.id}
+            targetName={viewData.profile.full_name}
+            isBlocked={isBlocked}
+            onReport={() => setSheet('report')}
+            onBlockChanged={() => setIsBlocked((previous) => !previous)}
+          />
+
+          <ReportModal
+            visible={sheet === 'report'}
+            onClose={() => setSheet('none')}
+            entityType="USER"
+            entityId={viewData.profile.id}
+            reporterId={profile.id}
+          />
+        </>
       )}
 
       {AlertComponent}

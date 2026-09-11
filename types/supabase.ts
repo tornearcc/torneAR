@@ -10,7 +10,32 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -125,6 +150,27 @@ export type Database = {
           min_required_version?: string
           platform?: string
           update_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      apple_credentials: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          refresh_token?: string
           updated_at?: string
         }
         Relationships: []
@@ -2229,11 +2275,76 @@ export type Database = {
         }
         Relationships: []
       }
+      user_blocks: {
+        Row: {
+          blocked_profile_id: string
+          blocker_profile_id: string
+          created_at: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_profile_id: string
+          blocker_profile_id: string
+          created_at?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_profile_id?: string
+          blocker_profile_id?: string
+          created_at?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_blocks_blocked_profile_id_fkey"
+            columns: ["blocked_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocked_profile_id_fkey"
+            columns: ["blocked_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocked_profile_id_fkey"
+            columns: ["blocked_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_profile_id_fkey"
+            columns: ["blocker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_profile_id_fkey"
+            columns: ["blocker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_profile_id_fkey"
+            columns: ["blocker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           address: string | null
           created_at: string
           formats: Database["public"]["Enums"]["team_format"][]
+          google_cid: string | null
           id: string
           is_active: boolean
           lat: number
@@ -2247,6 +2358,7 @@ export type Database = {
           address?: string | null
           created_at?: string
           formats?: Database["public"]["Enums"]["team_format"][]
+          google_cid?: string | null
           id?: string
           is_active?: boolean
           lat: number
@@ -2260,6 +2372,7 @@ export type Database = {
           address?: string | null
           created_at?: string
           formats?: Database["public"]["Enums"]["team_format"][]
+          google_cid?: string | null
           id?: string
           is_active?: boolean
           lat?: number
@@ -2595,6 +2708,14 @@ export type Database = {
           p_match: Database["public"]["Tables"]["matches"]["Row"]
         }
         Returns: undefined
+      }
+      block_user: {
+        Args: { p_blocked_profile_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      blocks_exist_between: {
+        Args: { p_a: string; p_b: string }
+        Returns: boolean
       }
       calculate_elo_delta: {
         Args: { loser_elo: number; winner_elo: number }
@@ -3094,6 +3215,7 @@ export type Database = {
         Args: { p_new_captain_profile_id: string; p_team_id: string }
         Returns: Json
       }
+      has_block_with: { Args: { p_other: string }; Returns: boolean }
       is_ranking_match_allowed: {
         Args: { p_season_id: string; p_team_a_id: string; p_team_b_id: string }
         Returns: boolean
@@ -3103,6 +3225,17 @@ export type Database = {
         Returns: Json
       }
       leave_team_as_member: { Args: { p_team_id: string }; Returns: Json }
+      list_my_blocks: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          created_at: string
+          full_name: string
+          profile_id: string
+          reason: string
+          username: string
+        }[]
+      }
       log_checkin_distance: {
         Args: {
           p_distance_m: number
@@ -3269,6 +3402,10 @@ export type Database = {
         Args: { p_ends_at: string; p_new_name: string; p_starts_at: string }
         Returns: string
       }
+      unblock_user: {
+        Args: { p_blocked_profile_id: string }
+        Returns: undefined
+      }
       update_instagram_token: {
         Args: {
           p_access_token: string
@@ -3368,12 +3505,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3397,11 +3534,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3422,11 +3559,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3447,11 +3584,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3464,11 +3601,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3478,6 +3615,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       challenge_status: ["ENVIADA", "ACEPTADA", "RECHAZADA", "CANCELADA"],
