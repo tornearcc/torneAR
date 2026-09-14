@@ -2923,6 +2923,16 @@ export type Database = {
           views: number
         }[]
       }
+      dashboard_share_summary: {
+        Args: never
+        Returns: {
+          content_type: string
+          destination: string
+          share_count: number
+          sharer_count: number
+          window_days: number
+        }[]
+      }
       dashboard_top_referrers: {
         Args: { p_limit?: number }
         Returns: {
