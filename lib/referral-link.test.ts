@@ -10,7 +10,7 @@ import { buildReferralLink, buildReferralMessage } from './referral-link';
 //   2. El SO (Universal Link / App Link) si `app.json` declara los
 //      entitlements y la app esta instalada: abre la app directo.
 //   3. La landing web /i/[username] (torneAR/dashboard) si el SO no lo
-//      intercepto: ahi el fallback `tornear://login?ref=<username>` es lo
+//      intercepto: ahi el link manual `tornear://login?ref=<username>` es lo
 //      que parsea app/login.tsx via lib/deep-linking.ts.
 // Si alguien cambia el path o como se arma el segmento, la invitacion sigue
 // "siendo un link" pero el referido se pierde en silencio en cualquiera de
@@ -42,6 +42,43 @@ describe('buildReferralLink', () => {
   });
 });
 
+describe('buildReferralLink con nombre visible (?n=)', () => {
+  it('agrega el nombre codificado: tildes, eñes y espacios', () => {
+    expect(buildReferralLink('agussala', 'Agustín Muñoz')).toBe(
+      'https://tornear.vercel.app/i/agussala?n=Agust%C3%ADn%20Mu%C3%B1oz',
+    );
+  });
+
+  it('el nombre codificado vuelve intacto al decodificarlo (lo que hace la landing)', () => {
+    const link = new URL(buildReferralLink('agussala', 'José María Pérez'));
+    expect(link.pathname).toBe('/i/agussala');
+    expect(link.searchParams.get('n')).toBe('José María Pérez');
+  });
+
+  it('escapa los caracteres que partirian el query string', () => {
+    const link = buildReferralLink('agussala', 'Tom & Jerry #1 ?=');
+    expect(link).toBe('https://tornear.vercel.app/i/agussala?n=Tom%20%26%20Jerry%20%231%20%3F%3D');
+    expect(new URL(link).searchParams.get('n')).toBe('Tom & Jerry #1 ?=');
+  });
+
+  it('recorta espacios de los bordes', () => {
+    expect(buildReferralLink('agussala', '  Agus  ')).toBe('https://tornear.vercel.app/i/agussala?n=Agus');
+  });
+
+  it('sin nombre, vacio o solo espacios: no agrega el parametro', () => {
+    const plain = 'https://tornear.vercel.app/i/agussala';
+    expect(buildReferralLink('agussala', null)).toBe(plain);
+    expect(buildReferralLink('agussala', undefined)).toBe(plain);
+    expect(buildReferralLink('agussala', '')).toBe(plain);
+    expect(buildReferralLink('agussala', '   ')).toBe(plain);
+  });
+
+  it('no recorta nombres largos: el corte a 40 code points lo hace la web', () => {
+    const longName = 'Juan Ignacio Sacco Moriconi de la Santísima Trinidad';
+    expect(new URL(buildReferralLink('juani', longName)).searchParams.get('n')).toBe(longName);
+  });
+});
+
 describe('buildReferralMessage', () => {
   it('incluye el codigo en texto plano ademas del link', () => {
     const message = buildReferralMessage('agussala');
@@ -55,6 +92,12 @@ describe('buildReferralMessage', () => {
   it('mantiene el copy acordado con producto', () => {
     expect(buildReferralMessage('nico')).toBe(
       '¡Sumate a torneAR! Registrate con mi código: nico y empezá a rankear: https://tornear.vercel.app/i/nico',
+    );
+  });
+
+  it('con nombre visible, el link del mensaje lleva ?n= y el codigo en texto sigue siendo el username', () => {
+    expect(buildReferralMessage('nico', 'Nicolás Gómez')).toBe(
+      '¡Sumate a torneAR! Registrate con mi código: nico y empezá a rankear: https://tornear.vercel.app/i/nico?n=Nicol%C3%A1s%20G%C3%B3mez',
     );
   });
 });

@@ -16,6 +16,18 @@ import { Logger } from '@/lib/logger';
  * bien importa: si mañana alguien lee "share.instagram" como "shares
  * publicados", el número miente por arriba.
  *
+ * ── Tres superficies ─────────────────────────────────────────────────────────
+ *   · `match`       — tarjeta de resultado (`ShareMatchButton`). Se registra
+ *                     ANTES de abrir el share: ni `expo-sharing` ni
+ *                     `react-native-share` devuelven el destino, así que
+ *                     esperar no aporta nada.
+ *   · `referral`    — link de invitación del perfil (`ProfileInviteCard`).
+ *   · `team_invite` — código de invitación del equipo (`team-manage`).
+ * Las dos últimas usan `Share.share` de React Native, que en iOS SÍ devuelve
+ * el destino real al cerrarse la hoja (ver `shareActivityType`). Por eso ahí
+ * el evento se registra DESPUÉS, una sola vez por toque: registrar antes y
+ * después costaría dos filas del mismo presupuesto por cada intención.
+ *
  * ── Por qué pasa por Logger y no por un INSERT propio ────────────────────────
  * `lib/logger.ts` ya resuelve las cuatro cosas que este evento necesita y que
  * un `supabase.from('app_logs').insert(...)` suelto tendría que repetir:
@@ -41,6 +53,13 @@ import { Logger } from '@/lib/logger';
 export type ShareAnalyticsTarget = 'instagram' | 'generic';
 
 /**
+ * Qué se compartió. Viaja en `details->>'content_type'` y es la dimensión por
+ * la que agrupa `dashboard_share_summary`: un literal nuevo acá tiene que
+ * existir también en esa RPC, o el panel lo cuenta como desconocido.
+ */
+export type ShareContentType = 'match' | 'team_invite' | 'referral';
+
+/**
  * `message` de `app_logs` para cada destino.
  *
  * Constantes con prefijo `share.` y no un template string armado al vuelo:
@@ -53,44 +72,78 @@ const SHARE_EVENT_MESSAGE: Record<ShareAnalyticsTarget, string> = {
   generic: 'share.generic',
 };
 
-interface ShareIntentPayload {
+export interface ShareIntentPayload {
   target: ShareAnalyticsTarget;
+  contentType: ShareContentType;
   /** `profiles.id` del usuario que comparte. Va en `details` y NO en la
    *  columna `user_id`: esa columna es un FK a `auth.users` y la llena el
    *  Logger sola. Guardar acá el id de perfil es lo que permite cruzar el
    *  evento contra `profiles` sin pasar por `auth`. */
   profileId: string | null;
-  matchId: string;
-  /** Equipo desde cuya perspectiva se armó la tarjeta. Sin esto no se puede
-   *  saber si los que comparten son mayoritariamente los que ganaron. */
-  teamId: string;
+  /** Sólo en `match`. */
+  matchId?: string;
+  /** Equipo desde cuya perspectiva se comparte (`match`) o al que se invita
+   *  (`team_invite`). Sin esto no se puede saber si los que comparten son
+   *  mayoritariamente los que ganaron. */
+  teamId?: string;
+  /** Destino real reportado por iOS (`net.whatsapp.WhatsApp.ShareExtension`,
+   *  `com.apple.UIKit.activity.CopyToPasteboard`, …). Ausente en Android,
+   *  cuando se cancela la hoja, y en las superficies que no usan
+   *  `Share.share`. Nunca se completa con un valor inventado. */
+  activityType?: string;
 }
 
 /**
- * Registra que el usuario ARRANCÓ el flujo de compartir.
+ * Arma el `details` del evento. Separado de `trackShareIntent` para poder
+ * fijar el contrato en un test sin pasar por el Logger.
  *
- * Se llama antes de la captura de imagen, no después de que el share nativo
- * resuelva: el evento que interesa es la intención, y una captura que falla
- * (binario viejo sin `react-native-view-shot`, ver `lib/share-image.ts`)
- * también es una intención — de hecho, es justo la que más urge conocer.
+ * Las claves opcionales se OMITEN en vez de mandarse en `null`: así
+ * `details ? 'activity_type'` en SQL distingue "no vino" sin tener que
+ * interpretar un null, y las filas de `match` quedan iguales a las de antes
+ * salvo por `content_type`.
+ */
+export function buildShareEventDetails(payload: ShareIntentPayload): Record<string, unknown> {
+  const event = SHARE_EVENT_MESSAGE[payload.target];
+  return {
+    scope: 'share-analytics.trackShareIntent',
+    // Redundante con `message`, y a propósito: deja el evento filtrable desde
+    // `details->>'event'` sin depender de un LIKE sobre el texto del mensaje.
+    event,
+    target: payload.target,
+    content_type: payload.contentType,
+    profileId: payload.profileId,
+    ...(payload.matchId ? { matchId: payload.matchId } : {}),
+    ...(payload.teamId ? { teamId: payload.teamId } : {}),
+    ...(payload.activityType ? { activity_type: payload.activityType } : {}),
+  };
+}
+
+/**
+ * Registra un intento de compartir.
  *
  * Devuelve `void`, igual que todo `Logger`: es imposible `await`-earlo por
  * accidente y frenar el tap.
  */
-export function trackShareIntent({
-  target,
-  profileId,
-  matchId,
-  teamId,
-}: ShareIntentPayload): void {
-  Logger.info(SHARE_EVENT_MESSAGE[target], {
-    scope: 'share-analytics.trackShareIntent',
-    // Redundante con `message`, y a propósito: deja el evento filtrable desde
-    // `details->>'event'` sin depender de un LIKE sobre el texto del mensaje.
-    event: SHARE_EVENT_MESSAGE[target],
-    target,
-    profileId,
-    matchId,
-    teamId,
-  });
+export function trackShareIntent(payload: ShareIntentPayload): void {
+  Logger.info(SHARE_EVENT_MESSAGE[payload.target], buildShareEventDetails(payload));
+}
+
+/**
+ * Destino real de un `Share.share` de React Native, si lo hay.
+ *
+ * · iOS: resuelve `sharedAction` con `activityType` cuando el usuario eligió
+ *   un destino, y `dismissedAction` sin destino cuando cerró la hoja.
+ * · Android: resuelve SIEMPRE `sharedAction` y SIEMPRE sin `activityType`,
+ *   haya compartido o no — por eso ahí esto devuelve `undefined` y no se
+ *   inventa un "android" que parecería un destino.
+ *
+ * Tipo estructural y no `ShareAction` de react-native: así este módulo sigue
+ * sin importar react-native y su test corre en Node puro.
+ */
+export function shareActivityType(
+  result: { action: string; activityType?: string | null } | null | undefined,
+): string | undefined {
+  if (!result || result.action !== 'sharedAction') return undefined;
+  const value = result.activityType?.trim();
+  return value ? value : undefined;
 }
