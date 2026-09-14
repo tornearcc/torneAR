@@ -13,8 +13,9 @@ type ProfileInviteCardProps = {
   /** Username del usuario actual. Es también su código de referido. */
   username: string;
   /**
-   * Nombre visible (`profiles.full_name`, el mismo que muestra `ProfileHeader`).
-   * Viaja en el link como `?n=` para que la landing diga quién invita.
+   * `profiles.full_name`, el mismo que muestra `ProfileHeader`. Al link sólo
+   * llega el nombre de pila como `?n=` (ver `inviterFirstName` en
+   * lib/referral-link.ts): el apellido nunca sale del teléfono.
    */
   displayName: string | null;
   /** Ya tiene la insignia Embajador: cambia el copy de "meta" a "logro". */

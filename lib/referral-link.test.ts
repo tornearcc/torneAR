@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReferralLink, buildReferralMessage } from './referral-link';
+import { buildReferralLink, buildReferralMessage, inviterFirstName } from './referral-link';
 
 // Modulo puro: no importa react-native ni expo, asi que no necesita mocks.
 // Lo que fija este test es el CONTRATO del link (Fase 6.1): `buildReferralLink`
@@ -42,27 +42,51 @@ describe('buildReferralLink', () => {
   });
 });
 
-describe('buildReferralLink con nombre visible (?n=)', () => {
-  it('agrega el nombre codificado: tildes, eñes y espacios', () => {
+describe('inviterFirstName', () => {
+  it('se queda con la primera palabra: nunca viaja el apellido', () => {
+    expect(inviterFirstName('Agustín Saladino')).toBe('Agustín');
+    expect(inviterFirstName('Juan Ignacio Sacco Moriconi')).toBe('Juan');
+  });
+
+  it('una sola palabra: usa esa', () => {
+    expect(inviterFirstName('Agus')).toBe('Agus');
+  });
+
+  it('ignora espacios de los bordes y espacios repetidos', () => {
+    expect(inviterFirstName('   Agustín    Saladino  ')).toBe('Agustín');
+    expect(inviterFirstName('\tNico\nGómez')).toBe('Nico');
+  });
+
+  it('vacio, solo espacios o ausente: null', () => {
+    expect(inviterFirstName('')).toBeNull();
+    expect(inviterFirstName('    ')).toBeNull();
+    expect(inviterFirstName(null)).toBeNull();
+    expect(inviterFirstName(undefined)).toBeNull();
+  });
+});
+
+describe('buildReferralLink con nombre de pila (?n=)', () => {
+  it('manda solo el nombre de pila, codificado (tildes y eñes)', () => {
     expect(buildReferralLink('agussala', 'Agustín Muñoz')).toBe(
-      'https://tornear.vercel.app/i/agussala?n=Agust%C3%ADn%20Mu%C3%B1oz',
+      'https://tornear.vercel.app/i/agussala?n=Agust%C3%ADn',
     );
+    expect(buildReferralLink('peni', 'Peñaloza')).toBe('https://tornear.vercel.app/i/peni?n=Pe%C3%B1aloza');
   });
 
   it('el nombre codificado vuelve intacto al decodificarlo (lo que hace la landing)', () => {
     const link = new URL(buildReferralLink('agussala', 'José María Pérez'));
     expect(link.pathname).toBe('/i/agussala');
-    expect(link.searchParams.get('n')).toBe('José María Pérez');
+    expect(link.searchParams.get('n')).toBe('José');
+  });
+
+  it('el apellido no aparece en ninguna parte del link', () => {
+    expect(buildReferralLink('agussala', 'Agustín Saladino')).not.toContain('Saladino');
   });
 
   it('escapa los caracteres que partirian el query string', () => {
-    const link = buildReferralLink('agussala', 'Tom & Jerry #1 ?=');
-    expect(link).toBe('https://tornear.vercel.app/i/agussala?n=Tom%20%26%20Jerry%20%231%20%3F%3D');
-    expect(new URL(link).searchParams.get('n')).toBe('Tom & Jerry #1 ?=');
-  });
-
-  it('recorta espacios de los bordes', () => {
-    expect(buildReferralLink('agussala', '  Agus  ')).toBe('https://tornear.vercel.app/i/agussala?n=Agus');
+    const link = buildReferralLink('tom', 'Tom&Jerry#1?= Pérez');
+    expect(link).toBe('https://tornear.vercel.app/i/tom?n=Tom%26Jerry%231%3F%3D');
+    expect(new URL(link).searchParams.get('n')).toBe('Tom&Jerry#1?=');
   });
 
   it('sin nombre, vacio o solo espacios: no agrega el parametro', () => {
@@ -73,9 +97,9 @@ describe('buildReferralLink con nombre visible (?n=)', () => {
     expect(buildReferralLink('agussala', '   ')).toBe(plain);
   });
 
-  it('no recorta nombres largos: el corte a 40 code points lo hace la web', () => {
-    const longName = 'Juan Ignacio Sacco Moriconi de la Santísima Trinidad';
-    expect(new URL(buildReferralLink('juani', longName)).searchParams.get('n')).toBe(longName);
+  it('no recorta el largo de un nombre de pila largo: ese corte lo hace la web', () => {
+    const longFirstName = 'Maximilianoooooooooooooooooooooooooooooooooooo';
+    expect(new URL(buildReferralLink('maxi', `${longFirstName} Pérez`)).searchParams.get('n')).toBe(longFirstName);
   });
 });
 
@@ -95,9 +119,9 @@ describe('buildReferralMessage', () => {
     );
   });
 
-  it('con nombre visible, el link del mensaje lleva ?n= y el codigo en texto sigue siendo el username', () => {
+  it('con nombre, el link del mensaje lleva ?n= con el nombre de pila y el codigo en texto sigue siendo el username', () => {
     expect(buildReferralMessage('nico', 'Nicolás Gómez')).toBe(
-      '¡Sumate a torneAR! Registrate con mi código: nico y empezá a rankear: https://tornear.vercel.app/i/nico?n=Nicol%C3%A1s%20G%C3%B3mez',
+      '¡Sumate a torneAR! Registrate con mi código: nico y empezá a rankear: https://tornear.vercel.app/i/nico?n=Nicol%C3%A1s',
     );
   });
 });
