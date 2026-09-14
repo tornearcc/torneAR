@@ -1,74 +1,83 @@
 # Flujo de Trabajo — torneAR
 
-Este documento define el ciclo de desarrollo profesional del proyecto: ramas
-(Git Flow), validación automática (CI con GitHub Actions) y manejo de entornos
-de base de datos (Supabase Branching).
+Este documento define el ciclo de desarrollo del proyecto: ramas, validación
+automática (CI con GitHub Actions) y manejo de la base de datos (Supabase).
 
 ---
 
-## 1. Git Flow y Ramas
+## 1. Ramas
 
-Usamos un Git Flow simplificado con dos ramas de larga vida:
+> ⚠️ **Convención VIGENTE de este repo (verificada el 2026-09-14): la rama viva
+> es `develop`, no `main`.**
+>
+> La build de producción que está en la App Store (1.0.0, build 9, EAS
+> `c487b0e9`) se compiló desde `develop`, commit `f2d97f6`. `main` no recibe
+> merges desde el 20/08/2026 y **no** refleja lo que está en producción.
+>
+> **El repo de la web (`torneAR-web`, carpeta `dashboard/`) usa la convención
+> opuesta:** ahí `main` es la rama viva y la que Vercel despliega. Antes de
+> mergear, confirmá en qué repo estás.
 
-| Rama | Rol | Entorno | Deploy |
-|------|-----|---------|--------|
-| `main` | **Producción**. Siempre estable y liberable. | Prod | Supabase Prod + build de release |
-| `develop` | **Staging / Pruebas**. Integración de features antes de producción. | Staging | Supabase Staging |
-| `feature/<nombre>` | Trabajo de una feature puntual. | — | — |
-| `hotfix/<nombre>` | Arreglo urgente sobre producción. | — | — |
+| Rama | Rol hoy | Qué sale de acá |
+|------|---------|-----------------|
+| `develop` | **Rama viva.** Integración y fuente de lo que llega a producción. | Builds de EAS (perfil `production`) y `eas update --channel production` |
+| `main` | **Desactualizada** desde el 20/08/2026. No representa producción. | Nada. No mergear acá hasta decidir la convención (ver más abajo). |
+| `feature/<nombre>` | Trabajo de una feature puntual. Sale de `develop`, vuelve a `develop`. | — |
+| `hotfix/<nombre>` | Arreglo urgente. Sale del commit de la build vigente y vuelve a `develop`. | — |
 
 **Reglas:**
 
-- `main` es **estrictamente producción**. Nunca se commitea directo; solo recibe
-  merges vía Pull Request desde `develop` (o desde un `hotfix/*`).
-- `develop` es la base de integración. Los features salen de `develop` y vuelven
-  a `develop`.
-- Cada feature vive en su propia rama `feature/<nombre-descriptivo>`.
+- Los features salen de `develop` y vuelven a `develop` por Pull Request.
+- **Nunca** abrir un PR hacia `main` "para liberar": hoy ese paso no existe, y
+  mergear ahí mezclaría tres semanas de historia divergente.
+- **Un OTA empaqueta el JS del checkout local, no el de GitHub.** `eas update`
+  se corre parado en el commit que corresponde y sin cambios sin commitear. Si
+  el working tree tiene algo más, eso también viaja a los teléfonos.
+- **Antes de un OTA, confirmar el commit de la build vigente**, porque el update
+  tiene que partir de ahí:
+  ```bash
+  npx eas-cli build:list --platform ios --limit 1 --json   # → gitCommitHash
+  ```
+  Una rama de OTA sale de ese commit, no de la punta de `develop` si hubo merges
+  posteriores que no deberían llegar todavía a producción.
+- **OTA sólo JS.** `runtimeVersion` usa la política `appVersion`: una dependencia
+  nativa nueva o un cambio en `app.json` (`version`, permisos, plugins) no puede
+  salir por `eas update`; necesita build nueva y App Review.
+- **Variables de entorno del OTA:** publicar con `--environment production`, y
+  verificar que el `.env` local no pise nada (`EXPO_PUBLIC_*` se incrustan en el
+  bundle al publicar).
 
 ### Crear y trabajar una feature
 
 ```bash
-# Partimos siempre desde develop actualizado
 git checkout develop
 git pull origin develop
-
-# Nueva rama de feature
 git checkout -b feature/caja-del-equipo
 
 # ... trabajás, commiteás ...
-git add .
-git commit -m "feat(caja): estructura inicial de tesorería"
-
-# Subimos la rama y abrimos PR hacia develop
 git push -u origin feature/caja-del-equipo
 ```
 
-Luego se abre un **Pull Request `feature/... → develop`** en GitHub. Al aprobarse
-y pasar CI, se mergea a `develop` (recomendado: *squash merge* para mantener el
-historial limpio).
+Luego se abre un **Pull Request `feature/... → develop`**. Al pasar CI, se
+mergea a `develop`.
 
-### Promover a Producción
+### Publicar a producción
 
-Cuando `develop` está estable y probado en Staging:
+- **Build nueva (binario):** desde `develop`, `eas build --profile production`,
+  y submit. Anotar el `gitCommitHash` de la build en el PR o en el release.
+- **OTA:** desde la rama que parte del commit de la build vigente,
+  `eas update --channel production --environment production --platform ios --rollout-percentage 10`,
+  24 h mirando `app_logs` de nivel `error`, y recién después al 100%.
 
-```bash
-# PR de develop hacia main
-# (se hace desde la UI de GitHub: base = main, compare = develop)
-```
+### ¿Alinear con la web o dejarlo documentado?
 
-El PR `develop → main` corre CI de nuevo. Al mergear, `main` queda listo para el
-deploy de producción (aplicar migraciones a Supabase Prod + build de release).
+Pendiente de decisión. La propuesta es alinear el **significado**, no el nombre
+de la rama: que en los dos repos `main` sea "lo que está en producción".
 
-### Hotfix urgente
-
-```bash
-git checkout main
-git pull origin main
-git checkout -b hotfix/fix-crash-login
-# ... arreglo + commit ...
-git push -u origin hotfix/fix-crash-login
-# PR hacia main. Después, re-mergear main -> develop para no perder el fix.
-```
+- En este repo: fast-forward de `main` al commit de cada build que se publica en
+  las tiendas, más un tag (`ios-1.0.0-b9`). `develop` sigue siendo la rama de
+  integración.
+- Hasta que eso se haga, esta sección manda y `main` no se toca.
 
 ---
 
@@ -89,7 +98,8 @@ Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 ### Branch protection (configurar en GitHub una vez)
 
 Para que un PR **no se pueda mergear si CI falla**, activar en
-**Settings → Branches → Branch protection rules** para `main` y `develop`:
+**Settings → Branches → Branch protection rules** para `develop` (la rama viva)
+y `main`:
 
 - ✅ *Require a pull request before merging*.
 - ✅ *Require status checks to pass before merging* → seleccionar el check
@@ -105,17 +115,16 @@ Para que un PR **no se pueda mergear si CI falla**, activar en
 
 **Decisión operativa:** por estar en el **plan gratuito** de Supabase (sin
 Branching nativo) y por decisión de proyecto, **NO usamos un proyecto de Staging
-separado**. Tanto `main` como `develop` apuntan al **mismo y único proyecto de
-Supabase: `yusfykqimalghmmhlfdn` (`tornear-db`) — el de Producción.**
+separado**. Todas las ramas apuntan al **mismo y único proyecto de Supabase:
+`yusfykqimalghmmhlfdn` (`tornear-db`) — el de Producción.**
 
 | Entorno | Proyecto Supabase | Rama git |
 |---------|-------------------|----------|
-| **Producción** | `yusfykqimalghmmhlfdn` (`tornear-db`) | `main` **y** `develop` (comparten DB) |
+| **Producción** | `yusfykqimalghmmhlfdn` (`tornear-db`) | todas (comparten DB) |
 
-> ⚠️ **`develop` NO tiene una base de datos aislada.** Cualquier migración,
-> RPC, trigger, edge function, seed o test con escritura que se ejecute "desde
-> develop" impacta **directamente los datos reales de producción**. No existe
-> una red de contención a nivel de base de datos entre `develop` y `main`.
+> ⚠️ **Ninguna rama tiene una base de datos aislada.** Cualquier migración,
+> RPC, trigger, edge function, seed o test con escritura impacta
+> **directamente los datos reales de producción**.
 
 El aislamiento de entornos queda entonces **solo a nivel de código** (ramas + CI).
 La base es compartida, así que el cuidado con los datos es **manual y disciplinado**.
@@ -156,10 +165,9 @@ Como no hay Staging, estas reglas son la única protección de los datos reales:
    Los catálogos `badges` y `format_rules` no están en ningún seed: los siembran
    sus propias migraciones, así que viajan con `db push`.
 
-5. **`.env` apunta al mismo proyecto en ambas ramas.** No hay credenciales de
+5. **`.env` apunta al mismo proyecto en todas las ramas.** No hay credenciales de
    Staging; `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_KEY` son las de
-   producción tanto trabajando en `develop` como en `main`. Tenelo presente: la
-   app en modo dev lee/escribe datos reales.
+   producción. Tenelo presente: la app en modo dev lee/escribe datos reales.
 
 6. **Ventana de bajo tráfico para cambios sensibles.** Al aplicar migraciones o
    probar flujos con escritura, preferí horarios de poco uso y avisá al equipo.
@@ -178,6 +186,11 @@ supabase functions deploy
 Las migraciones (`supabase/migrations/`) y edge functions (`supabase/functions/`)
 siguen siendo la **única fuente de verdad**; nunca se modifica el schema a mano
 por fuera de una migración versionada.
+
+> Las RPCs `dashboard_*` que usa la web también se versionan **acá**, no en
+> `torneAR-web`. Si una migración se aplica con `apply_migration` del MCP de
+> Supabase, el servidor le asigna su propio `version`: renombrar el archivo
+> local a ese `version` o `db push` intentará aplicarla de nuevo.
 
 ### Secretos
 
@@ -201,12 +214,13 @@ aislamiento de datos por entorno. Hasta entonces, rige la disciplina de arriba.
 3. Si hay cambios de schema → nueva migración en `supabase/migrations/`, validada
    **en local** (`supabase start` + `supabase db reset`). ⚠️ Recordá: no hay
    Staging; aplicar al proyecto compartido = aplicar a Producción.
-4. Commit + `git push -u origin feature/<nombre>` + PR hacia `develop`.
+4. Commit + `git push -u origin feature/<nombre>` + PR hacia **`develop`**.
 5. CI verde + review → merge.
 
-**Release a producción (base compartida):**
-1. PR `develop → main`.
-2. CI verde + review → merge.
-3. `supabase link --project-ref yusfykqimalghmmhlfdn && supabase db push && supabase functions deploy`
-   (impacta la base real — hacerlo con cuidado, en ventana de bajo tráfico).
-4. Build de release (EAS).
+**Release a producción (hoy):**
+1. Migraciones: `supabase db push` (impacta la base real — con cuidado, en
+   ventana de bajo tráfico). Van **antes** del binario o del OTA que las usa.
+2. Binario: `eas build --profile production` desde `develop` + submit.
+3. OTA: `eas update --channel production --environment production --platform ios --rollout-percentage 10`
+   desde el commit de la build vigente, 24 h de observación, luego 100%.
+4. `main` no se toca (ver §1).

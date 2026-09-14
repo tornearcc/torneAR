@@ -25,9 +25,11 @@ npx tsc --noEmit
 
 Branching, CI/CD and Supabase environments are documented in
 [`docs/WORKFLOW.md`](docs/WORKFLOW.md). In short:
-- `main` = Producción, `develop` = integración; features en `feature/<nombre>`.
+- ⚠️ **En este repo la rama viva es `develop`, no `main`.** La build de producción (1.0.0, build 9) salió de `develop` (`f2d97f6`) y `main` está desactualizada desde el 20/08/2026: no mergear ahí. Features salen de `develop` y vuelven a `develop` por PR.
+- ⚠️ **El repo de la web (`torneAR-web`, carpeta `dashboard/`) usa la convención opuesta:** allá `main` es la rama viva y la que despliega Vercel. Confirmá en qué repo estás antes de mergear.
+- **OTA (`eas update`):** empaqueta el checkout local. Partir del `gitCommitHash` de la build vigente (`eas build:list --platform ios --limit 1 --json`), sin cambios sin commitear, con `--environment production` y rollout inicial al 10%. Sólo JS: nada nativo ni cambios en `app.json`.
 - Los PRs hacia `main`/`develop` corren CI (`.github/workflows/ci.yml`): `tsc`, `eslint` y Vitest.
-- ⚠️ Single-project (Free Tier): `main` y `develop` **comparten la base de Producción**. No hay Staging; validá cambios de schema en local (`supabase start`) antes de `db push`. Detalle en `docs/WORKFLOW.md`.
+- ⚠️ Single-project (Free Tier): todas las ramas **comparten la base de Producción**. No hay Staging; validá cambios de schema en local (`supabase start`) antes de `db push`. Las migraciones de las RPCs `dashboard_*` de la web también viven acá. Detalle en `docs/WORKFLOW.md`.
 
 ## Architecture
 
