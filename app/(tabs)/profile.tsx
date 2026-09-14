@@ -157,7 +157,9 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <ProfileBadgesSection badges={viewData.badges} />
         <ProfileInviteCard
+          profileId={viewData.profile.id}
           username={viewData.profile.username}
+          displayName={viewData.profile.full_name}
           isEmbajador={isEmbajador}
           onError={(message) => showAlert('No se pudo compartir', message)}
         />

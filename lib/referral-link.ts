@@ -20,8 +20,8 @@
  * `app.json` y `tornear.vercel.app/.well-known/{apple-app-site-association,
  * assetlinks.json}` publicados (torneAR/dashboard), el SO abre la app
  * directo si está instalada. Si no, cae en la landing web `/i/[username]`
- * (torneAR/dashboard), que a su vez intenta el fallback
- * `tornear://login?ref=<username>` antes de mostrar el CTA de descarga.
+ * (torneAR/dashboard), que muestra la invitación, el código y el CTA de
+ * descarga, con un link manual a `tornear://login?ref=<username>`.
  *
  * `lib/deep-linking.ts` (`normalizeUniversalLink`) sabe traducir
  * `https://tornear.vercel.app/i/<username>` de vuelta a este mismo destino si el SO
@@ -31,9 +31,49 @@
  */
 const REFERRAL_LINK_BASE_URL = 'https://tornear.vercel.app/i';
 
-/** `https://tornear.vercel.app/i/<username>` — Universal Link / App Link. */
-export function buildReferralLink(username: string): string {
-  return `${REFERRAL_LINK_BASE_URL}/${encodeURIComponent(username)}`;
+/**
+ * Nombre de pila de quien invita: la primera palabra de `full_name`.
+ *
+ * Sólo el nombre y nunca el apellido, por dos motivos:
+ * · El link se reenvía de grupo en grupo. El apellido terminaría viajando a
+ *   gente que nunca recibió una invitación de esa persona.
+ * · "Agustín te invitó a jugar" es como se invita a un picado; con nombre y
+ *   apellido suena a trámite.
+ *
+ * Con una sola palabra se usa esa. Vacío o sólo espacios → `null`, y el link
+ * sale sin `?n=`. Un nombre compuesto ("José María") queda en "José": separar
+ * nombres de pila de apellidos no se puede hacer bien a partir de un único
+ * campo libre, y la primera palabra nunca expone de más.
+ */
+export function inviterFirstName(fullName: string | null | undefined): string | null {
+  const first = fullName?.trim().split(/\s+/)[0];
+  return first ? first : null;
+}
+
+/**
+ * `https://tornear.vercel.app/i/<username>[?n=<nombre>]` — Universal Link / App Link.
+ *
+ * `?n=` es el nombre de pila de quien invita (ver `inviterFirstName`). La
+ * landing lo usa para el copy ("<nombre> te invitó a jugar") y para el título
+ * de la preview de WhatsApp. Viaja en la URL porque la zona pública de la web
+ * no consulta perfiles: una RPC pública que resolviera el username permitiría
+ * recorrer el padrón.
+ *
+ * · Es sólo presentación: la vinculación la sigue haciendo el username del
+ *   path, y `normalizeUniversalLink` no reenvía `n` a la app.
+ * · Se omite si no queda nombre: la web degrada sola al username.
+ * · No se recorta el largo acá: la web ya corta a 40 code points y limpia
+ *   caracteres de control, y duplicar esa regla sólo abriría la puerta a que
+ *   diverjan.
+ * · `encodeURIComponent` y no `URLSearchParams`: este último codifica los
+ *   espacios como `+`, que en un path de Next también se decodifica bien, pero
+ *   `%20` es inequívoco en cualquier parser que reciba el link (WhatsApp,
+ *   Instagram, el propio SO).
+ */
+export function buildReferralLink(username: string, fullName?: string | null): string {
+  const link = `${REFERRAL_LINK_BASE_URL}/${encodeURIComponent(username)}`;
+  const name = inviterFirstName(fullName);
+  return name ? `${link}?n=${encodeURIComponent(name)}` : link;
 }
 
 /**
@@ -42,6 +82,6 @@ export function buildReferralLink(username: string): string {
  * lugar que no lo renderiza como link), el código suelto es lo único que le
  * queda utilizable para tipear a mano al registrarse.
  */
-export function buildReferralMessage(username: string): string {
-  return `¡Sumate a torneAR! Registrate con mi código: ${username} y empezá a rankear: ${buildReferralLink(username)}`;
+export function buildReferralMessage(username: string, fullName?: string | null): string {
+  return `¡Sumate a torneAR! Registrate con mi código: ${username} y empezá a rankear: ${buildReferralLink(username, fullName)}`;
 }

@@ -4,11 +4,20 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { buildReferralMessage } from '@/lib/referral-link';
+import { shareActivityType, trackShareIntent } from '@/lib/share-analytics';
 import { Logger } from '@/lib/logger';
 
 type ProfileInviteCardProps = {
+  /** `profiles.id` del usuario actual, para la instrumentación del compartido. */
+  profileId: string;
   /** Username del usuario actual. Es también su código de referido. */
   username: string;
+  /**
+   * `profiles.full_name`, el mismo que muestra `ProfileHeader`. Al link sólo
+   * llega el nombre de pila como `?n=` (ver `inviterFirstName` en
+   * lib/referral-link.ts): el apellido nunca sale del teléfono.
+   */
+  displayName: string | null;
   /** Ya tiene la insignia Embajador: cambia el copy de "meta" a "logro". */
   isEmbajador: boolean;
   onError: (message: string) => void;
@@ -30,7 +39,13 @@ const COPIED_FEEDBACK_MS = 1800;
  * confirmarla obliga al usuario a descartar algo que no pidió. El alert queda
  * reservado para el caso de error real, vía `onError`.
  */
-export function ProfileInviteCard({ username, isEmbajador, onError }: ProfileInviteCardProps) {
+export function ProfileInviteCard({
+  profileId,
+  username,
+  displayName,
+  isEmbajador,
+  onError,
+}: ProfileInviteCardProps) {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -66,12 +81,14 @@ export function ProfileInviteCard({ username, isEmbajador, onError }: ProfileInv
   const handleShare = useCallback(async () => {
     if (sharing) return;
     setSharing(true);
+    let activityType: string | undefined;
     try {
       // `Share` es API del core de React Native, no un módulo nativo aparte:
       // no depende del rebuild del Dev Client como `react-native-share`.
       // Cancelar el menú resuelve normal (`dismissedAction`), así que cerrar
       // sin compartir no entra por el catch.
-      await Share.share({ message: buildReferralMessage(username) });
+      const result = await Share.share({ message: buildReferralMessage(username, displayName) });
+      activityType = shareActivityType(result);
     } catch (error) {
       Logger.error('No se pudo compartir la invitación', {
         scope: 'ProfileInviteCard.handleShare',
@@ -79,9 +96,13 @@ export function ProfileInviteCard({ username, isEmbajador, onError }: ProfileInv
       });
       onError('No pudimos abrir el menú de compartir. Intentá de nuevo.');
     } finally {
+      // En `finally` y no antes de abrir la hoja: el destino (iOS) recién se
+      // conoce cuando se cierra. Un share que falló también cuenta como
+      // intención, igual que en `ShareMatchButton`. Ver `lib/share-analytics.ts`.
+      trackShareIntent({ target: 'generic', contentType: 'referral', profileId, activityType });
       setSharing(false);
     }
-  }, [sharing, username, onError]);
+  }, [sharing, username, displayName, profileId, onError]);
 
   return (
     <View className="mt-8 rounded-2xl border border-brand-primary/40 bg-surface-container p-4">

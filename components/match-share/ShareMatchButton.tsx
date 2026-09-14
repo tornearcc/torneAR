@@ -192,6 +192,7 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
       // demorar ni romper el flujo del usuario.
       trackShareIntent({
         target,
+        contentType: 'match',
         profileId: profile?.id ?? null,
         matchId,
         teamId: myTeamId,
