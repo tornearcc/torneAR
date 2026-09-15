@@ -12,8 +12,8 @@
 -- Aserciones:
 --   S-1..S-7   Estructura: PKs, FK a seasons con RESTRICT y NINGUNA a teams,
 --              RLS, una sola policy de SELECT, sin triggers.
---   G-1..G-3   ACL = el de team_stints, privilegio por privilegio (TRUNCATE
---              aparte: ver G-3).
+--   G-1..G-3   ACL = el de team_stints en producción, privilegio por
+--              privilegio (literal: team_stints difiere entre entornos).
 --   A-1..A-4   Atomicidad: si el snapshot falla, el reset no ocurre.
 --   L-1..L-2   Bloqueos en el orden y los modos correctos, con lock_timeout.
 --   H-1..H-17  Transición feliz: cantidades, hechos anteriores al reset, zona
@@ -91,42 +91,49 @@ select is_empty(
 -- ════════════════════════════════════════════════════════════════════════════
 -- G — Privilegios: el molde de team_stints
 -- ════════════════════════════════════════════════════════════════════════════
+-- El ACL de team_stints NO es el mismo en todos los entornos, así que no sirve
+-- compararlo en vivo privilegio por privilegio:
+--   · producción: `rxtm` para anon y authenticated (SELECT, REFERENCES,
+--     TRIGGER, MAINTAIN);
+--   · migraciones puras (CI): anon SIN SELECT, y TRUNCATE heredado de los
+--     default privileges (ver 010-schema).
+-- El molde es el de PRODUCCIÓN y la migración lo otorga explícito (REVOKE ALL +
+-- GRANT), así que en las tablas nuevas se afirma literal (G-2, G-3). Contra
+-- team_stints se compara sólo lo que es igual en todos los entornos (G-1).
 select results_eq(
-  $$ select r.rolname, p.priv, has_table_privilege(r.rolname, 'public.season_standings', p.priv)
-       from (values ('anon'), ('authenticated')) r(rolname)
-      cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
-                         ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) p(priv)
-      order by 1, 2 $$,
-  $$ select r.rolname, p.priv, has_table_privilege(r.rolname, 'public.team_stints', p.priv)
-       from (values ('anon'), ('authenticated')) r(rolname)
-      cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
-                         ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) p(priv)
-      order by 1, 2 $$,
-  'G-1: season_standings tiene el mismo ACL que team_stints, privilegio por privilegio');
+  $$ select t.tbl, r.rolname, p.priv, has_table_privilege(r.rolname, t.tbl, p.priv)
+       from (values (1, 'public.season_standings'), (2, 'public.season_standings_formats')) t(ord, tbl)
+      cross join (values (1, 'anon'), (2, 'authenticated')) r(ord, rolname)
+      cross join (values (1, 'INSERT'), (2, 'UPDATE'), (3, 'DELETE')) p(ord, priv)
+      order by t.ord, r.ord, p.ord $$,
+  $$ select t.tbl, r.rolname, p.priv, has_table_privilege(r.rolname, 'public.team_stints', p.priv)
+       from (values (1, 'public.season_standings'), (2, 'public.season_standings_formats')) t(ord, tbl)
+      cross join (values (1, 'anon'), (2, 'authenticated')) r(ord, rolname)
+      cross join (values (1, 'INSERT'), (2, 'UPDATE'), (3, 'DELETE')) p(ord, priv)
+      order by t.ord, r.ord, p.ord $$,
+  'G-1: como team_stints, ni anon ni authenticated pueden INSERT/UPDATE/DELETE');
+
+create temp table expected_acl (ord int, rolname text, priv text, granted boolean);
+insert into expected_acl values
+  ( 1, 'anon', 'SELECT', true),  ( 2, 'anon', 'INSERT', false), ( 3, 'anon', 'UPDATE', false),
+  ( 4, 'anon', 'DELETE', false), ( 5, 'anon', 'TRUNCATE', false), ( 6, 'anon', 'REFERENCES', true),
+  ( 7, 'anon', 'TRIGGER', true), ( 8, 'anon', 'MAINTAIN', true),
+  ( 9, 'authenticated', 'SELECT', true),  (10, 'authenticated', 'INSERT', false),
+  (11, 'authenticated', 'UPDATE', false), (12, 'authenticated', 'DELETE', false),
+  (13, 'authenticated', 'TRUNCATE', false), (14, 'authenticated', 'REFERENCES', true),
+  (15, 'authenticated', 'TRIGGER', true), (16, 'authenticated', 'MAINTAIN', true);
 
 select results_eq(
-  $$ select r.rolname, p.priv, has_table_privilege(r.rolname, 'public.season_standings_formats', p.priv)
-       from (values ('anon'), ('authenticated')) r(rolname)
-      cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
-                         ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) p(priv)
-      order by 1, 2 $$,
-  $$ select r.rolname, p.priv, has_table_privilege(r.rolname, 'public.team_stints', p.priv)
-       from (values ('anon'), ('authenticated')) r(rolname)
-      cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
-                         ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) p(priv)
-      order by 1, 2 $$,
-  'G-2: season_standings_formats tiene el mismo ACL que team_stints, privilegio por privilegio');
+  $$ select rolname, priv, has_table_privilege(rolname, 'public.season_standings', priv)
+       from expected_acl order by ord $$,
+  $$ select rolname, priv, granted from expected_acl order by ord $$,
+  'G-2: season_standings tiene el ACL de team_stints en producción (rxtm), privilegio por privilegio — TRUNCATE incluido, que saltea RLS');
 
--- TRUNCATE va aparte porque team_stints NO es un buen patrón para ese
--- privilegio fuera de producción: allá su ACL es `rxtm`, pero con las
--- migraciones puras (local y CI) hereda TRUNCATE de los default privileges
--- (ver 010-schema). TRUNCATE saltea RLS, así que acá se afirma literal.
 select results_eq(
-  $$ select has_table_privilege(r.rolname, t.tbl, 'TRUNCATE')
-       from (values ('anon'), ('authenticated')) r(rolname)
-      cross join (values ('public.season_standings'), ('public.season_standings_formats')) t(tbl) $$,
-  $$ values (false), (false), (false), (false) $$,
-  'G-3: nadie de la API puede hacer TRUNCATE de la historia');
+  $$ select rolname, priv, has_table_privilege(rolname, 'public.season_standings_formats', priv)
+       from expected_acl order by ord $$,
+  $$ select rolname, priv, granted from expected_acl order by ord $$,
+  'G-3: season_standings_formats tiene el mismo ACL, privilegio por privilegio');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Setup como postgres
