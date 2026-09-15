@@ -6,6 +6,11 @@ name: EAS Build (Production)
 on:
   push:
     branches: [main]
+    # Un push que sólo toca documentación no justifica un build de producción.
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
   # Permite disparar el build manualmente desde la pestaña Actions.
   workflow_dispatch:
 

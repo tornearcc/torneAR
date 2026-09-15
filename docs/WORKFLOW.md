@@ -89,6 +89,15 @@ Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 - Pull Requests hacia `main` y `develop`.
 - Push directo a `main` y `develop`.
 
+**No se dispara si el cambio toca sólo documentación** (`docs/`, `README.md`,
+`CLAUDE.md`): `paths-ignore` en `ci.yml` y en los dos workflows de EAS. Un PR
+que mezcla documentación con cualquier otro archivo corre entero.
+
+> ⚠️ **Choca con la branch protection de abajo.** Si se marca un check de CI
+> como obligatorio, un PR de sólo documentación queda esperando un check que
+> nunca corre. Antes de activarla, pasar el filtro de `paths-ignore` (workflow)
+> a un filtro por job con `if:`: GitHub cuenta los jobs salteados como aprobados.
+
 **Qué valida (en orden; si algo falla, el check queda rojo):**
 1. `npm ci` — instalación reproducible desde `package-lock.json`.
 2. `npx tsc --noEmit` — chequeo de tipos TypeScript (modo estricto).
