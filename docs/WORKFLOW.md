@@ -59,8 +59,36 @@ automática (CI con GitHub Actions) y manejo de la base de datos (Supabase).
   `ios` contienen `expo run:*`, así que `@expo/fingerprint` incluye esa sección
   entera. Agregar un script de npm deja el check en rojo aunque no haya cambiado
   una línea de código nativo. Por eso el chequeo se invoca como archivo y no
-  como `npm run`. Si aparece un rojo así, `eas fingerprint:compare` lo muestra
-  en una línea y la salida correcta es no tocar esa sección, no subir `version`.
+  como `npm run`. Si aparece un rojo así, el propio script lista la fuente que
+  difiere y la salida correcta es no tocar esa sección, no subir `version`.
+
+#### Los dos chequeos comparan cosas distintas, a propósito
+
+| | Contra qué compara | Dónde corre |
+|---|---|---|
+| **Local** (`node scripts/check-native-fingerprint.mjs`) | El **build publicado** con el mismo runtime | A mano, antes de cada `eas update` |
+| **CI** (job `native-fingerprint`) | La **base del PR**, calculando los dos lados en el mismo runner | Automático, en cada PR |
+
+**Por qué CI no compara contra el build publicado.** `eas build` sube el
+*working copy* local, no el checkout de GitHub. En la máquina de release
+(Windows, `core.autocrlf=true`) los archivos de texto versionados viven con
+**CRLF**, y el fingerprint hashea contenido: `.gitignore`, `eas.json` y
+`plugins/withInstagramQueries.js` dan hashes distintos en un runner de Linux,
+que los ve con LF, **aunque no haya cambiado una sola línea**. Verificado el
+15/09/2026: convirtiendo esos tres archivos a LF, la máquina local reproduce
+exactamente el hash que calculó CI. Un job así daría rojo siempre.
+
+**Por qué no se arregla con `.gitattributes`.** Normalizar a LF cambiaría los
+bytes locales, y entonces el chequeo **local** —el que de verdad protege los
+OTA— dejaría de coincidir con el build publicado. Sería cambiar un rojo inútil
+por uno peligroso. Cuando salga un build desde un árbol ya normalizado, se puede
+reconsiderar.
+
+Cada chequeo usa **un solo método de cálculo en las dos puntas** de su
+comparación: el local, `eas-cli` con `--environment production` (el verificado
+para reproducir el hash de un build); el de CI, el `@expo/fingerprint` que fija
+`package-lock.json`. Mezclar los métodos entre las dos puntas es lo que produce
+falsos rojos.
 - **Variables de entorno del OTA:** publicar con `--environment production`, y
   verificar que el `.env` local no pise nada (`EXPO_PUBLIC_*` se incrustan en el
   bundle al publicar).

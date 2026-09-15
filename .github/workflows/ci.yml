@@ -61,64 +61,63 @@ jobs:
       - name: Tests (vitest)
         run: npm test
 
-  # ─── Fingerprint nativo vs. el binario que está en la calle ─────────────────
+  # ─── Fingerprint nativo: esta rama contra su base ───────────────────────────
   # Falla si el PR cambia el nativo SIN subir `version` en app.json. Con la
   # política `appVersion` eso deja al JS nuevo compartiendo runtime con los
   # binarios viejos: el OTA les llega, no tienen el módulo y la app no arranca.
-  # La lógica y el porqué, en scripts/check-native-fingerprint.mjs.
   #
-  # ⚠️ Este job NO cubre el momento en que el daño ocurre: los OTA se publican a
-  # mano desde el checkout local. El chequeo obligatorio es correr el script
-  # antes de `eas update` (docs/WORKFLOW.md §1); esto es la red de atrás.
+  # ⚠️ Compara rama contra base, NO contra el build publicado, y la diferencia
+  # es deliberada. `eas build` sube el working copy local, que en la máquina de
+  # release vive con CRLF (`core.autocrlf=true` en Windows); el fingerprint
+  # hashea contenido, así que el mismo árbol da un hash distinto en un runner de
+  # Linux. Comparar contra un build desde acá da rojo SIEMPRE, haya o no cambios
+  # nativos (verificado el 15/09/2026). Esa comparación es válida en la máquina
+  # que publica, y ahí es donde corre — a mano, antes de `eas update`
+  # (docs/WORKFLOW.md §1). Este job es la red de atrás, no el chequeo principal.
   #
-  # Sólo iOS: el fingerprint de Android incluye el contenido de
-  # `google-services.json`, que no está versionado (repo público), así que en el
-  # runner daría un falso positivo. Y hoy no hay binarios de Android publicados.
-  #
-  # Un PR desde un fork no recibe EXPO_TOKEN: ahí el job se saltea en vez de
-  # fallar por una credencial que GitHub nunca le va a entregar.
+  # Sin EXPO_TOKEN ni red: los dos lados se calculan con el `@expo/fingerprint`
+  # que fija package-lock.json. Por eso también corre en PRs desde forks. Y como
+  # los dos árboles se hashean igual, se miran las dos plataformas: un archivo
+  # sin versionar (`google-services.json`) falta en ambos lados por igual.
   native-fingerprint:
-    name: Fingerprint nativo (iOS)
+    name: Fingerprint nativo (rama vs base)
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request'
 
     steps:
+      # fetch-depth 0: hace falta el commit base para materializarlo abajo.
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Node 22 y no 20 como el resto del workflow: eas-cli 24.6 arrastra
-      # `@oclif/plugin-autocomplete`, que declara `node >= 22`, y yarn —el
-      # packager que usa expo-github-action— trata esa incompatibilidad como
-      # error y aborta la instalación. Con Node 20 el job moría antes de medir
-      # nada. El job `quality` se queda en 20 a propósito: ahí no hay eas-cli.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '20.x'
           cache: 'npm'
 
       # El fingerprint hashea los módulos nativos de node_modules: sin install
-      # no hay nada que medir.
+      # no hay nada que medir. Hacen falta los dos árboles instalados, porque
+      # una dependencia nativa nueva se ve justamente ahí.
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Expo and EAS CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      # Worktree y no `git checkout`: el script vive en ESTA rama y en la base
+      # puede no existir todavía (es el caso del PR que lo agrega).
+      - name: Materializar la base en un worktree
+        run: git worktree add ../base ${{ github.event.pull_request.base.sha }}
+
+      - name: Install dependencies (base)
+        working-directory: ../base
+        run: npm ci
 
       # Se invoca el archivo y NO un script de package.json: los scripts de
       # package.json forman parte del fingerprint (`android`/`ios` contienen
       # `expo run:*`), así que agregar uno movería el hash que este job mide y
       # el chequeo fallaría por su propia herramienta.
-      - name: Fingerprint nativo vs. build de producción
-        run: node scripts/check-native-fingerprint.mjs
-        env:
-          # Explícito y no heredado de la action: el script consulta los builds
-          # del proyecto, y si el token no llegara, eas fallaría pidiendo login
-          # en un runner sin nadie que lo conteste.
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Comparar el nativo contra la base
+        run: node scripts/check-native-fingerprint.mjs --against ../base
 
   # ─── Tests de base de datos (pgTAP · stack efímero) ─────────────────────────
   # Levanta un stack local de Supabase DESDE CERO en el runner (aplica las
