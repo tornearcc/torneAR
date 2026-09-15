@@ -43,6 +43,24 @@ automática (CI con GitHub Actions) y manejo de la base de datos (Supabase).
 - **OTA sólo JS.** `runtimeVersion` usa la política `appVersion`: una dependencia
   nativa nueva o un cambio en `app.json` (`version`, permisos, plugins) no puede
   salir por `eas update`; necesita build nueva y App Review.
+- **Antes de CADA `eas update`, correr el chequeo de fingerprint:**
+  ```bash
+  node scripts/check-native-fingerprint.mjs    # iOS
+  # --platform android cuando la app esté publicada en Play
+  ```
+  Compara el fingerprint nativo del checkout contra el del build de producción
+  que tiene el mismo runtime (= `version` de `app.json`). Si difiere, el OTA
+  llegaría a binarios sin ese código nativo y la app no arrancaría: hay que
+  subir `version` y sacar un build, no publicar el update. CI corre lo mismo en
+  cada PR (`native-fingerprint`), pero el OTA se publica a mano desde local y
+  una rama de hotfix puede no pasar por un PR: **este paso es el que protege de
+  verdad.**
+- ⚠️ **Tocar los `scripts` de `package.json` cambia el fingerprint** —`android` e
+  `ios` contienen `expo run:*`, así que `@expo/fingerprint` incluye esa sección
+  entera. Agregar un script de npm deja el check en rojo aunque no haya cambiado
+  una línea de código nativo. Por eso el chequeo se invoca como archivo y no
+  como `npm run`. Si aparece un rojo así, `eas fingerprint:compare` lo muestra
+  en una línea y la salida correcta es no tocar esa sección, no subir `version`.
 - **Variables de entorno del OTA:** publicar con `--environment production`, y
   verificar que el `.env` local no pise nada (`EXPO_PUBLIC_*` se incrustan en el
   bundle al publicar).
@@ -230,6 +248,7 @@ aislamiento de datos por entorno. Hasta entonces, rige la disciplina de arriba.
 1. Migraciones: `supabase db push` (impacta la base real — con cuidado, en
    ventana de bajo tráfico). Van **antes** del binario o del OTA que las usa.
 2. Binario: `eas build --profile production` desde `develop` + submit.
-3. OTA: `eas update --channel production --environment production --platform ios --rollout-percentage 10`
+3. OTA: `npm run ota:check` (obligatorio) y después
+   `eas update --channel production --environment production --platform ios --rollout-percentage 10`
    desde el commit de la build vigente, 24 h de observación, luego 100%.
 4. `main` no se toca (ver §1).

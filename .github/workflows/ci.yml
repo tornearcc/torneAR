@@ -61,6 +61,55 @@ jobs:
       - name: Tests (vitest)
         run: npm test
 
+  # ─── Fingerprint nativo vs. el binario que está en la calle ─────────────────
+  # Falla si el PR cambia el nativo SIN subir `version` en app.json. Con la
+  # política `appVersion` eso deja al JS nuevo compartiendo runtime con los
+  # binarios viejos: el OTA les llega, no tienen el módulo y la app no arranca.
+  # La lógica y el porqué, en scripts/check-native-fingerprint.mjs.
+  #
+  # ⚠️ Este job NO cubre el momento en que el daño ocurre: los OTA se publican a
+  # mano desde el checkout local. El chequeo obligatorio es correr el script
+  # antes de `eas update` (docs/WORKFLOW.md §1); esto es la red de atrás.
+  #
+  # Sólo iOS: el fingerprint de Android incluye el contenido de
+  # `google-services.json`, que no está versionado (repo público), así que en el
+  # runner daría un falso positivo. Y hoy no hay binarios de Android publicados.
+  #
+  # Un PR desde un fork no recibe EXPO_TOKEN: ahí el job se saltea en vez de
+  # fallar por una credencial que GitHub nunca le va a entregar.
+  native-fingerprint:
+    name: Fingerprint nativo (iOS)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      # El fingerprint hashea los módulos nativos de node_modules: sin install
+      # no hay nada que medir.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Expo and EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # Se invoca el archivo y NO un script de package.json: los scripts de
+      # package.json forman parte del fingerprint (`android`/`ios` contienen
+      # `expo run:*`), así que agregar uno movería el hash que este job mide y
+      # el chequeo fallaría por su propia herramienta.
+      - name: Fingerprint nativo vs. build de producción
+        run: node scripts/check-native-fingerprint.mjs
+
   # ─── Tests de base de datos (pgTAP · stack efímero) ─────────────────────────
   # Levanta un stack local de Supabase DESDE CERO en el runner (aplica las
   # migraciones completas + supabase/seed_testing.sql) y corre las suites declarativas
