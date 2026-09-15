@@ -391,7 +391,6 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="challenge-inbox" />
         <Stack.Screen name="match-detail" />
         <Stack.Screen name="match-checkin" />
-        <Stack.Screen name="admin/wo-review" />
         <Stack.Screen name="(modals)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

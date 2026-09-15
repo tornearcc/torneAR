@@ -196,7 +196,7 @@ describe('resolveDeepLink · Defer (ruta protegida sin sesión)', () => {
   });
 
   it('difiere rutas protegidas anidadas', () => {
-    const url = 'tornear://admin/wo-review';
+    const url = 'tornear://admin/season';
     expect(resolveDeepLink(url, false)).toEqual({ kind: 'defer', url });
   });
 });
@@ -238,9 +238,9 @@ describe('resolveDeepLink · Navigate (pública, o protegida con sesión)', () =
   });
 
   it('preserva rutas anidadas protegidas cuando hay sesión', () => {
-    expect(resolveDeepLink('tornear://admin/wo-review', true)).toEqual({
+    expect(resolveDeepLink('tornear://admin/season', true)).toEqual({
       kind: 'navigate',
-      href: { pathname: '/admin/wo-review', params: {} },
+      href: { pathname: '/admin/season', params: {} },
     });
   });
 });
@@ -351,7 +351,7 @@ describe('isProtectedDeepLink', () => {
   it('marca cualquier otra ruta como protegida', () => {
     expect(isProtectedDeepLink('tornear://market')).toBe(true);
     expect(isProtectedDeepLink('tornear://match-detail?id=1')).toBe(true);
-    expect(isProtectedDeepLink('tornear://admin/wo-review')).toBe(true);
+    expect(isProtectedDeepLink('tornear://admin/season')).toBe(true);
   });
 
   it('trata el Universal Link de referido como público (login), no como protegido', () => {
