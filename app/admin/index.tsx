@@ -14,13 +14,6 @@ interface AdminEntry {
 
 const ENTRIES: AdminEntry[] = [
   {
-    route: '/admin/wo-review',
-    icon: 'whistle-outline',
-    color: '#FABD32',
-    title: 'Reclamos de WO',
-    subtitle: 'Aprobar o rechazar walkovers pendientes de revisión',
-  },
-  {
     route: '/admin/dispute-review',
     icon: 'scale-balance',
     color: '#FFB4AB',
