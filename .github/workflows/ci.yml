@@ -86,10 +86,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Node 22 y no 20 como el resto del workflow: eas-cli 24.6 arrastra
+      # `@oclif/plugin-autocomplete`, que declara `node >= 22`, y yarn —el
+      # packager que usa expo-github-action— trata esa incompatibilidad como
+      # error y aborta la instalación. Con Node 20 el job moría antes de medir
+      # nada. El job `quality` se queda en 20 a propósito: ahí no hay eas-cli.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           cache: 'npm'
 
       # El fingerprint hashea los módulos nativos de node_modules: sin install
@@ -109,6 +114,11 @@ jobs:
       # el chequeo fallaría por su propia herramienta.
       - name: Fingerprint nativo vs. build de producción
         run: node scripts/check-native-fingerprint.mjs
+        env:
+          # Explícito y no heredado de la action: el script consulta los builds
+          # del proyecto, y si el token no llegara, eas fallaría pidiendo login
+          # en un runner sin nadie que lo conteste.
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
   # ─── Tests de base de datos (pgTAP · stack efímero) ─────────────────────────
   # Levanta un stack local de Supabase DESDE CERO en el runner (aplica las
