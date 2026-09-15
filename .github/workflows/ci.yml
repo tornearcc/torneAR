@@ -3,11 +3,27 @@ name: TorneAR CI
 # Se ejecuta en cada Pull Request hacia main (Producción) y develop (Staging),
 # y también al pushear directo a esas ramas. Si cualquier paso falla, el check
 # queda en rojo y (con branch protection activada) bloquea el merge del PR.
+#
+# Un cambio que SÓLO toca documentación (docs/, README.md, CLAUDE.md) no corre
+# ni el quality ni pgTAP: no hay código ni schema que validar. Si el PR mezcla
+# documentación con cualquier otro archivo, corre entero.
+# ⚠️ Si algún día se activa branch protection con estos checks como
+# obligatorios, `paths-ignore` a nivel workflow deja los PRs de sólo docs
+# esperando un check que nunca llega: habría que pasar el filtro a nivel job
+# (los jobs salteados cuentan como aprobados).
 on:
   pull_request:
     branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
   push:
     branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
 
 # Cancela corridas anteriores del mismo PR/rama para no gastar minutos de más.
 concurrency:

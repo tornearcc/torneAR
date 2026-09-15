@@ -7,6 +7,11 @@ name: EAS Build (Preview APK)
 on:
   pull_request:
     branches: [main]
+    # Un PR que sólo toca documentación no justifica un APK de preview.
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
   # Permite disparar el build manualmente desde la pestaña Actions.
   workflow_dispatch:
 
