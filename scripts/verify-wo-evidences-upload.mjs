@@ -1,9 +1,14 @@
 // Verificación de la subida de evidencias de WO con el bucket PRIVADO (D-48).
 //
 // Qué prueba: que un usuario normal (la cuenta demo del revisor de Apple) puede
-// seguir subiendo una evidencia a `wo_evidences` con el bucket cerrado, con
-// las mismas opciones que usa la app (lib/match-actions.ts, `claimWo`), y que
-// el objeto de prueba se borra enseguida por la Storage API.
+// seguir subiendo una evidencia a `wo_evidences` con el bucket cerrado y la
+// policy de INSERT acotada (*_wo_evidences_insert_scope), con las mismas
+// opciones que usa la app (lib/match-actions.ts, `claimWo`), y que el objeto de
+// prueba se borra enseguida por la Storage API.
+//
+// El path se arma igual que en `claimWo`: <match_id>/<team_id>_<Date.now()>.jpg,
+// con un partido real de un equipo donde la cuenta es CAPITAN o SUBCAPITAN.
+// Además prueba que un path fuera de ese patrón se rechaza.
 //
 // No llama a `claim_wo`: no crea reclamos ni toca datos de nadie. Deja la
 // base como estaba — lo único que escribe es el objeto de prueba, y lo borra.
@@ -12,7 +17,7 @@
 //
 //   $env:SUPABASE_SERVICE_ROLE_KEY = ((npx supabase projects api-keys --project-ref yusfykqimalghmmhlfdn -o json | ConvertFrom-Json) | Where-Object name -eq 'service_role').api_key
 //   node scripts/verify-wo-evidences-upload.mjs
-//   Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY
+//   [Environment]::SetEnvironmentVariable('SUPABASE_SERVICE_ROLE_KEY', $null, 'Process')
 //
 // Pide el email (por defecto el de la cuenta demo) y la contraseña con la
 // entrada oculta. No imprime tokens, contraseñas ni URLs firmadas completas.
@@ -25,9 +30,8 @@ import { createClient } from "@supabase/supabase-js";
 const EXPECTED_HOST = "yusfykqimalghmmhlfdn.supabase.co";
 const BUCKET = "wo_evidences";
 const DEFAULT_EMAIL = "revisor@tornear.com";
-// Carpeta con un UUID nulo: ningún partido real la usa, así que el objeto de
-// prueba no se puede confundir con una evidencia verdadera.
-const TEST_FOLDER = "00000000-0000-0000-0000-000000000000";
+// Carpeta que no es ningún partido: la subida ahí TIENE que fallar.
+const OUTSIDE_FOLDER = "00000000-0000-0000-0000-000000000000";
 // JPEG válido de 1×1 px. Storage valida el content-type contra
 // `allowed_mime_types` del bucket, no el contenido.
 const TINY_JPEG_BASE64 =
@@ -100,29 +104,62 @@ if (signInError || !signIn.session) fail(`No se pudo iniciar sesión: ${signInEr
 
 const { data: profile } = await user
   .from("profiles")
-  .select("is_admin")
+  .select("id, is_admin")
   .eq("auth_user_id", signIn.user.id)
   .maybeSingle();
 result.cuenta = { es_admin: profile?.is_admin === true };
-if (profile?.is_admin === true) {
+if (!profile || profile.is_admin === true) {
   await user.auth.signOut({ scope: "local" });
-  fail("La cuenta es admin: la prueba necesita un usuario normal.");
+  fail(profile ? "La cuenta es admin: la prueba necesita un usuario normal." : "La cuenta no tiene perfil.");
 }
 
-const path = `${TEST_FOLDER}/prueba-cierre_${Date.now()}.jpg`;
+// 2) Un partido real de un equipo donde la cuenta puede reclamar por rol.
+const { data: memberships } = await user
+  .from("team_members")
+  .select("team_id, role")
+  .eq("profile_id", profile.id)
+  .in("role", ["CAPITAN", "SUBCAPITAN"]);
+
+let target = null;
+for (const membership of memberships ?? []) {
+  const { data: match } = await user
+    .from("matches")
+    .select("id")
+    .or(`team_a_id.eq.${membership.team_id},team_b_id.eq.${membership.team_id}`)
+    .limit(1)
+    .maybeSingle();
+  if (match) {
+    target = { matchId: match.id, teamId: membership.team_id };
+    break;
+  }
+}
+if (!target) {
+  await user.auth.signOut({ scope: "local" });
+  fail("La cuenta no es capitán ni subcapitán de ningún equipo con partidos: no hay path válido para probar.");
+}
+
 const bytes = Uint8Array.from(Buffer.from(TINY_JPEG_BASE64, "base64"));
-let uploaded = false;
+const uploadOptions = { contentType: "image/jpeg", upsert: true };
+const path = `${target.matchId}/${target.teamId}_${Date.now()}.jpg`;
+const outsidePath = `${OUTSIDE_FOLDER}/${target.teamId}_${Date.now()}.jpg`;
+const toCleanUp = [];
 
 try {
-  // 2) Subida con las mismas opciones que `claimWo`.
-  const { data: upload, error: uploadError } = await user.storage
-    .from(BUCKET)
-    .upload(path, bytes.buffer, { contentType: "image/jpeg", upsert: true });
-  uploaded = !uploadError && Boolean(upload?.path);
+  // 3) Subida con el patrón y las opciones de `claimWo`.
+  const { data: upload, error: uploadError } = await user.storage.from(BUCKET).upload(path, bytes.buffer, uploadOptions);
+  const uploaded = !uploadError && Boolean(upload?.path);
+  if (uploaded) toCleanUp.push(path);
   result.subida = { ok: uploaded, path: upload?.path ?? null, error: uploadError?.message ?? null };
 
+  // 4) Fuera del patrón: la policy tiene que rechazarla.
+  const { data: outside, error: outsideError } = await user.storage
+    .from(BUCKET)
+    .upload(outsidePath, bytes.buffer, uploadOptions);
+  if (!outsideError && outside?.path) toCleanUp.push(outsidePath);
+  result.subida_fuera_del_patron = { rechazada: Boolean(outsideError), error: outsideError?.message ?? null };
+
   if (uploaded) {
-    // 3) El dueño puede firmar su propio objeto (policy del dueño) y la URL responde.
+    // 5) El dueño puede firmar su propio objeto (policy del dueño) y la URL responde.
     const { data: signed, error: signError } = await user.storage.from(BUCKET).createSignedUrl(path, 60);
     const signedHead = signed?.signedUrl ? await fetch(signed.signedUrl, { method: "HEAD" }) : null;
     result.firma_del_dueno = {
@@ -132,11 +169,11 @@ try {
       head_status: signedHead?.status ?? null,
     };
 
-    // 4) La URL pública ya no sirve la foto.
+    // 6) La URL pública ya no sirve la foto.
     const publicHead = await fetch(`${url}/storage/v1/object/public/${BUCKET}/${path}`, { method: "HEAD" });
     result.url_publica = { status: publicHead.status, esperado: "distinto de 200" };
 
-    // 5) El usuario no puede borrar (no hay policy DELETE): se registra, no se exige.
+    // 7) El usuario no puede borrar (no hay policy DELETE): se registra, no se exige.
     const { data: userRemove, error: userRemoveError } = await user.storage.from(BUCKET).remove([path]);
     result.borrado_por_el_usuario = {
       objetos_borrados: userRemove?.length ?? 0,
@@ -144,16 +181,19 @@ try {
     };
   }
 } finally {
-  // 6) Borrado por la Storage API con service_role, aunque algo de arriba falle.
-  if (uploaded) {
-    const { data: removed, error: removeError } = await service.storage.from(BUCKET).remove([path]);
-    const { data: leftovers } = await service.storage
-      .from(BUCKET)
-      .list(TEST_FOLDER, { search: path.split("/")[1] });
+  // 8) Borrado por la Storage API con service_role, aunque algo de arriba falle.
+  if (toCleanUp.length > 0) {
+    const { data: removed, error: removeError } = await service.storage.from(BUCKET).remove(toCleanUp);
+    let leftovers = 0;
+    for (const item of toCleanUp) {
+      const [folder, file] = item.split("/");
+      const { data } = await service.storage.from(BUCKET).list(folder, { search: file });
+      leftovers += (data ?? []).length;
+    }
     result.borrado_service_role = {
       objetos_borrados: removed?.length ?? 0,
       error: removeError?.message ?? null,
-      queda_el_objeto: (leftovers ?? []).length > 0,
+      quedan_objetos: leftovers > 0,
     };
   }
   await user.auth.signOut({ scope: "local" });
@@ -163,8 +203,9 @@ console.log(JSON.stringify(result, null, 2));
 
 const ok =
   result.subida?.ok === true &&
+  result.subida_fuera_del_patron?.rechazada === true &&
   result.firma_del_dueno?.head_status === 200 &&
   result.url_publica?.status !== 200 &&
-  result.borrado_service_role?.queda_el_objeto === false;
+  result.borrado_service_role?.quedan_objetos === false;
 console.log(ok ? "\nRESULTADO: OK" : "\nRESULTADO: FALLÓ — revisar el JSON");
 process.exit(ok ? 0 : 1);
