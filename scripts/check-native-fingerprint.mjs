@@ -176,6 +176,11 @@ if (local.hash === reference.fingerprint.hash) {
   process.exit(0);
 }
 
+// El detalle se imprime acá y no se deja para que alguien corra `compare` a
+// mano: cuando el rojo aparece en CI, la máquina donde se reproduciría no es la
+// misma, y sin las fuentes concretas el mensaje no alcanza para decidir nada.
+const diff = diffSources(reference.fingerprint.hash, local.sources);
+
 console.error(
   [
     '',
@@ -184,13 +189,64 @@ console.error(
     `  build ${reference.appBuildVersion}: ${reference.fingerprint.hash}`,
     `  este checkout:  ${local.hash}`,
     '',
+    '  Fuentes que difieren:',
+    ...diff,
+    '',
     '  Un OTA publicado así llega a binarios que no tienen el código nativo nuevo y la app no arranca.',
     '',
     '  Salidas:',
     `   · Si el cambio nativo es intencional: subí "version" en app.json y sacá un build nuevo.`,
-    `   · Si no lo es: mirá qué se coló con`,
-    `       npx eas-cli fingerprint:compare --build-id ${reference.id} --environment ${ENVIRONMENT}`,
+    `   · Si el listado de arriba no muestra ningún cambio tuyo, es una diferencia de entorno`,
+    `     (versión de eas-cli, archivos sin versionar, sistema operativo): no subas "version".`,
     '',
   ].join('\n'),
 );
 process.exit(1);
+
+/**
+ * Lista las fuentes que cambiaron entre el build de referencia y este checkout.
+ *
+ * Se piden las del build con `fingerprint:compare`, que las devuelve las dos
+ * juntas; las locales ya las tenemos de `generate`, pero se usan las que trae
+ * el compare para que ambas vengan de la misma corrida y del mismo algoritmo.
+ */
+function diffSources(referenceHash, localSources) {
+  const comparison = parseJson(
+    eas([
+      'fingerprint:compare',
+      '--build-id', reference.id,
+      '--environment', ENVIRONMENT,
+      '--json',
+      '--non-interactive',
+    ]),
+    'eas fingerprint:compare',
+  );
+
+  const keyOf = (source) => source.filePath ?? source.id ?? source.type;
+  const toMap = (sources) => new Map((sources ?? []).map((s) => [keyOf(s), s.hash]));
+
+  const before = toMap(comparison.fingerprint1?.sources ?? []);
+  const after = toMap(comparison.fingerprint2?.sources ?? localSources);
+
+  const lines = [];
+
+  for (const [key, hash] of before) {
+    if (!after.has(key)) lines.push(`   − sólo en el build:   ${key}`);
+    else if (after.get(key) !== hash) lines.push(`   ~ cambió:             ${key}`);
+  }
+  for (const key of after.keys()) {
+    if (!before.has(key)) lines.push(`   + sólo en el checkout: ${key}`);
+  }
+
+  if (lines.length === 0) {
+    return [`   (ninguna: los hashes difieren pero las fuentes coinciden — revisá la versión de eas-cli)`];
+  }
+
+  // Un cambio de SDK mueve cientos de archivos de node_modules y el listado
+  // completo tapa la señal: con los primeros alcanza para reconocer de qué se
+  // trata.
+  const MAX = 25;
+  return lines.length > MAX
+    ? [...lines.slice(0, MAX), `   … y ${lines.length - MAX} más`]
+    : lines;
+}
