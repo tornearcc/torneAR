@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.season_standings (
 );
 
 COMMENT ON TABLE public.season_standings IS
-  'Posición final de cada equipo al cerrar una temporada. La escribe transition_season antes del reset, en la misma transacción. Hechos competitivos inmutables; team_name/shield_url son caché que corrige la moderación. Posiciones con la semántica de get_team_ranking. Ver 20260914235000.';
+  'Posición final de cada equipo al cerrar una temporada. La escribe transition_season antes del reset, en la misma transacción. Hechos competitivos inmutables; team_name/shield_url son caché que corrige la moderación. Posiciones con la semántica de get_team_ranking. Ver *_season_standings_snapshot.';
 COMMENT ON COLUMN public.season_standings.team_id IS
   'Sin FK a propósito: la historia sobrevive a la disolución del club (molde team_stints).';
 COMMENT ON COLUMN public.season_standings.team_name IS
@@ -255,7 +255,7 @@ begin
   end if;
 
   -- 0) Bloqueos, antes de leer nada para el snapshot. Orden y modos
-  --    justificados en el header de 20260914235000: matches primero y en
+  --    justificados en el header de *_season_standings_snapshot: matches primero y en
   --    EXCLUSIVE, porque las resoluciones bloquean su fila con FOR UPDATE antes
   --    de escribir teams y team_rankings.
   --
@@ -384,7 +384,7 @@ REVOKE EXECUTE ON FUNCTION public.transition_season(text, date, date) FROM PUBLI
 GRANT  EXECUTE ON FUNCTION public.transition_season(text, date, date) TO authenticated;
 
 COMMENT ON FUNCTION public.transition_season(text, date, date) IS
-  'Cierra la temporada activa y abre la nueva. Orden: validaciones → lock de seasons → locks de matches/teams/team_rankings → snapshot en season_standings(_formats) → reset de contadores → partidos abiertos a la temporada nueva → aviso a admins. Todo en una transacción. Ver 20260914235000.';
+  'Cierra la temporada activa y abre la nueva. Orden: validaciones → lock de seasons → locks de matches/teams/team_rankings → snapshot en season_standings(_formats) → reset de contadores → partidos abiertos a la temporada nueva → aviso a admins. Todo en una transacción. Ver *_season_standings_snapshot.';
 
 
 -- ─── admin_remove_reported_content: la neutralización llega a la historia ────
@@ -439,7 +439,7 @@ BEGIN
           shield_url = NULL
       WHERE id = v_report.reported_entity_id;
 
-      -- Las copias desnormalizadas (20260914235000). Se filtra por el id de la
+      -- Las copias desnormalizadas (*_season_standings_snapshot). Se filtra por el id de la
       -- denuncia y no por `teams`: si el club ya se disolvió, la historia es
       -- el único lugar donde el nombre sigue publicado. Sólo se toca la caché
       -- de presentación; los hechos competitivos no se reescriben.
@@ -495,7 +495,7 @@ REVOKE EXECUTE ON FUNCTION public.admin_remove_reported_content(uuid) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.admin_remove_reported_content(uuid) TO authenticated;
 
 COMMENT ON FUNCTION public.admin_remove_reported_content(uuid) IS
-  'Elimina el contenido de una denuncia y la marca ACTIONED (App Store 1.2). El significado de «eliminar» depende del tipo — ver el comentario de la migración 20260911170000. En TEAM neutraliza también las copias históricas de season_standings y team_stints (20260914235000). Para USER y MATCH no aplica: ahí la medida es admin_suspend_user.';
+  'Elimina el contenido de una denuncia y la marca ACTIONED (App Store 1.2). El significado de «eliminar» depende del tipo — ver el comentario de la migración 20260911170000. En TEAM neutraliza también las copias históricas de season_standings y team_stints (*_season_standings_snapshot). Para USER y MATCH no aplica: ahí la medida es admin_suspend_user.';
 
 COMMENT ON TABLE public.team_stints IS
   'Ledger inmutable de ciclos jugador–equipo (trayectoria estilo Wikipedia). Escriben los triggers de team_members; admin_remove_reported_content sólo reescribe la caché team_name/shield_url. El cliente sólo lee.';

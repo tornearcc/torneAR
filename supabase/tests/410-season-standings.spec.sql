@@ -1,7 +1,7 @@
 -- ============================================================
 -- 410-season-standings — Snapshot de posiciones al cerrar temporada (pgTAP)
 -- ============================================================
--- Cubre la migración 20260914235000: `season_standings`,
+-- Cubre la migración *_season_standings_snapshot: `season_standings`,
 -- `season_standings_formats`, el snapshot dentro de `transition_season` y la
 -- propagación de la moderación de equipos a las copias históricas.
 --
