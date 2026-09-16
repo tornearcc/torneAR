@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Logger } from '@/lib/logger';
+import { signOutFromGoogle } from '@/lib/google-signin';
 import { Database } from '../types/supabase';
 import { useTeamStore } from '@/stores/teamStore';
 
@@ -278,6 +279,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // lado del servidor, conviene que quede asentado.
       Logger.error('Fallo el cierre de sesión', { scope: 'AuthContext.signOut', error });
     }
+
+    // La sesión local del SDK de Google va aparte de la de Supabase. Se cierra
+    // para que, en un teléfono compartido, el próximo login no arranque con la
+    // cuenta de quien salió. Best-effort: nunca lanza.
+    await signOutFromGoogle();
   }, []);
 
   /*
