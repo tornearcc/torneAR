@@ -1,10 +1,10 @@
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '@/lib/supabase';
 import { Logger } from '@/lib/logger';
-import { OAUTH_CALLBACK_PATH, PASSWORD_RECOVERY_PATH } from '@/lib/deep-linking';
+import { requestGoogleIdToken } from '@/lib/google-signin';
+import { PASSWORD_RECOVERY_PATH } from '@/lib/deep-linking';
 import { LEGAL_VERSIONS } from '@/constants/legal';
 import { AuthError, User } from '@supabase/supabase-js';
 
@@ -112,9 +112,9 @@ export async function signUp(
  * `tornear.vercel.app` — y el link terminaba abriendo la web, que no tiene
  * pantalla de cambio de contraseña. De ahí el síntoma original.
  *
- * `Linking.createURL` en vez del literal `'tornear://reset-password'`, igual
- * que en `signInWithGoogle()`: la URL sale del scheme declarado en `app.json`,
- * así que no hay una constante que se desincronice si ese scheme cambia.
+ * `Linking.createURL` en vez del literal `'tornear://reset-password'`: la URL
+ * sale del scheme declarado en `app.json`, así que no hay una constante que se
+ * desincronice si ese scheme cambia.
  *
  * En dev-client y en producción resuelve a `tornear://reset-password` — el
  * MISMO valor en los dos, así que una sola entrada `tornear://**` en la
@@ -148,8 +148,8 @@ export async function sendPasswordReset(email: string): Promise<{ error: AuthErr
  * `PASSWORD_RECOVERY`**: ese evento lo produce el propio `detectSessionInUrl`,
  * así que en iOS/Android no se dispara jamás.
  *
- * Reusa `establishSessionFromUrl`, el mismo canje del callback de Google:
- * Supabase devuelve los tokens con idéntica forma en los dos flujos.
+ * Reusa `establishSessionFromUrl`, que arma la sesión con los tokens que
+ * Supabase cuelga de la URL de vuelta.
  */
 export async function completePasswordRecovery(url: string): Promise<{ error: AuthError | null }> {
   const params = parseCallbackParams(url);
@@ -218,16 +218,15 @@ function parseCallbackParams(url: string): URLSearchParams {
 /**
  * Arma la sesión a partir de una URL de vuelta de Supabase.
  *
- * Compartida por los DOS flujos que reciben credenciales por deep link —el
- * callback de Google y el link de recuperación— porque Supabase devuelve los
- * tokens con la misma forma en ambos. Antes esto era `completeOAuthSession` y
- * vivía atado al login federado; duplicarlo para recuperación habría dejado dos
- * copias del parseo implicit/PKCE que hay que mantener en sync.
+ * Hoy la usa sólo el link de recuperación. Nació para el callback del login web
+ * de Google, que en nativo se reemplazó por el ID token en la 1.1.0 (ver
+ * `signInWithGoogle`); el parseo implicit/PKCE se queda porque recuperación lo
+ * sigue necesitando.
  */
 async function establishSessionFromUrl(url: string): Promise<{ error: AuthError | null }> {
   const params = parseCallbackParams(url);
 
-  // Google/Supabase reportan el rechazo por la propia URL de vuelta, no por una
+  // Supabase reporta el rechazo por la propia URL de vuelta, no por una
   // excepción: si no lo miramos, terminaríamos con un "sesión inválida" opaco.
   // En recuperación es el caso más frecuente de todos: `error_code=otp_expired`
   // cuando el link ya venció o ya se usó.
@@ -256,21 +255,35 @@ async function establishSessionFromUrl(url: string): Promise<{ error: AuthError 
 }
 
 /**
- * Login con Google vía el proveedor OAuth de Supabase.
+ * Login con Google.
  *
- * Nativo: abrimos la URL de consentimiento en una custom tab / ASWebAuthentication
- * Session con `openAuthSessionAsync`, que devuelve el control a la app en la
- * `redirectTo` (`tornear://auth/callback`) sin dejar pestañas colgadas. De ahí
- * sacamos los tokens y armamos la sesión a mano — `detectSessionInUrl` está
- * apagado en nativo porque no hay `window.location`.
+ * Nativo (desde la 1.1.0, D-51): el SDK de Google entrega un ID token firmado
+ * que se canjea por una sesión de Supabase con `signInWithIdToken`, el mismo
+ * patrón que Apple. Reemplaza al flujo OAuth por navegador, que mostraba
+ * "Accedé a <ref>.supabase.co" en lugar del nombre de la app.
  *
- * Web: no hay AuthSession nativa; dejamos que supabase-js redirija la pestaña y
+ * Quien ya entraba por el flujo web sigue siendo el mismo usuario: Google emite
+ * el mismo `sub` por cuenta sin importar qué client pidió el token, y Supabase
+ * busca la identidad por ese `sub`. Los binarios 1.0.0 conservan su flujo web
+ * contra el mismo proveedor, así que los dos conviven.
+ *
+ * ## Por qué no se manda `nonce`
+ *
+ * El módulo gratuito no permite fijarlo, y en iOS el SDK mete uno propio en el
+ * token que la app no puede leer. Por eso el proveedor Google de Supabase tiene
+ * activado "Skip nonce checks": el token se valida igual por firma, emisor y
+ * audiencia (el client Web, que tiene que ser el primero de la lista de Client
+ * IDs). Mismo criterio que con Apple.
+ *
+ * Web: no hay SDK; dejamos que supabase-js redirija la pestaña y
  * `detectSessionInUrl` (lib/supabase.ts) levante la sesión al volver.
  *
  * En ningún caso navegamos: al escribir la sesión, `onAuthStateChange` despierta
  * al AuthContext y el guard de `app/_layout.tsx` decide el destino (onboarding
  * si el perfil está incompleto — el caso normal en el primer login con Google —
- * o el deep link pendiente / `/(tabs)` si ya está completo).
+ * o el deep link pendiente / `/(tabs)` si ya está completo). El nombre para
+ * prellenar el onboarding viaja en el ID token; si Supabase no lo copia a
+ * `user_metadata`, el onboarding lo pide a mano, como en un alta por email.
  */
 export async function signInWithGoogle(): Promise<OAuthResult> {
   if (Platform.OS === 'web') {
@@ -281,39 +294,22 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
     return { error, cancelled: false };
   }
 
-  const redirectTo = Linking.createURL(OAUTH_CALLBACK_PATH);
+  const result = await requestGoogleIdToken();
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo,
-      // Abrimos nosotros el navegador (abajo): sin esto supabase-js intentaría
-      // redirigir un `window` que en nativo no existe.
-      skipBrowserRedirect: true,
-      // Sin esto Google entra directo con la última cuenta usada y el usuario
-      // no puede elegir con cuál de sus mails jugar.
-      queryParams: { prompt: 'select_account' },
-    },
-  });
-
-  if (error) {
-    return { error, cancelled: false };
-  }
-
-  if (!data?.url) {
-    return { error: oauthError('No se pudo abrir el login de Google.'), cancelled: false };
-  }
-
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-
-  // 'cancel' (usuario cerró) y 'dismiss' (volvió con el gesto/back) no son
-  // errores: se vuelve al login sin alerta.
-  if (result.type !== 'success') {
+  if (result.status === 'cancelled') {
     return { error: null, cancelled: true };
   }
 
-  const { error: sessionError } = await establishSessionFromUrl(result.url);
-  return { error: sessionError, cancelled: false };
+  if (result.status === 'error') {
+    return { error: oauthError(result.message), cancelled: false };
+  }
+
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: 'google',
+    token: result.idToken,
+  });
+
+  return { error, cancelled: false };
 }
 
 /**
@@ -335,10 +331,10 @@ export async function isAppleSignInAvailable(): Promise<boolean> {
 /**
  * Login nativo con Apple (guideline 4.8 de la App Store).
  *
- * A diferencia de Google, esto NO pasa por el navegador: el sistema presenta su
- * propia hoja, devuelve un identity token firmado y ese token se canjea por una
- * sesión de Supabase con `signInWithIdToken`. No hay deep link ni callback que
- * parsear, así que nada de `establishSessionFromUrl` aplica acá.
+ * Esto NO pasa por el navegador: el sistema presenta su propia hoja, devuelve un
+ * identity token firmado y ese token se canjea por una sesión de Supabase con
+ * `signInWithIdToken` — el mismo patrón que usa Google nativo desde la 1.1.0.
+ * No hay deep link ni callback que parsear.
  *
  * ## Por qué no se manda `nonce`
  *

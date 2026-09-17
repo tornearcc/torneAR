@@ -3,7 +3,7 @@
     "owner": "tornear-org",
     "name": "TorneAR",
     "slug": "tornear",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tornear",
@@ -60,6 +60,12 @@
     "plugins": [
       "expo-router",
       "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.146915112095-3faoduk94as605it024ih7m2nbuhqr7t"
+        }
+      ],
       [
         "expo-location",
         {
