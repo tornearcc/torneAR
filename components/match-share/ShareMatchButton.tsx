@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,6 +13,7 @@ import { shareGeneric } from '@/lib/share-image';
 import { shareToInstagramStories } from '@/lib/instagram-stories';
 import { downloadShareCard, ShareCardError } from '@/lib/share-card-remote';
 import { trackShareIntent } from '@/lib/share-analytics';
+import { requestStoreReviewIfEligible } from '@/lib/store-review';
 import { useAuth } from '@/context/AuthContext';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { Logger } from '@/lib/logger';
@@ -87,6 +88,10 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
   // Logger con el id de AUTH, así que el id de PERFIL hay que pasarlo a mano
   // — es el que cruza contra el resto del dominio. Ver `lib/share-analytics.ts`.
   const { profile } = useAuth();
+  // Si en esta apertura del modal se completó un share. El pedido de valoración
+  // (D-50) se dispara al CERRAR el modal y no al volver del share: compartir a
+  // Instagram deja la app en segundo plano, y ahí el diálogo no se muestra.
+  const sharedRef = useRef(false);
 
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
@@ -177,6 +182,10 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
   const closePreview = useCallback(() => {
     if (sharing) return; // no cerrar a mitad de un share en vuelo
     setVisible(false);
+    if (sharedRef.current) {
+      sharedRef.current = false;
+      requestStoreReviewIfEligible('match_shared');
+    }
   }, [sharing]);
 
   const handleShare = useCallback(
@@ -206,6 +215,7 @@ export function ShareMatchButton({ matchId, myTeamId }: Props) {
         } else {
           await shareGeneric(card.uri);
         }
+        sharedRef.current = true;
       } catch (error) {
         // `shareToInstagramStories` no tira nunca (degrada al share genérico),
         // así que llegar acá significa que falló el share nativo en sí.
