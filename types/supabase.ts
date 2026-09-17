@@ -1860,6 +1860,55 @@ export type Database = {
           },
         ]
       }
+      review_prompts: {
+        Row: {
+          app_version: string
+          id: string
+          platform: string
+          profile_id: string
+          requested_at: string
+          trigger_name: string
+        }
+        Insert: {
+          app_version: string
+          id?: string
+          platform: string
+          profile_id: string
+          requested_at?: string
+          trigger_name: string
+        }
+        Update: {
+          app_version?: string
+          id?: string
+          platform?: string
+          profile_id?: string
+          requested_at?: string
+          trigger_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_prompts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_prompts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_prompts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       seasons: {
         Row: {
           created_at: string
@@ -2761,6 +2810,10 @@ export type Database = {
           p_team_id: string
         }
         Returns: Json
+      }
+      claim_review_prompt: {
+        Args: { p_app_version: string; p_platform: string; p_trigger: string }
+        Returns: boolean
       }
       claim_wo: {
         Args: {

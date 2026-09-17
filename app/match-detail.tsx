@@ -34,6 +34,7 @@ import {
   isGuestCodeExpired,
 } from '@/lib/guest-code';
 import { Logger } from '@/lib/logger';
+import { requestStoreReviewIfEligible } from '@/lib/store-review';
 import { useMatchRealtime } from '@/hooks/useMatchRealtime';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
@@ -122,14 +123,16 @@ export default function MatchDetailScreen() {
   // cada render sin que nada haya cambiado.
   const [loadedAtTs, setLoadedAtTs] = useState(() => Date.now());
 
-  const loadData = useCallback(async () => {
+  // Devuelve el partido recién cargado (o null) para que quien acaba de mutar
+  // pueda mirar el estado nuevo sin esperar al re-render.
+  const loadData = useCallback(async (): Promise<MatchDetailViewData | null> => {
     // Mientras no sepamos con qué equipo mira el usuario, no se consulta: pedir
     // el detalle con un teamId equivocado devuelve un partido equivocado.
-    if (!matchId || !teamResolved) return;
+    if (!matchId || !teamResolved) return null;
     if (!myTeamId) {
       setMatch(null);
       setLoading(false);
-      return;
+      return null;
     }
     try {
       setLoading(true);
@@ -142,6 +145,7 @@ export default function MatchDetailScreen() {
       } else {
         setDisputeState(null);
       }
+      return data;
     } catch (err) {
       Logger.error('No se pudo cargar el detalle del partido', {
         scope: 'match-detail.loadData',
@@ -150,6 +154,7 @@ export default function MatchDetailScreen() {
         error: err,
       });
       showAlert('Error', getGenericSupabaseErrorMessage(err));
+      return null;
     } finally {
       setLoading(false);
     }
@@ -819,8 +824,17 @@ export default function MatchDetailScreen() {
             // callback del alert, así que la pantalla mostraba el estado viejo
             // hasta que el usuario cerraba el mensaje: ésa era la ventana en la
             // que el botón seguía habilitado y se podía reenviar.
-            await loadData();
-            showAlert('Resultado cargado', 'Tu resultado fue enviado.');
+            const refreshed = await loadData();
+            // Pedido de valoración (D-50) sólo si esta carga CERRÓ el partido:
+            // los dos resultados coinciden. Con EN_DISPUTA, o si el rival
+            // todavía no cargó, no. Se pide al cerrar el alert, para no montar
+            // el diálogo nativo encima de él.
+            const closedMatch = refreshed?.status === 'FINALIZADO';
+            showAlert(
+              'Resultado cargado',
+              'Tu resultado fue enviado.',
+              closedMatch ? () => requestStoreReviewIfEligible('result_confirmed') : undefined,
+            );
           } catch (err) {
             // Pase lo que pase, resincronizamos: si falló por duplicado, el
             // estado real ya cambió y la UI tiene que reflejarlo.
