@@ -3216,7 +3216,15 @@ export type Database = {
       get_player_career: { Args: { p_profile_id: string }; Returns: Json }
       get_player_global_stats: { Args: { p_profile_id: string }; Returns: Json }
       get_player_leaderboard: {
-        Args: { p_season_id?: string; p_stat: string; p_zone?: string }
+        Args: {
+          p_category?: Database["public"]["Enums"]["team_category"]
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_limit?: number
+          p_offset?: number
+          p_season_id?: string
+          p_stat: string
+          p_zone?: string
+        }
         Returns: {
           avatar_url: string
           full_name: string
