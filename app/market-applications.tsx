@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, Image } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
@@ -150,7 +151,17 @@ export default function MarketApplicationsScreen() {
             <View className="mb-3 rounded-xl bg-surface-container p-4">
               <View className="flex-row items-center gap-3">
                 {imageUrl ? (
-                  <Image source={{ uri: imageUrl }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                  // Post de EQUIPO: se postulan jugadores (displayId = profile.id).
+                  // Post de JUGADOR: se postulan equipos (displayId = team.id).
+                  <ExpandablePhoto
+                    uri={imageUrl}
+                    subject={postType === 'TEAM'
+                      ? { kind: 'avatar', profileId: item.displayId }
+                      : { kind: 'shield', teamId: item.displayId }}
+                    title={item.displayName}
+                  >
+                    <Image source={{ uri: imageUrl }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                  </ExpandablePhoto>
                 ) : (
                   <View className="h-11 w-11 items-center justify-center rounded-full bg-surface-high">
                     <AppIcon

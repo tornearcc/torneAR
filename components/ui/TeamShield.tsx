@@ -19,9 +19,17 @@ interface Props {
   /** Con `expandable`, tocar el escudo lo abre en el visor (y permite denunciarlo). */
   teamId?: string;
   expandable?: boolean;
+  /**
+   * Nombre para el título del visor y la accesibilidad, sin tocar el
+   * fallback. `name` no sirve para eso donde se omite a propósito: cambia el
+   * escudo genérico por iniciales.
+   */
+  viewerTitle?: string;
 }
 
-export function TeamShield({ shieldUrl, size = 48, isMyTeam = false, name, teamId, expandable = false }: Props) {
+export function TeamShield({
+  shieldUrl, size = 48, isMyTeam = false, name, teamId, expandable = false, viewerTitle,
+}: Props) {
   const shield = <ShieldCircle shieldUrl={shieldUrl} size={size} isMyTeam={isMyTeam} name={name} />;
   if (!expandable || !teamId) return shield;
 
@@ -29,7 +37,7 @@ export function TeamShield({ shieldUrl, size = 48, isMyTeam = false, name, teamI
     <ExpandablePhoto
       uri={shieldUrl}
       subject={{ kind: 'shield', teamId }}
-      title={name}
+      title={viewerTitle ?? name}
       hitSlop={size < 36 ? 6 : 0}
     >
       {shield}

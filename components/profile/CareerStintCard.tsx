@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { CareerStint, SeasonBreakdown, StintLeaveReason } from '@/lib/career-data';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
 import { getTeamRoleLabel } from '@/lib/team-options';
 
@@ -77,13 +78,15 @@ export function CareerStintCard({ stint }: CareerStintCardProps) {
       className={`rounded-xl bg-surface-low p-3 ${stint.is_current ? 'border border-brand-primary/35' : ''}`}
     >
       <View className="flex-row items-center gap-3">
-        <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface-variant">
-          {shieldUrl ? (
-            <Image source={{ uri: shieldUrl }} className="h-8 w-8" resizeMode="contain" />
-          ) : (
-            <AppIcon family="material-community" name="shield-outline" size={18} color="#BCCBB9" />
-          )}
-        </View>
+        <ExpandablePhoto uri={shieldUrl || null} subject={{ kind: 'shield', teamId: stint.team_id }} title={stint.team_name}>
+          <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface-variant">
+            {shieldUrl ? (
+              <Image source={{ uri: shieldUrl }} className="h-8 w-8" resizeMode="contain" />
+            ) : (
+              <AppIcon family="material-community" name="shield-outline" size={18} color="#BCCBB9" />
+            )}
+          </View>
+        </ExpandablePhoto>
 
         <View className="flex-1">
           <View className="flex-row items-center gap-2">

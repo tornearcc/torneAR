@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { Avatar } from '@/components/ui/Avatar';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
 import { getTeamRoleLabel, TeamRole } from '@/lib/team-options';
 import { roleAppearance, firstLetterUpper, positionLabel, canManageMember } from '@/lib/team-helpers';
 import { formatAge } from '@/lib/age';
@@ -41,11 +42,7 @@ export function TeamMembersList({
   return (
     <View className="gap-2">
       {members.map((member) => {
-        const avatarUrl = member.profiles?.avatar_url
-          ? member.profiles.avatar_url.startsWith('http')
-            ? member.profiles.avatar_url
-            : getSupabaseStorageUrl('avatars', member.profiles.avatar_url)
-          : '';
+        const avatarUrl = resolveAvatarUrl(member.profiles?.avatar_url);
         const roleVisual = roleAppearance(member.role);
 
         const memberAge = formatAge(member.profiles?.age ?? null);
@@ -64,12 +61,15 @@ export function TeamMembersList({
               {/* flex-1 + minWidth 0: un nombre largo (o con emojis) empujaba el
                   badge de rol fuera de la card. */}
               <View className="flex-1 flex-row items-center gap-3" style={{ minWidth: 0 }}>
-                <View className="h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-variant">
-                  {avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} className="h-full w-full" />
-                  ) : (
-                    <AppIcon family="material-community" name="account" size={18} color="#BCCBB9" />
-                  )}
+                <View className="shrink-0">
+                  <Avatar
+                    uri={avatarUrl}
+                    size={48}
+                    profileId={member.profile_id}
+                    name={member.profiles?.full_name ?? member.profiles?.username ?? undefined}
+                    backgroundClassName="bg-surface-variant"
+                    expandable
+                  />
                 </View>
                 <View className="flex-1" style={{ minWidth: 0 }}>
                   <Text

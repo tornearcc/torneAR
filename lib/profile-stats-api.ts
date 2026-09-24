@@ -199,6 +199,7 @@ export async function fetchProfileStatsViewData(profileId: string): Promise<Prof
         matchType: match.match_type,
         rivalName,
         rivalShieldUrl: resolveShieldUrl(rival?.shield_url ?? null),
+        rivalTeamId: isTeamA ? match.team_b_id : match.team_a_id,
         goalsFor,
         goalsAgainst,
         result,

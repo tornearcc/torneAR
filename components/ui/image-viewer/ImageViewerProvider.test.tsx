@@ -173,6 +173,39 @@ describe('escudos', () => {
     expect(await screen.findByText('denuncia TEAM rival')).toBeTruthy();
   });
 
+  it('quien puede editar el equipo ve "Cambiar escudo", que corre después de cerrar', async () => {
+    const onChangePhoto = vi.fn();
+    useTeamStore.setState({ myTeams: [{ id: 'mio' }] as never });
+    renderPhoto(
+      <ExpandablePhoto
+        uri="https://x/mio.png"
+        subject={{ kind: 'shield', teamId: 'mio' }}
+        title="Los Pibes"
+        onChangePhoto={onChangePhoto}
+      >
+        <span>escudo</span>
+      </ExpandablePhoto>,
+    );
+
+    fireEvent.click(screen.getByLabelText('Ver foto de Los Pibes'));
+    fireEvent.click(screen.getByText('Cambiar escudo'));
+
+    await waitFor(() => expect(onChangePhoto).toHaveBeenCalledTimes(1));
+  });
+
+  it('la foto propia sin onChangePhoto no ofrece ninguna acción', () => {
+    renderPhoto(
+      <ExpandablePhoto uri="https://x/yo.jpg" subject={{ kind: 'avatar', profileId: 'yo' }} title="Yo">
+        <span>foto</span>
+      </ExpandablePhoto>,
+    );
+
+    fireEvent.click(screen.getByLabelText('Ver foto de Yo'));
+
+    expect(screen.queryByText('Denunciar')).toBeNull();
+    expect(screen.queryByText('Cambiar foto')).toBeNull();
+  });
+
   it('el de un equipo propio no ofrece denunciarlo', () => {
     useTeamStore.setState({ myTeams: [{ id: 'mio' }] as never });
     renderPhoto(shield('mio'));

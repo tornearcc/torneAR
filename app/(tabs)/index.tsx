@@ -530,6 +530,9 @@ export default function HomeScreen() {
                     shieldUrl={nextMatch.teamA.shieldUrl}
                     size={44}
                     isMyTeam={nextMatch.myTeamId === nextMatch.teamA.id}
+                    teamId={nextMatch.teamA.id}
+                    viewerTitle={nextMatch.teamA.name}
+                    expandable
                   />
                   <Text
                     className="font-uiBold text-center text-[12px] text-neutral-on-surface"
@@ -546,6 +549,9 @@ export default function HomeScreen() {
                     shieldUrl={nextMatch.teamB.shieldUrl}
                     size={44}
                     isMyTeam={nextMatch.myTeamId === nextMatch.teamB.id}
+                    teamId={nextMatch.teamB.id}
+                    viewerTitle={nextMatch.teamB.name}
+                    expandable
                   />
                   <Text
                     className="font-uiBold text-center text-[12px] text-neutral-on-surface"

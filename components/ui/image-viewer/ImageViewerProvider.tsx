@@ -19,8 +19,9 @@ export interface OpenViewerParams {
   /** Nombre del jugador o del equipo, para el título y la accesibilidad. */
   title?: string;
   /**
-   * Sólo en la foto propia del perfil: en vez de "Denunciar", el visor ofrece
-   * "Cambiar foto" y la llama una vez cerrado.
+   * Sólo si quien mira puede cambiar esta foto (la propia, o el escudo del
+   * equipo que administra): en vez de "Denunciar", el visor ofrece "Cambiar
+   * foto" / "Cambiar escudo" y la llama una vez cerrado.
    */
   onChangePhoto?: () => void;
 }
@@ -158,11 +159,17 @@ export function ImageViewerProvider({ children }: { children: ReactNode }) {
     if (!params) return undefined;
     const { subject, onChangePhoto } = params;
 
-    if (subject.kind === 'avatar' && subject.profileId === myProfileId) {
-      return onChangePhoto
-        ? { label: 'Cambiar foto', icon: 'camera-outline', onPress: () => close(onChangePhoto) }
-        : undefined;
+    // Quien abre el visor sólo pasa `onChangePhoto` si puede cambiar la foto
+    // (la propia, o el escudo si es del cuerpo técnico que edita el equipo).
+    if (onChangePhoto) {
+      return {
+        label: subject.kind === 'shield' ? 'Cambiar escudo' : 'Cambiar foto',
+        icon: 'camera-outline',
+        onPress: () => close(onChangePhoto),
+      };
     }
+
+    if (subject.kind === 'avatar' && subject.profileId === myProfileId) return undefined;
 
     // No se ofrece denunciar el escudo de un equipo propio.
     if (subject.kind === 'shield') {

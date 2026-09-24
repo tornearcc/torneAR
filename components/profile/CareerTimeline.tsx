@@ -3,6 +3,7 @@ import { usePlayerCareer } from '@/hooks/usePlayerCareer';
 import { GuestAppearance } from '@/lib/career-data';
 import { CareerStintCard } from './CareerStintCard';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
@@ -57,13 +58,15 @@ function GuestAppearanceRow({ guest }: { guest: GuestAppearance }) {
 
   return (
     <View className="flex-row items-center gap-3 rounded-xl bg-surface-low p-3">
-      <View className="h-10 w-10 items-center justify-center rounded-lg bg-surface-variant">
-        {shieldUrl ? (
-          <Image source={{ uri: shieldUrl }} className="h-7 w-7" resizeMode="contain" />
-        ) : (
-          <AppIcon family="material-community" name="shield-outline" size={16} color="#BCCBB9" />
-        )}
-      </View>
+      <ExpandablePhoto uri={shieldUrl || null} subject={{ kind: 'shield', teamId: guest.team_id }} title={guest.team_name}>
+        <View className="h-10 w-10 items-center justify-center rounded-lg bg-surface-variant">
+          {shieldUrl ? (
+            <Image source={{ uri: shieldUrl }} className="h-7 w-7" resizeMode="contain" />
+          ) : (
+            <AppIcon family="material-community" name="shield-outline" size={16} color="#BCCBB9" />
+          )}
+        </View>
+      </ExpandablePhoto>
       <View className="flex-1">
         <Text className="font-ui text-sm text-neutral-on-surface" numberOfLines={1}>
           {guest.team_name}

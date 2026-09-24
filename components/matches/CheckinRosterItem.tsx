@@ -1,5 +1,5 @@
-import { View, Text, TouchableOpacity, Image } from 'react-native';
-import { AppIcon } from '@/components/ui/AppIcon';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Avatar } from '@/components/ui/Avatar';
 import type { CheckinRosterPlayer, CheckinLineupState } from '@/components/matches/types';
 
 interface Props {
@@ -50,13 +50,9 @@ export function CheckinRosterItem({ player, state, onCycle, disabled }: Props) {
         disabled ? 'opacity-50' : ''
       }`}
     >
-      {player.avatarUrl ? (
-        <Image source={{ uri: player.avatarUrl }} className="h-10 w-10 rounded-full bg-surface-high" />
-      ) : (
-        <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-high">
-          <AppIcon family="material-community" name="account" size={20} color="#869585" />
-        </View>
-      )}
+      {/* Sin visor a propósito: acá tocar la fila (foto incluida) cambia el
+          estado del jugador en la lista de buena fe. */}
+      <Avatar uri={player.avatarUrl} size={40} />
 
       <View className="flex-1">
         <Text className="font-uiBold text-sm text-neutral-on-surface" numberOfLines={1}>

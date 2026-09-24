@@ -1,17 +1,13 @@
 import { useState } from 'react';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { useAuth } from '@/context/AuthContext';
 import { ProfileRow } from './types';
 import { calculateAge, formatAge } from '@/lib/age';
 import { resolveAvatarUrl } from '@/lib/supabase-storage';
 import { Avatar } from '@/components/ui/Avatar';
 import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
-import { uploadProfileAvatar } from '@/lib/profile-edit-data';
+import { useAvatarUpload } from '@/hooks/useAvatarUpload';
 import CustomAlert from '@/components/ui/CustomAlert';
-import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
-import { Logger } from '@/lib/logger';
 
 type ProfileHeaderProps = {
   profile: ProfileRow;
@@ -30,8 +26,6 @@ function positionLabel(position: string): string {
 }
 
 export function ProfileHeader({ profile, onAvatarUpdate, isEmbajador = false }: ProfileHeaderProps) {
-  const { refreshProfile } = useAuth();
-  const [uploading, setUploading] = useState(false);
   const [avatarPath, setAvatarPath] = useState(profile.avatar_url);
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertTitle, setAlertTitle] = useState('');
@@ -47,68 +41,16 @@ export function ProfileHeader({ profile, onAvatarUpdate, isEmbajador = false }: 
 
   const ageLabel = formatAge(calculateAge(profile.date_of_birth));
 
-  const pickAndUploadImage = async () => {
-    try {
-      // Solicitar permisos
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        showAlert('Permiso denegado', 'Se necesita acceso a la galeria para seleccionar una imagen.');
-        return;
-      }
-
-      // Abrir selector de imagen
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1], // Cuadrado
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        await uploadAvatar(asset.uri, asset.mimeType ?? 'image/jpeg');
-      }
-    } catch (error) {
-      Logger.error('Fallo el selector de imagen del avatar', {
-        scope: 'ProfileHeader.pickImage',
-        profileId: profile.id,
-        error,
-      });
-      showAlert('Error', 'No se pudo seleccionar la imagen.');
-    }
-  };
-
-  const uploadAvatar = async (imageUri: string, mimeType: string) => {
-    try {
-      setUploading(true);
-
-      const filePath = await uploadProfileAvatar(
-        profile.id,
-        profile.auth_user_id,
-        imageUri,
-        mimeType,
-      );
-
-      await refreshProfile();
-
+  const { uploading, pickAndUpload: pickAndUploadImage } = useAvatarUpload({
+    profileId: profile.id,
+    authUserId: profile.auth_user_id,
+    showAlert,
+    scope: 'ProfileHeader',
+    onUploaded: (filePath) => {
       setAvatarPath(filePath);
       onAvatarUpdate?.(filePath);
-      showAlert('Exito', 'Foto de perfil actualizada correctamente.');
-    } catch (error) {
-      // El bucket `avatars` ya rompió antes por policies de Storage (ver las
-      // migraciones 20260727120000 / 20260727140000): que quede registrado.
-      Logger.error('Fallo la subida del avatar', {
-        scope: 'ProfileHeader.uploadAvatar',
-        profileId: profile.id,
-        mimeType,
-        error,
-      });
-      showAlert('Error al subir', getGenericSupabaseErrorMessage(error, 'No se pudo subir la imagen. Revisa conexion y politicas del bucket avatars.'));
-    } finally {
-      setUploading(false);
-    }
-  };
+    },
+  });
 
   const avatarRing = (
     <View className="relative">
