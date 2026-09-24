@@ -4,15 +4,23 @@
 -- ------------------------------------------------------------
 -- Producción tiene `venues.google_cid` (text, nullable) y el índice único
 -- parcial `venues_google_cid_key`, pero ninguna migración los crea: se
--- agregaron por fuera del historial, probablemente junto con la carga del
--- catálogo de complejos (las 6357 filas lo tienen completo al 24/09/2026).
+-- agregaron por fuera del historial.
 --
 -- Salió a la luz al regenerar `types/supabase.ts` desde una base local: el
 -- tipo de `venues` perdía la columna que el dashboard ya tenía tipada. Una
 -- base local, la de CI o una recreada desde cero no la tendrían.
 --
--- Es el Google Maps CID del complejo, un identificador estable de Google:
--- el índice único evita cargar dos veces el mismo predio.
+-- ─── Qué guarda y de dónde sale ──────────────────────────────────────────────
+-- Pese al nombre, NO es el CID decimal: es el feature ID de Google Maps del
+-- complejo, con formato `0x<hex>:0x<hex>` (la segunda mitad es el CID en
+-- hexadecimal). Lo produce el scraping de Google Maps de
+-- `torneAR/scraping-canchas/` (carpeta fuera de los dos repos): 327 de los
+-- 373 feature IDs de su `html/` están en producción. El catálogo actual —las
+-- 6357 filas, todas con google_cid— se cargó el 26/08/2026 entre las 23:49:14
+-- y las 23:49:29 UTC. El SQL de esa carga y el ALTER que agregó la columna no
+-- están en la carpeta: su `sql/` es la versión anterior (35 complejos, sin
+-- la columna, del 25/08). El índice único evita cargar dos veces el mismo
+-- predio al re-importar.
 --
 -- ⚠️ En producción la columna y el índice ya existen, así que las dos
 -- sentencias (IF NOT EXISTS) no hacen nada: no toca datos ni reescribe la
@@ -28,4 +36,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS venues_google_cid_key
   WHERE (google_cid IS NOT NULL);
 
 COMMENT ON COLUMN public.venues.google_cid IS
-  'Google Maps CID del complejo. Único cuando está cargado (venues_google_cid_key). Agregada en producción por fuera del historial; reconciliada en 20260924130000.';
+  'Feature ID de Google Maps del complejo (0x<hex>:0x<hex>; la segunda mitad es el CID en hexadecimal), no el CID decimal. Origen: scraping de Google Maps de torneAR/scraping-canchas (fuera de los repos); carga del catálogo del 26/08/2026. Único cuando está cargado (venues_google_cid_key): evita duplicar un predio al re-importar. La columna se agregó en producción por fuera del historial; reconciliada en 20260924130000.';
