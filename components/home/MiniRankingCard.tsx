@@ -111,6 +111,9 @@ function MiniRankingRow({ entry, isLast }: RowProps) {
           shieldUrl={entry.shieldUrl}
           size={31}
           isMyTeam={entry.isMyTeam}
+          teamId={entry.teamId}
+          viewerTitle={entry.teamName}
+          expandable
         />
 
         {/* Equipo */}

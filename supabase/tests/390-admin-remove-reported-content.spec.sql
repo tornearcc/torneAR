@@ -16,8 +16,9 @@
 -- Aserciones:
 --   A-1      Un no-admin no puede ejecutarla.
 --   A-2      Una denuncia inexistente falla en vez de pasar en silencio.
---   A-3      Una denuncia de tipo USER se rechaza: no hay contenido que sacar,
---            la medida es la suspensión.
+--   A-3      Una denuncia de tipo MATCH se rechaza: no hay contenido que sacar,
+--            la medida es la suspensión. (Hasta 20260924140000 este caso era
+--            USER; ahora USER quita la foto de perfil y se prueba en 450.)
 --   A-4/A-5  MESSAGE: la fila se borra y la denuncia queda ACTIONED.
 --   A-6/A-7  MARKET_TEAM_POST: se desactiva, NO se borra — el DELETE se
 --            llevaría puestas las postulaciones.
@@ -57,8 +58,10 @@ insert into content_reports (id, reporter_id, reported_entity_type, reported_ent
    'd4d4d4d4-0000-0000-0000-00000000bb01', 'Spam'),
   ('d4d4d4d4-0000-0000-0000-00000000dd03', '33333333-3333-3333-3333-000000000004', 'TEAM',
    'd4d4d4d4-0000-0000-0000-000000000001', 'Nombre o escudo inapropiado'),
-  ('d4d4d4d4-0000-0000-0000-00000000dd04', '33333333-3333-3333-3333-000000000004', 'USER',
-   '33333333-3333-3333-3333-000000000001', 'Spam');
+  -- MATCH y no USER: desde 20260924140000 una denuncia de perfil sí tiene
+  -- contenido que sacar (la foto; ver 450). Un partido sigue sin tenerlo.
+  ('d4d4d4d4-0000-0000-0000-00000000dd04', '33333333-3333-3333-3333-000000000004', 'MATCH',
+   'd4d4d4d4-0000-0000-0000-00000000ee01', 'Resultado falso');
 
 -- ── A-1. No-admin ───────────────────────────────────────────────────────────
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}', true);
@@ -78,7 +81,7 @@ select throws_matching(
 select throws_matching(
   $$ select admin_remove_reported_content('d4d4d4d4-0000-0000-0000-00000000dd04') $$,
   'NO_CONTENT_TO_REMOVE',
-  'A-3: sobre una denuncia de perfil no hay contenido que sacar');
+  'A-3: sobre una denuncia de partido no hay contenido que sacar');
 
 -- ── MESSAGE ─────────────────────────────────────────────────────────────────
 select lives_ok(

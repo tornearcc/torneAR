@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import * as Clipboard from 'expo-clipboard';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
@@ -479,12 +480,20 @@ export default function MarketChatScreen() {
                   <AppIcon family="material-community" name="dots-vertical" size={22} color="#869585" />
                 </TouchableOpacity>
               )}
-              {chatAvatarUrl ? (
-              <Image
-                source={{ uri: chatAvatarUrl }}
-                style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}
-                contentFit="cover"
-              />
+              {chatAvatarUrl && chatData ? (
+              <ExpandablePhoto
+                uri={chatAvatarUrl}
+                subject={isCaptainMode
+                  ? { kind: 'avatar', profileId: chatData.player_id }
+                  : { kind: 'shield', teamId: chatData.team_id }}
+                title={chatTitle}
+              >
+                <Image
+                  source={{ uri: chatAvatarUrl }}
+                  style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}
+                  contentFit="cover"
+                />
+              </ExpandablePhoto>
             ) : (
               <View
                 style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076', backgroundColor: '#2A2A2A', alignItems: 'center', justifyContent: 'center' }}

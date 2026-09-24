@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { useTeamStore } from '@/stores/teamStore';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
@@ -206,7 +207,13 @@ export default function ChallengesInboxScreen() {
                         <View key={c.challengeId} className={`mb-3 rounded-[16px] p-4 ${c.direction === 'RECIBIDO' && c.status === 'ENVIADA' ? 'border border-brand-primary/20 bg-[#1b201b]' : 'bg-surface-container'}`}>
                             <View className="mb-3 flex-row items-center gap-3">
                                 {c.opponentShieldUrl ? (
-                                    <Image source={{ uri: c.opponentShieldUrl }} style={{ width: 42, height: 42, borderRadius: 21 }} contentFit="cover" />
+                                    <ExpandablePhoto
+                                        uri={c.opponentShieldUrl}
+                                        subject={{ kind: 'shield', teamId: c.opponentTeamId }}
+                                        title={c.opponentTeamName}
+                                    >
+                                        <Image source={{ uri: c.opponentShieldUrl }} style={{ width: 42, height: 42, borderRadius: 21 }} contentFit="cover" />
+                                    </ExpandablePhoto>
                                 ) : (
                                     <View className="h-[42px] w-[42px] items-center justify-center rounded-full bg-surface-high">
                                         <AppIcon family="material-community" name="shield" size={20} color="#869585" />

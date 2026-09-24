@@ -371,6 +371,12 @@ export interface MyMarketApplicationEntry {
   postIsActive: boolean;
   /** El equipo (TEAM) o el jugador (PLAYER) dueño del aviso. */
   targetName: string;
+  /**
+   * team.id (TEAM) o profile.id (PLAYER) del dueño del aviso. Lo usa el visor
+   * de fotos para el chequeo de bloqueo y para "Denunciar". `null` si el aviso
+   * se borró.
+   */
+  targetId: string | null;
   targetImageUrl: string | null;
   targetSubtitle: string | null;
   /**
@@ -388,7 +394,7 @@ type MyTeamApplicationRow = {
   market_team_posts: {
     is_active: boolean;
     position_wanted: string | null;
-    teams: { name: string; zone: string | null; shield_url: string | null } | null;
+    teams: { id: string; name: string; zone: string | null; shield_url: string | null } | null;
   } | null;
 };
 
@@ -401,7 +407,7 @@ type MyPlayerApplicationRow = {
   market_player_posts: {
     is_active: boolean;
     position: string | null;
-    profiles: { full_name: string | null; avatar_url: string | null } | null;
+    profiles: { id: string; full_name: string | null; avatar_url: string | null } | null;
   } | null;
 };
 
@@ -435,14 +441,14 @@ export async function fetchMyMarketApplications(): Promise<MyMarketApplicationEn
     supabase
       .from('market_team_post_applications')
       .select(
-        'id, status, created_at, post_id, market_team_posts(is_active, position_wanted, teams(name, zone, shield_url))',
+        'id, status, created_at, post_id, market_team_posts(is_active, position_wanted, teams(id, name, zone, shield_url))',
       )
       .eq('profile_id', profileId)
       .order('created_at', { ascending: false }),
     supabase
       .from('market_player_post_applications')
       .select(
-        'id, status, created_at, post_id, teams(name), market_player_posts(is_active, position, profiles(full_name, avatar_url))',
+        'id, status, created_at, post_id, teams(name), market_player_posts(is_active, position, profiles(id, full_name, avatar_url))',
       )
       .eq('applicant_profile_id', profileId)
       .order('created_at', { ascending: false }),
@@ -461,6 +467,7 @@ export async function fetchMyMarketApplications(): Promise<MyMarketApplicationEn
     postId: row.post_id,
     postIsActive: row.market_team_posts?.is_active ?? false,
     targetName: row.market_team_posts?.teams?.name ?? 'Equipo',
+    targetId: row.market_team_posts?.teams?.id ?? null,
     targetImageUrl: resolveStorageUrl('shields', row.market_team_posts?.teams?.shield_url ?? null),
     targetSubtitle: row.market_team_posts?.position_wanted
       ? `Busca ${row.market_team_posts.position_wanted.toLowerCase()}`
@@ -478,6 +485,7 @@ export async function fetchMyMarketApplications(): Promise<MyMarketApplicationEn
     postId: row.post_id,
     postIsActive: row.market_player_posts?.is_active ?? false,
     targetName: row.market_player_posts?.profiles?.full_name ?? 'Jugador',
+    targetId: row.market_player_posts?.profiles?.id ?? null,
     targetImageUrl: resolveStorageUrl(
       'avatars',
       row.market_player_posts?.profiles?.avatar_url ?? null,
