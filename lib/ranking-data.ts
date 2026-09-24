@@ -183,21 +183,18 @@ interface FallbackPlayer {
     teamName: string | null;
 }
 
-// 3. Fetch del Leaderboard de jugadores
-export async function fetchPlayerLeaderboard(
-    stat: LeaderboardStat,
-    zone: string | null,
-    seasonId: string | null,
-    fallback?: FallbackPlayer
-): Promise<PlayerLeaderboardEntry[]> {
-    const { data, error } = await supabase.rpc('get_player_leaderboard', {
-        p_stat: stat,
-        p_zone: zone ?? undefined,
-        p_season_id: seasonId ?? undefined,
-    });
-    if (error) throw error;
+/**
+ * Filtros que entiende `get_player_leaderboard`. Son los mismos de la tabla de
+ * equipos salvo "rivales ideales", que es un rango de ELO de EQUIPO y no tiene
+ * equivalente para un jugador. Categoría = la del equipo con el que sumó;
+ * formato = el del partido.
+ */
+export type LeaderboardFilters = Pick<RankingFiltersState, 'zone' | 'category' | 'format'>;
 
-    const entries: PlayerLeaderboardEntry[] = (data ?? []).map((row) => ({
+type LeaderboardRpcRow = Database['public']['Functions']['get_player_leaderboard']['Returns'][number];
+
+function mapToLeaderboardEntry(row: LeaderboardRpcRow, myProfileId: string | null): PlayerLeaderboardEntry {
+    return {
         rankPosition: Number(row.rank_position),
         profileId: row.profile_id,
         fullName: row.full_name,
@@ -207,8 +204,38 @@ export async function fetchPlayerLeaderboard(
         teamName: row.team_name,
         zone: row.zone ?? undefined,
         value: Number(row.value),
-        isMyPlayer: row.profile_id === fallback?.profileId,
-    }));
+        isMyPlayer: myProfileId !== null && row.profile_id === myProfileId,
+    };
+}
+
+/**
+ * Identidad de una fila del leaderboard. El RPC agrupa por (jugador, equipo),
+ * así que alguien que sumó en dos equipos aparece dos veces: el profileId solo
+ * no alcanza como key.
+ */
+export function leaderboardEntryKey(entry: Pick<PlayerLeaderboardEntry, 'profileId' | 'teamId'>): string {
+    return `${entry.profileId}:${entry.teamId}`;
+}
+
+// 3. Fetch del Leaderboard de jugadores (resumen de la pestaña: top 20)
+export async function fetchPlayerLeaderboard(
+    stat: LeaderboardStat,
+    filters: LeaderboardFilters,
+    seasonId: string | null,
+    fallback?: FallbackPlayer
+): Promise<PlayerLeaderboardEntry[]> {
+    const { data, error } = await supabase.rpc('get_player_leaderboard', {
+        p_stat: stat,
+        p_zone: filters.zone ?? undefined,
+        p_season_id: seasonId ?? undefined,
+        p_category: filters.category ?? undefined,
+        p_format: filters.format ?? undefined,
+    });
+    if (error) throw error;
+
+    const entries: PlayerLeaderboardEntry[] = (data ?? []).map((row) =>
+        mapToLeaderboardEntry(row, fallback?.profileId ?? null),
+    );
 
     // Si el usuario no aparece en los resultados, lo inyectamos al final con valor 0
     if (fallback && !entries.some(e => e.profileId === fallback.profileId)) {
@@ -225,4 +252,95 @@ export async function fetchPlayerLeaderboard(
     }
 
     return entries;
+}
+
+// 4. Leaderboard paginado ("Ver tabla completa")
+
+/** Tamaño de página de la tabla completa. El servidor topea en 100. */
+export const LEADERBOARD_PAGE_SIZE = 50;
+
+export interface LeaderboardPage {
+    entries: PlayerLeaderboardEntry[];
+    /** Hay (probablemente) más filas: la página vino llena. */
+    hasMore: boolean;
+}
+
+/**
+ * Una página de la tabla completa de jugadores. A diferencia de
+ * `fetchPlayerLeaderboard` NO inyecta al usuario al final con valor 0: en la
+ * tabla completa esa fila sería una posición inventada.
+ *
+ * `rank_position` es global (el RPC numera antes de recortar), así que la
+ * página 2 empieza en 51 y no hace falta renumerar en el cliente.
+ */
+export async function fetchPlayerLeaderboardPage(params: {
+    stat: LeaderboardStat;
+    filters: LeaderboardFilters;
+    seasonId: string | null;
+    myProfileId: string | null;
+    offset: number;
+    limit?: number;
+}): Promise<LeaderboardPage> {
+    const limit = params.limit ?? LEADERBOARD_PAGE_SIZE;
+    const { data, error } = await supabase.rpc('get_player_leaderboard', {
+        p_stat: params.stat,
+        p_zone: params.filters.zone ?? undefined,
+        p_season_id: params.seasonId ?? undefined,
+        p_category: params.filters.category ?? undefined,
+        p_format: params.filters.format ?? undefined,
+        p_limit: limit,
+        p_offset: params.offset,
+    });
+    if (error) throw error;
+
+    const rows = data ?? [];
+    return {
+        entries: rows.map((row) => mapToLeaderboardEntry(row, params.myProfileId)),
+        hasMore: rows.length === limit,
+    };
+}
+
+/**
+ * Suma una página a lo ya cargado sin repetir filas. El orden del servidor es
+ * determinista, así que en condiciones normales no hay solapamiento; el filtro
+ * cubre el caso de que la tabla cambie entre dos páginas (se cargó un
+ * resultado) y una fila se corra de lugar.
+ */
+export function appendLeaderboardPage(
+    current: PlayerLeaderboardEntry[],
+    page: PlayerLeaderboardEntry[],
+): PlayerLeaderboardEntry[] {
+    const seen = new Set(current.map(leaderboardEntryKey));
+    return [...current, ...page.filter((entry) => !seen.has(leaderboardEntryKey(entry)))];
+}
+
+/** Tope de páginas que "Ir a mi posición" carga buscando al usuario. */
+export const LEADERBOARD_LOCATE_MAX_PAGES = 10;
+
+/**
+ * Carga páginas hasta encontrar la fila del usuario, o hasta que no haya más,
+ * o hasta el tope. Devuelve todo lo cargado (para pintarlo) y el índice de la
+ * primera fila del usuario, o -1 si no está en lo cargado.
+ *
+ * `nextOffset` cuenta filas que devolvió el SERVIDOR, no las que quedaron
+ * después de deduplicar: si no, una fila repetida correría el offset y se
+ * volvería a pedir la misma franja.
+ */
+export async function loadLeaderboardUntilMine(
+    state: { entries: PlayerLeaderboardEntry[]; nextOffset: number; hasMore: boolean },
+    loadPage: (offset: number) => Promise<LeaderboardPage>,
+    maxPages = LEADERBOARD_LOCATE_MAX_PAGES,
+): Promise<{ entries: PlayerLeaderboardEntry[]; nextOffset: number; hasMore: boolean; index: number }> {
+    let { entries, nextOffset, hasMore } = state;
+    let index = entries.findIndex((entry) => entry.isMyPlayer);
+
+    for (let pages = 0; index === -1 && hasMore && pages < maxPages; pages += 1) {
+        const page = await loadPage(nextOffset);
+        entries = appendLeaderboardPage(entries, page.entries);
+        nextOffset += page.entries.length;
+        hasMore = page.hasMore;
+        index = entries.findIndex((entry) => entry.isMyPlayer);
+    }
+
+    return { entries, nextOffset, hasMore, index };
 }
