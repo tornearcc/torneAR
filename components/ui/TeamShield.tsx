@@ -2,6 +2,7 @@ import { View, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { getInitials } from '@/lib/market-utils';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 
 interface Props {
   shieldUrl: string | null;
@@ -15,9 +16,28 @@ interface Props {
    * ícono genérico alcanza y se omite esta prop.
    */
   name?: string;
+  /** Con `expandable`, tocar el escudo lo abre en el visor (y permite denunciarlo). */
+  teamId?: string;
+  expandable?: boolean;
 }
 
-export function TeamShield({ shieldUrl, size = 48, isMyTeam = false, name }: Props) {
+export function TeamShield({ shieldUrl, size = 48, isMyTeam = false, name, teamId, expandable = false }: Props) {
+  const shield = <ShieldCircle shieldUrl={shieldUrl} size={size} isMyTeam={isMyTeam} name={name} />;
+  if (!expandable || !teamId) return shield;
+
+  return (
+    <ExpandablePhoto
+      uri={shieldUrl}
+      subject={{ kind: 'shield', teamId }}
+      title={name}
+      hitSlop={size < 36 ? 6 : 0}
+    >
+      {shield}
+    </ExpandablePhoto>
+  );
+}
+
+function ShieldCircle({ shieldUrl, size, isMyTeam, name }: Required<Pick<Props, 'size' | 'isMyTeam'>> & Pick<Props, 'shieldUrl' | 'name'>) {
   const borderClass = isMyTeam
     ? 'border-2 border-brand-primary/40'
     : 'border border-neutral-outline/20';

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { Image, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/context/AuthContext';
 import { ProfileRow } from './types';
 import { calculateAge, formatAge } from '@/lib/age';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
+import { Avatar } from '@/components/ui/Avatar';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { uploadProfileAvatar } from '@/lib/profile-edit-data';
 import CustomAlert from '@/components/ui/CustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
@@ -41,10 +43,7 @@ export function ProfileHeader({ profile, onAvatarUpdate, isEmbajador = false }: 
     setAlertVisible(true);
   };
 
-  // Construir URL de avatar desde storage de Supabase
-  const avatarUrl = avatarPath
-    ? getSupabaseStorageUrl('avatars', avatarPath)
-    : null;
+  const avatarUrl = resolveAvatarUrl(avatarPath);
 
   const ageLabel = formatAge(calculateAge(profile.date_of_birth));
 
@@ -111,56 +110,66 @@ export function ProfileHeader({ profile, onAvatarUpdate, isEmbajador = false }: 
     }
   };
 
+  const avatarRing = (
+    <View className="relative">
+      <View
+        className={`rounded-full border-4 bg-surface-lowest p-1 ${
+          isEmbajador ? 'border-brand-gold' : 'border-brand-primary-container'
+        }`}
+        style={{ height: 128, width: 128 }}
+      >
+        {uploading ? (
+          <View
+            className="items-center justify-center rounded-full bg-surface-high"
+            style={{ height: '100%', width: '100%' }}
+          >
+            <ActivityIndicator size="large" color="#53E076" />
+          </View>
+        ) : (
+          // 112 = 128 − aro (4 × 2) − padding (4 × 2).
+          <Avatar uri={avatarUrl} size={112} />
+        )}
+      </View>
+      {/* Badge: + si no hay foto, ✓ si hay foto.
+          bottom/right en 1: con el aro ahora circular, el punto de tangencia
+          del círculo queda ~19px adentro de la esquina — un inset de 3 (12px)
+          dejaba la insignia flotando lejos del borde visible. */}
+      <View className="absolute bottom-1 right-1 rounded-lg border-2 border-surface-base bg-brand-primary p-1">
+        <AppIcon
+          family="material-icons"
+          name={avatarUrl ? "verified" : "add"}
+          size={14}
+          color="#003914"
+        />
+      </View>
+    </View>
+  );
+
   return (
     <View className="items-center pt-3">
-      <TouchableOpacity 
-        onPress={pickAndUploadImage}
-        disabled={uploading}
-        activeOpacity={0.8}
-        className="relative"
-      >
-        <View
-          className={`rounded-full border-4 bg-surface-lowest p-1 ${
-            isEmbajador ? 'border-brand-gold' : 'border-brand-primary-container'
-          }`}
-          style={{ height: 128, width: 128 }}
+      {/* Con foto, tocarla la abre en el visor, que ofrece "Cambiar foto" (el
+          mismo patrón que WhatsApp). Sin foto no hay nada que ver: el toque va
+          directo al selector, como antes. */}
+      {avatarUrl && !uploading ? (
+        <ExpandablePhoto
+          uri={avatarUrl}
+          subject={{ kind: 'avatar', profileId: profile.id }}
+          title={profile.full_name}
+          onChangePhoto={() => void pickAndUploadImage()}
         >
-          {uploading ? (
-            <View
-              className="items-center justify-center rounded-full bg-surface-high"
-              style={{ height: '100%', width: '100%' }}
-            >
-              <ActivityIndicator size="large" color="#53E076" />
-            </View>
-          ) : avatarUrl ? (
-            <Image
-              source={{ uri: avatarUrl }}
-              className="rounded-full"
-              style={{ height: '100%', width: '100%' }}
-              resizeMode="cover"
-            />
-          ) : (
-            <View
-              className="items-center justify-center rounded-full bg-surface-high"
-              style={{ height: '100%', width: '100%' }}
-            >
-              <AppIcon family="material-community" name="account" size={42} color="#BCCBB9" />
-            </View>
-          )}
-        </View>
-        {/* Badge: + si no hay foto, ✓ si hay foto.
-            bottom/right en 1: con el aro ahora circular, el punto de tangencia
-            del círculo queda ~19px adentro de la esquina — un inset de 3 (12px)
-            dejaba la insignia flotando lejos del borde visible. */}
-        <View className="absolute bottom-1 right-1 rounded-lg border-2 border-surface-base bg-brand-primary p-1">
-          <AppIcon 
-            family="material-icons" 
-            name={avatarUrl ? "verified" : "add"} 
-            size={14} 
-            color="#003914" 
-          />
-        </View>
-      </TouchableOpacity>
+          {avatarRing}
+        </ExpandablePhoto>
+      ) : (
+        <TouchableOpacity
+          onPress={pickAndUploadImage}
+          disabled={uploading}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Elegir foto de perfil"
+        >
+          {avatarRing}
+        </TouchableOpacity>
+      )}
 
       {/* w-full + px: acota el ancho del texto al del contenedor. Sin esto, un
           nombre largo sin espacios (o con emojis) desborda horizontalmente.
