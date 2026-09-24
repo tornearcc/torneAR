@@ -19,20 +19,38 @@
 -- desde SQL (el trigger `storage.protect_delete` rechaza el DELETE sobre
 -- storage.objects con «Use the Storage API instead», porque borrar la fila no
 -- borra el archivo del backend). El path que se quitó viaja en el registro
--- de auditoría (`removed_avatar_path`) para que el dashboard lo borre con la
--- Storage API.
+-- de auditoría (`removed_avatar_path`) y el dashboard lo borra con la Storage
+-- API ("Quitar foto", repo torneAR-web). Mientras ese archivo exista, la foto
+-- sigue siendo pública por URL.
 --
--- Si el perfil ya no tiene foto, se rechaza con NO_CONTENT_TO_REMOVE en lugar
--- de marcar la denuncia ACTIONED sin haber hecho nada: una denuncia de perfil
--- puede ser por acoso o suplantación, y ahí la medida es la suspensión.
+-- ── Por qué la rama USER NO marca la denuncia ACTIONED ──────────────────────
+-- Las otras ramas terminan todo adentro de la transacción. Ésta no puede: el
+-- borrado del archivo es una llamada HTTP posterior que puede fallar. Si la
+-- RPC marcara ACTIONED, una falla en ese paso dejaría la denuncia resuelta y
+-- la foto publicada. Por eso la denuncia queda como estaba (PENDING) y el
+-- dashboard la marca ACTIONED recién cuando confirmó que el archivo no existe.
+--
+-- ── Reintentos ──────────────────────────────────────────────────────────────
+-- Si el borrado del archivo falló, el admin vuelve a tocar "Quitar foto". La
+-- segunda llamada NO debe volver a poner avatar_url en NULL: en el medio la
+-- persona pudo subir una foto nueva, que nadie denunció. Por eso, si ya hay
+-- un registro `avatar_removed` para esta denuncia, se rechaza con
+-- AVATAR_ALREADY_REMOVED y el dashboard sigue directo al borrado del archivo
+-- con el path de ese registro.
+--
+-- Si el perfil no tiene foto (y nunca se quitó por esta denuncia), se rechaza
+-- con NO_CONTENT_TO_REMOVE: una denuncia de perfil puede ser por acoso o
+-- suplantación, y ahí la medida es la suspensión.
+--
+-- ── Storage: admins pueden leer y borrar avatares ───────────────────────────
+-- El dashboard actúa con la sesión del admin, nunca con service_role. La
+-- Storage API exige permiso de SELECT y de DELETE sobre storage.objects para
+-- borrar, y hoy sólo existen los del dueño de cada carpeta. Sin estas dos
+-- policies, `remove()` devuelve éxito con una lista vacía y no borra nada.
 --
 -- ── Qué NO cambia ───────────────────────────────────────────────────────────
 -- Firma, grants y el resto de las ramas son los de 20260915125829 (la última
 -- versión), copiados tal cual. MATCH sigue rechazándose.
---
--- El dashboard no ofrece el botón para USER (REMOVABLE_ENTITY_TYPES no lo
--- incluye), así que esta migración sola no habilita ninguna acción nueva:
--- hace falta el botón "Quitar foto" del repo web.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.admin_remove_reported_content(p_report_id uuid)
@@ -106,6 +124,19 @@ BEGIN
       v_action := 'team_name_and_shield_reset';
 
     WHEN 'USER' THEN
+      -- Reintento: la foto de esta denuncia ya se quitó y falta (o falló) el
+      -- borrado del archivo. No se toca el perfil: la foto actual puede ser
+      -- una nueva que nadie denunció.
+      IF EXISTS (
+        SELECT 1 FROM public.app_logs
+        WHERE message = 'admin.remove_reported_content'
+          AND details->>'report_id' = p_report_id::text
+          AND details->>'action' = 'avatar_removed'
+      ) THEN
+        RAISE EXCEPTION
+          'AVATAR_ALREADY_REMOVED: la foto de esta denuncia ya se quitó del perfil; falta borrar el archivo';
+      END IF;
+
       -- FOR UPDATE: entre leer el path y borrarlo, el usuario podría subir
       -- otra foto; así se registra exactamente la que se quitó.
       SELECT avatar_url INTO v_avatar_path
@@ -130,9 +161,13 @@ BEGIN
         v_report.reported_entity_type;
   END CASE;
 
-  UPDATE public.content_reports
-  SET status = 'ACTIONED'
-  WHERE id = p_report_id;
+  -- USER queda PENDING: la marca el dashboard después de borrar el archivo
+  -- (ver el encabezado). Las demás ramas ya terminaron todo acá.
+  IF v_report.reported_entity_type <> 'USER' THEN
+    UPDATE public.content_reports
+    SET status = 'ACTIONED'
+    WHERE id = p_report_id;
+  END IF;
 
   -- Auditoría, con el mismo formato que `admin.suspend_user`: quién actuó, qué
   -- hizo y sobre qué. `warn` para que salte en /dashboard/health sin contar
@@ -165,4 +200,44 @@ REVOKE EXECUTE ON FUNCTION public.admin_remove_reported_content(uuid) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.admin_remove_reported_content(uuid) TO authenticated;
 
 COMMENT ON FUNCTION public.admin_remove_reported_content(uuid) IS
-  'Elimina el contenido de una denuncia y la marca ACTIONED (App Store 1.2). El significado de «eliminar» depende del tipo — ver el comentario de la migración 20260911170000. En TEAM neutraliza también las copias históricas de season_standings y team_stints (*_season_standings_snapshot). En USER quita la foto de perfil (avatar_url = NULL; el path queda en app_logs.details.removed_avatar_path para borrar el archivo del bucket) y rechaza si no hay foto (20260924140000). Para MATCH no aplica: ahí la medida es admin_suspend_user.';
+  'Elimina el contenido de una denuncia y la marca ACTIONED (App Store 1.2). El significado de «eliminar» depende del tipo — ver el comentario de la migración 20260911170000. En TEAM neutraliza también las copias históricas de season_standings y team_stints (*_season_standings_snapshot). En USER quita la foto de perfil (avatar_url = NULL; el path queda en app_logs.details.removed_avatar_path) y deja la denuncia PENDING: el dashboard borra el archivo del bucket y recién ahí la marca ACTIONED. Rechaza con NO_CONTENT_TO_REMOVE si no hay foto y con AVATAR_ALREADY_REMOVED si la foto de esa denuncia ya se quitó (reintento del borrado del archivo) (20260924140000). Para MATCH no aplica: ahí la medida es admin_suspend_user.';
+
+-- ─── Storage: admins leen y borran avatares ─────────────────────────────────
+-- Mismo patrón que 20260915183641 (evidencias de WO): el EXCEPTION cubre un
+-- stack local donde el rol de migraciones no es dueño de storage.objects.
+DO $storage$
+BEGIN
+  EXECUTE $p$ DROP POLICY IF EXISTS "Admins leen los avatares" ON storage.objects $p$;
+  EXECUTE $p$
+    CREATE POLICY "Admins leen los avatares"
+      ON storage.objects FOR SELECT TO authenticated
+      USING (
+        bucket_id = 'avatars'
+        AND EXISTS (
+          SELECT 1
+          FROM public.profiles p
+          WHERE p.auth_user_id = (SELECT auth.uid())
+            AND p.is_admin = true
+        )
+      )
+  $p$;
+
+  EXECUTE $p$ DROP POLICY IF EXISTS "Admins borran avatares" ON storage.objects $p$;
+  EXECUTE $p$
+    CREATE POLICY "Admins borran avatares"
+      ON storage.objects FOR DELETE TO authenticated
+      USING (
+        bucket_id = 'avatars'
+        AND EXISTS (
+          SELECT 1
+          FROM public.profiles p
+          WHERE p.auth_user_id = (SELECT auth.uid())
+            AND p.is_admin = true
+        )
+      )
+  $p$;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Storage omitido (sin ownership de storage.objects en el stack local)';
+END
+$storage$;
