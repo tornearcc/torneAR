@@ -627,6 +627,7 @@ export type Database = {
           format: Database["public"]["Enums"]["team_format"]
           max_squad_size: number
           min_players_to_start: number
+          mixed_min_per_gender: number
           players_on_field: number
           updated_at: string
         }
@@ -634,6 +635,7 @@ export type Database = {
           format: Database["public"]["Enums"]["team_format"]
           max_squad_size: number
           min_players_to_start: number
+          mixed_min_per_gender?: number
           players_on_field: number
           updated_at?: string
         }
@@ -641,6 +643,7 @@ export type Database = {
           format?: Database["public"]["Enums"]["team_format"]
           max_squad_size?: number
           min_players_to_start?: number
+          mixed_min_per_gender?: number
           players_on_field?: number
           updated_at?: string
         }
@@ -2807,7 +2810,7 @@ export type Database = {
           created_at?: string | null
           favorite_team?: string | null
           full_name?: string | null
-          gender?: string | null
+          gender?: never
           id?: string | null
           preferred_position?:
             | Database["public"]["Enums"]["player_position"]
@@ -2822,7 +2825,7 @@ export type Database = {
           created_at?: string | null
           favorite_team?: string | null
           full_name?: string | null
-          gender?: string | null
+          gender?: never
           id?: string | null
           preferred_position?:
             | Database["public"]["Enums"]["player_position"]
@@ -2901,6 +2904,10 @@ export type Database = {
         Args: { p_account_id: string }
         Returns: undefined
       }
+      admin_get_profile_gender: {
+        Args: { p_profile_id: string }
+        Returns: string
+      }
       admin_get_suspension_status: {
         Args: { p_profile_ids: string[] }
         Returns: {
@@ -2925,6 +2932,10 @@ export type Database = {
         Args: { p_is_admin: boolean; p_profile_id: string }
         Returns: undefined
       }
+      admin_set_profile_gender: {
+        Args: { p_gender: string; p_profile_id: string; p_reason: string }
+        Returns: Json
+      }
       admin_suspend_user: {
         Args: { p_profile_id: string; p_reason?: string }
         Returns: undefined
@@ -2938,6 +2949,18 @@ export type Database = {
           p_at?: string
           p_match: Database["public"]["Tables"]["matches"]["Row"]
         }
+        Returns: undefined
+      }
+      assert_mixed_roster: {
+        Args: {
+          p_format: Database["public"]["Enums"]["team_format"]
+          p_own: boolean
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      assert_ranking_same_category: {
+        Args: { p_own_team_id: string; p_rival_team_id: string }
         Returns: undefined
       }
       block_user: {
@@ -3263,6 +3286,13 @@ export type Database = {
           player_id: string
         }[]
       }
+      get_mixed_composition_status: {
+        Args: {
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_team_id: string
+        }
+        Returns: Json
+      }
       get_my_matches: {
         Args: { p_team_id: string }
         Returns: {
@@ -3520,6 +3550,18 @@ export type Database = {
         }
         Returns: string
       }
+      mixed_composition_applies: {
+        Args: { p_team_id: string }
+        Returns: boolean
+      }
+      mixed_composition_eval: {
+        Args: {
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_profile_ids: string[]
+        }
+        Returns: Json
+      }
+      mixed_composition_missing_text: { Args: { p_eval: Json }; Returns: string }
       normalize_for_filter: { Args: { p_text: string }; Returns: string }
       recalculate_team_fps: { Args: { p_team_id: string }; Returns: undefined }
       remove_team_member: {

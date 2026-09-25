@@ -130,6 +130,42 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
   },
 
   // ───────────────────────────────────────────────────────────────────────────
+  // F3. Las dos reglas arrancan apagadas y se activan con aviso previo: los
+  // textos las presentan así, porque la app sale antes que el interruptor.
+  {
+    id: 'mixed',
+    title: 'Equipos Mixtos',
+    subtitle: 'Cuántos de cada género hacen falta y cuándo se controla',
+    icon: 'gender-male-female',
+    entries: [
+      {
+        question: '¿Qué necesita un equipo mixto para jugar?',
+        answer:
+          'Al menos 2 jugadores de género masculino y 2 de género femenino. Se controla en el plantel al desafiar, al aceptar un desafío y al confirmar la fecha; entre los titulares al presentar la lista; y entre los presentes en el check-in, donde el quórum solo no alcanza para dar por presentado al equipo.\n\nLa regla se activa con aviso previo a los capitanes. Mientras la pantalla de tu equipo diga «Pronto se va a exigir», todavía no bloquea nada.',
+        facts: [
+          { label: 'Mínimo por género', value: '2 y 2' },
+          { label: 'Género «Otro»', value: 'Completa, no cuenta para el mínimo' },
+        ],
+      },
+      {
+        question: '¿Y el género «Otro»?',
+        answer:
+          'Cuenta para completar el equipo, pero no para los mínimos de cada género. Un equipo con 3 de género masculino, 1 de género femenino y 1 «Otro» todavía necesita otra jugadora de género femenino.',
+      },
+      {
+        question: '¿Quién ve el género de cada jugador?',
+        answer:
+          'Nadie más que vos. Los integrantes de tu equipo ven cuántos jugadores de cada género tiene el plantel y cuántos faltan; un rival sólo ve si el equipo cumple o no.\n\nEl género se elige al registrarte. Si lo cargaste mal, escribinos a tornearcc@gmail.com desde tu cuenta y lo corregimos.',
+      },
+      {
+        question: '¿Puedo jugar un ranking contra un equipo de otra categoría?',
+        answer:
+          'Cuando se active la regla, no: los partidos de ranking se juegan entre equipos de la misma categoría (Mixto contra Mixto, Hombres contra Hombres, Mujeres contra Mujeres). Los amistosos siguen siendo libres, y en un amistoso contra otra categoría la composición mixta se controla sólo del lado del equipo Mixto.',
+      },
+    ],
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
   {
     id: 'elo-fairplay',
     title: 'Puntaje Elo y Fair Play',
