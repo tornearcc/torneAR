@@ -349,6 +349,7 @@ export type Database = {
           created_at: string
           id: string
           reason: string
+          reported_avatar_path: string | null
           reported_entity_id: string
           reported_entity_type: Database["public"]["Enums"]["report_entity_type"]
           reported_profile_id: string | null
@@ -360,6 +361,7 @@ export type Database = {
           created_at?: string
           id?: string
           reason: string
+          reported_avatar_path?: string | null
           reported_entity_id: string
           reported_entity_type: Database["public"]["Enums"]["report_entity_type"]
           reported_profile_id?: string | null
@@ -371,6 +373,7 @@ export type Database = {
           created_at?: string
           id?: string
           reason?: string
+          reported_avatar_path?: string | null
           reported_entity_id?: string
           reported_entity_type?: Database["public"]["Enums"]["report_entity_type"]
           reported_profile_id?: string | null
@@ -2785,6 +2788,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      avatar_file_in_open_report: { Args: { p_path: string }; Returns: boolean }
+      avatar_object_path: { Args: { p_stored: string }; Returns: string }
       block_user: {
         Args: { p_blocked_profile_id: string; p_reason?: string }
         Returns: undefined
@@ -3360,6 +3365,10 @@ export type Database = {
         Args: { p_profile_id: string; p_team_id: string }
         Returns: Json
       }
+      request_avatar_file_deletion: {
+        Args: { p_context?: Json; p_paths: string[] }
+        Returns: number
+      }
       request_match_cancellation: {
         Args: {
           p_match_id: string
@@ -3464,6 +3473,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      storage_avatars_object_url: { Args: never; Returns: string }
       submit_content_report: {
         Args: {
           p_entity_id: string
@@ -3487,6 +3497,14 @@ export type Database = {
         Returns: Json
       }
       sweep_disputed_matches: { Args: never; Returns: Json }
+      sweep_orphan_avatars: {
+        Args: { p_dry_run?: boolean; p_limit?: number }
+        Returns: {
+          bytes: number
+          objeto: string
+          subido_at: string
+        }[]
+      }
       sweep_stale_matches: { Args: never; Returns: Json }
       transfer_captaincy_and_leave: {
         Args: { p_team_id: string; p_to_profile_id: string }
