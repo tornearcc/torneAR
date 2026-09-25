@@ -9,9 +9,11 @@ interface Props {
     statLabel: string;
     isPercent?: boolean;
     index?: number;
+    /** Entrada escalonada; apagada en la tabla completa (ver RankingTeamRow). */
+    animated?: boolean;
 }
 
-export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, index = 0 }: Props) {
+export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, index = 0, animated = true }: Props) {
     const isTop3 = entry.rankPosition <= 3;
     const colors = ['#FABD32', '#C0C0C0', '#CD7F32'] as const;
     const posColor = isTop3 ? colors[entry.rankPosition - 1] : '#869585';
@@ -22,7 +24,7 @@ export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, inde
     ].filter(Boolean).join(' · ');
 
     return (
-        <Animated.View entering={FadeInRight.delay(index * 50).springify()} style={{ marginBottom: 6 }}>
+        <Animated.View entering={animated ? FadeInRight.delay(index * 50).springify() : undefined} style={{ marginBottom: 6 }}>
         <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => router.push({ pathname: '/profile-stats', params: { profileId: entry.profileId } })}

@@ -11,9 +11,14 @@ interface Props {
     entry: RankingTeamEntry;
     onPress: (teamId: string) => void;
     index?: number;
+    /**
+     * Entrada escalonada. En la tabla completa va apagada: el delay crece con
+     * el índice y la fila 100 tardaría 5 s en aparecer.
+     */
+    animated?: boolean;
 }
 
-export function RankingTeamRow({ entry, onPress, index = 0 }: Props) {
+export function RankingTeamRow({ entry, onPress, index = 0, animated = true }: Props) {
     const podium = podiumColor(entry.rankPosition);
     const isTop3 = podium !== null;
     const posColor = podium ?? '#869585';
@@ -25,7 +30,7 @@ export function RankingTeamRow({ entry, onPress, index = 0 }: Props) {
         : 0;
 
     return (
-        <Animated.View entering={FadeInRight.delay(index * 50).springify()} style={{ marginBottom: 6 }}>
+        <Animated.View entering={animated ? FadeInRight.delay(index * 50).springify() : undefined} style={{ marginBottom: 6 }}>
         <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => onPress(entry.teamId)}
