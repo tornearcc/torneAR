@@ -3561,7 +3561,10 @@ export type Database = {
         }
         Returns: Json
       }
-      mixed_composition_missing_text: { Args: { p_eval: Json }; Returns: string }
+      mixed_composition_missing_text: {
+        Args: { p_eval: Json }
+        Returns: string
+      }
       normalize_for_filter: { Args: { p_text: string }; Returns: string }
       recalculate_team_fps: { Args: { p_team_id: string }; Returns: undefined }
       remove_team_member: {
