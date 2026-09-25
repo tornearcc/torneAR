@@ -74,6 +74,7 @@ export function MarketListSection({
       return (
         <MarketTeamCard
           postId={post.id}
+          teamId={post.team_id}
           teamName={post.teams?.name ?? 'Equipo'}
           teamZone={post.teams?.zone}
           matchZone={post.zone}
@@ -125,6 +126,7 @@ export function MarketListSection({
       return (
         <MarketPlayerCard
           postId={post.id}
+          profileId={post.profile_id}
           playerName={post.profiles?.full_name ?? 'Jugador'}
           username={post.profiles?.username ?? 'user'}
           avatarUrl={post.profiles?.avatar_url}

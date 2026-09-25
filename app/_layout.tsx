@@ -29,6 +29,7 @@ import { useSignupGateStore } from '@/stores/signupGateStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { UIProvider } from '../context/UIContext';
+import { ImageViewerProvider } from '@/components/ui/image-viewer/ImageViewerProvider';
 
 LogBox.ignoreLogs([
   '[Reanimated] Reading from `value` during component render',
@@ -388,6 +389,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="market-chats" />
         <Stack.Screen name="market-my-applications" />
         <Stack.Screen name="team-stats" />
+        <Stack.Screen name="ranking-full" />
         <Stack.Screen name="challenge-inbox" />
         <Stack.Screen name="match-detail" />
         <Stack.Screen name="match-checkin" />
@@ -467,7 +469,12 @@ export default function RootLayout() {
       <ThemeProvider value={navigationTheme}>
         <AuthProvider>
           <UIProvider>
-            <RootNavigation fontsLoaded={fontsLoaded} />
+            {/* Visor de fotos: una sola instancia del Modal para toda la app.
+                Adentro de AuthProvider porque necesita saber quién mira
+                (bloqueos, "Denunciar" vs. "Cambiar foto"). */}
+            <ImageViewerProvider>
+              <RootNavigation fontsLoaded={fontsLoaded} />
+            </ImageViewerProvider>
             <AppUpdateModal
               visible={forceUpdate.required}
               currentVersion={forceUpdate.currentVersion}

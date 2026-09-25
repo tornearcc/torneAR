@@ -46,7 +46,7 @@ export function LiveMatchBanner({ match, myTeamId, isStaff, onPress, onLoadResul
       {/* Teams + Score */}
       <View className="flex-row items-center">
         <View className="flex-1 items-center gap-1.5">
-          <TeamShield shieldUrl={match.teamA.shieldUrl} size={52} isMyTeam={isMyTeamA} />
+          <TeamShield shieldUrl={match.teamA.shieldUrl} size={52} isMyTeam={isMyTeamA} teamId={match.teamA.id} viewerTitle={match.teamA.name} expandable />
           <Text
             className="font-uiBold text-[13px] text-neutral-on-surface"
             numberOfLines={1}
@@ -63,7 +63,7 @@ export function LiveMatchBanner({ match, myTeamId, isStaff, onPress, onLoadResul
         </View>
 
         <View className="flex-1 items-center gap-1.5">
-          <TeamShield shieldUrl={match.teamB.shieldUrl} size={52} isMyTeam={isMyTeamB} />
+          <TeamShield shieldUrl={match.teamB.shieldUrl} size={52} isMyTeam={isMyTeamB} teamId={match.teamB.id} viewerTitle={match.teamB.name} expandable />
           <Text
             className="font-uiBold text-[13px] text-neutral-on-surface"
             numberOfLines={1}

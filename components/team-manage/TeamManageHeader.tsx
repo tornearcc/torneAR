@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { TeamDetailRow, TeamMemberRow } from './types';
 import { getTeamCategoryLabel, getTeamFormatLabel, getTeamRoleLabel, TeamRole } from '@/lib/team-options';
 import { averageOfAges } from '@/lib/age';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { resolveShieldUrl } from '@/lib/supabase-storage';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 
 interface TeamManageHeaderProps {
   team: TeamDetailRow;
@@ -32,7 +34,7 @@ export function TeamManageHeader({
   onShareInvite,
 }: TeamManageHeaderProps) {
   const router = useRouter();
-  const shieldUrl = team.shield_url ? getSupabaseStorageUrl('shields', team.shield_url) : '';
+  const shieldUrl = resolveShieldUrl(team.shield_url);
 
   // Se calcula sobre quienes cargaron su fecha; `counted` permite aclarar la
   // muestra cuando no es todo el plantel, en vez de dar un promedio que parece
@@ -40,6 +42,27 @@ export function TeamManageHeader({
   const squadAge = useMemo(
     () => averageOfAges(members.map((member) => member.profiles?.age)),
     [members],
+  );
+
+  const shieldBox = (
+    <View className="relative">
+      <View className="border-4 border-brand-primary-container bg-surface-lowest p-1" style={{ height: 84, width: 84, borderRadius: 8 }}>
+        {uploadingShield ? (
+          <View className="h-full w-full items-center justify-center rounded-md bg-surface-high">
+            <ActivityIndicator size="small" color="#53E076" />
+          </View>
+        ) : shieldUrl ? (
+          <Image source={{ uri: shieldUrl }} style={{ width: '100%', height: '100%', borderRadius: 6 }} contentFit="cover" />
+        ) : (
+          <View className="h-full w-full items-center justify-center rounded-md bg-surface-high">
+            <AppIcon family="material-community" name="shield-outline" size={24} color="#BCCBB9" />
+          </View>
+        )}
+      </View>
+      <View className="absolute bottom-1.5 right-1.5 rounded-md border-2 border-surface-base bg-brand-primary p-1">
+        <AppIcon family="material-icons" name={shieldUrl ? 'verified' : 'add'} size={12} color="#003914" />
+      </View>
+    </View>
   );
 
   return (
@@ -54,24 +77,23 @@ export function TeamManageHeader({
       </TouchableOpacity>
 
       <View className="flex-row items-center gap-4 pr-10">
-        <TouchableOpacity onPress={onPickShield} disabled={uploadingShield} activeOpacity={0.85} className="relative">
-          <View className="border-4 border-brand-primary-container bg-surface-lowest p-1" style={{ height: 84, width: 84, borderRadius: 8 }}>
-            {uploadingShield ? (
-              <View className="h-full w-full items-center justify-center rounded-md bg-surface-high">
-                <ActivityIndicator size="small" color="#53E076" />
-              </View>
-            ) : shieldUrl ? (
-              <Image source={{ uri: shieldUrl }} className="h-full w-full rounded-md" resizeMode="cover" />
-            ) : (
-              <View className="h-full w-full items-center justify-center rounded-md bg-surface-high">
-                <AppIcon family="material-community" name="shield-outline" size={24} color="#BCCBB9" />
-              </View>
-            )}
-          </View>
-          <View className="absolute bottom-1.5 right-1.5 rounded-md border-2 border-surface-base bg-brand-primary p-1">
-            <AppIcon family="material-icons" name={shieldUrl ? 'verified' : 'add'} size={12} color="#003914" />
-          </View>
-        </TouchableOpacity>
+        {/* Con escudo, tocarlo lo abre en el visor; quien puede editar el equipo
+            ve ahí "Cambiar escudo". Sin escudo el toque va directo al selector,
+            como antes (mismo criterio que la foto del perfil propio). */}
+        {shieldUrl && !uploadingShield ? (
+          <ExpandablePhoto
+            uri={shieldUrl}
+            subject={{ kind: 'shield', teamId: team.id }}
+            title={team.name}
+            onChangePhoto={canEditTeam ? onPickShield : undefined}
+          >
+            {shieldBox}
+          </ExpandablePhoto>
+        ) : (
+          <TouchableOpacity onPress={onPickShield} disabled={uploadingShield} activeOpacity={0.85}>
+            {shieldBox}
+          </TouchableOpacity>
+        )}
 
         <View className="flex-1">
           <Text className="font-display text-2xl text-neutral-on-surface">{team.name}</Text>

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ImageBackground } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { AppIcon } from '@/components/ui/AppIcon';
 import {
   imageIndexFromId,
@@ -79,6 +80,8 @@ function resolveAvatarUrl(path?: string | null): string | null {
 
 interface MarketTeamCardProps {
   postId: string;
+  /** Para abrir el escudo en el visor (y poder denunciarlo). */
+  teamId?: string;
   teamName: string;
   teamZone?: string | null;
   matchZone?: string | null;
@@ -118,7 +121,7 @@ interface MarketTeamCardProps {
 }
 
 export function MarketTeamCard({
-  postId, teamName, teamZone, matchZone, logoUrl, positionWanted, pitchType, description,
+  postId, teamId, teamName, teamZone, matchZone, logoUrl, positionWanted, pitchType, description,
   matchDate, matchTime, complex, isOwner, memberStatus, index = 0, onPressAction, onPressStats, onDelete,
   applicationCount, onViewApplications, distanceLabel, onPressModerate,
 }: MarketTeamCardProps) {
@@ -177,7 +180,15 @@ export function MarketTeamCard({
         )}
         {/* Team row at bottom of image */}
         <View className="absolute bottom-2 left-3 right-3 flex-row items-center gap-2">
-          {shieldImage ? (
+          {shieldImage && teamId ? (
+            <ExpandablePhoto uri={shieldImage} subject={{ kind: 'shield', teamId }} title={teamName}>
+              <Image
+                source={{ uri: shieldImage }}
+                style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}
+                contentFit="cover"
+              />
+            </ExpandablePhoto>
+          ) : shieldImage ? (
             <Image
               source={{ uri: shieldImage }}
               style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}
@@ -314,6 +325,8 @@ export function MarketTeamCard({
 
 interface MarketPlayerCardProps {
   postId: string;
+  /** Para abrir la foto en el visor (bloqueo y "Denunciar"). */
+  profileId?: string;
   playerName: string;
   avatarUrl?: string | null;
   username: string;
@@ -337,7 +350,7 @@ interface MarketPlayerCardProps {
 }
 
 export function MarketPlayerCard({
-  postId, playerName, avatarUrl, username, position, postType,
+  postId, profileId, playerName, avatarUrl, username, position, postType,
   description, isOwner, memberStatus, index = 0, onPressAction, onPressStats, onDelete,
   applicationCount, onViewApplications, onPressModerate,
 }: MarketPlayerCardProps) {
@@ -383,7 +396,15 @@ export function MarketPlayerCard({
           </TouchableOpacity>
         )}
         <View className="absolute bottom-2 left-3 right-3 flex-row items-center gap-2">
-          {avatarImage ? (
+          {avatarImage && profileId ? (
+            <ExpandablePhoto uri={avatarImage} subject={{ kind: 'avatar', profileId }} title={playerName}>
+              <Image
+                source={{ uri: avatarImage }}
+                style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}
+                contentFit="cover"
+              />
+            </ExpandablePhoto>
+          ) : avatarImage ? (
             <Image
               source={{ uri: avatarImage }}
               style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#53E076' }}

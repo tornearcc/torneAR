@@ -27,6 +27,10 @@ interface Props {
  */
 const REASONS: Record<ReportEntityType, readonly string[]> = {
   USER: [
+    // Primero porque el visor de fotos abre este mismo modal desde "Denunciar":
+    // ahí es casi siempre el motivo, y es el único que la moderación puede
+    // resolver sin suspender la cuenta (quitar la foto, 20260924140000).
+    'Foto de perfil inapropiada',
     'Acoso o amenazas',
     'Discurso de odio o discriminación',
     'Suplantación de identidad',

@@ -71,6 +71,9 @@ function HomeMatchRow({ entry, onPress }: MatchRowProps) {
         shieldUrl={entry.teamA.shieldUrl}
         size={38}
         isMyTeam={entry.myTeamId === entry.teamA.id}
+        teamId={entry.teamA.id}
+        viewerTitle={entry.teamA.name}
+        expandable
       />
 
       {/* Match info */}
@@ -129,6 +132,9 @@ function HomeMatchRow({ entry, onPress }: MatchRowProps) {
         shieldUrl={entry.teamB.shieldUrl}
         size={38}
         isMyTeam={entry.myTeamId === entry.teamB.id}
+        teamId={entry.teamB.id}
+        viewerTitle={entry.teamB.name}
+        expandable
       />
 
       {/* Navigation */}

@@ -244,6 +244,7 @@ export async function fetchTeamStatsViewData(
       matchType: match.match_type,
       rivalName,
       rivalShieldUrl: resolveShieldUrl(rival?.shield_url),
+      rivalTeamId: match.team_a_id === teamId ? match.team_b_id : match.team_a_id,
       // MVP que cargó ESTE equipo, no el del rival: cada `match_results` trae
       // el suyo y mostrar el del otro lado sería premiar al contrario.
       mvpName: match.match_results.find((r) => r.team_id === teamId)?.mvp?.full_name ?? null,
