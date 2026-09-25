@@ -1,6 +1,9 @@
 /**
  * Política de Privacidad de torneAR — texto definitivo, vigente desde el
- * 24 de agosto de 2026.
+ * 25 de septiembre de 2026. Cambio respecto de la versión del 24 de agosto de
+ * 2026: una finalidad nueva en la §4, el uso del género para validar la
+ * composición de los equipos de categoría Mixto (F3, 20260925160000). Sin
+ * re-aceptación: needsLegalAcceptance() sólo compara la versión de los TyC.
  *
  * Redactada sobre la auditoría técnica de la app (Expo), el dashboard (Next) y
  * las funciones de Supabase. El texto legal NO se reescribe ni se resume acá:
@@ -44,7 +47,7 @@ import type { LegalSection } from './termsContent';
  * Se muestra bajo el título Y actúa como identificador de versión del
  * documento. Cambiarlo al publicar una versión nueva.
  */
-export const PRIVACY_LAST_UPDATED = '24 de Agosto, 2026';
+export const PRIVACY_LAST_UPDATED = '25 de Septiembre, 2026';
 
 export const PRIVACY_INTRO =
   'En torneAR valoramos y respetamos la privacidad de nuestros usuarios. Esta política describe qué datos recopilamos, para qué los usamos, con quién se comparten y durante cuánto tiempo los conservamos.';
@@ -79,6 +82,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
       'Utilizamos tus datos exclusivamente para:',
       'Crear y gestionar tu cuenta de usuario.',
       'Permitirte crear equipos, unirte a ellos y buscar rivales o jugadores en tu zona.',
+      'Validar, con el género que declaraste al registrarte, que los equipos de categoría Mixto cumplan la cantidad mínima de jugadores de cada género que exigen las reglas de la plataforma.',
       'Generar y mantener estadísticas deportivas históricas (rankings, historiales de partidos, goleadores).',
       'Enviarte notificaciones operativas (ej. confirmaciones de partidos o mensajes de tu equipo).',
       'Mantener la seguridad de la plataforma, auditar el comportamiento de los usuarios y prevenir fraudes o abusos.',
