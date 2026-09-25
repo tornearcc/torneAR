@@ -388,6 +388,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="market-chats" />
         <Stack.Screen name="market-my-applications" />
         <Stack.Screen name="team-stats" />
+        <Stack.Screen name="ranking-full" />
         <Stack.Screen name="challenge-inbox" />
         <Stack.Screen name="match-detail" />
         <Stack.Screen name="match-checkin" />
