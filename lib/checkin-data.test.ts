@@ -18,6 +18,12 @@ vi.mock('@/lib/supabase', () => ({
   supabase: supabaseMock,
 }));
 
+// Llega por lib/mixed-composition-data (F3). El módulo real importa
+// `react-native`, que no existe en el runtime `node` de estos tests.
+vi.mock('@/lib/logger', () => ({
+  Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -115,6 +121,17 @@ describe('getCheckinErrorMessage', () => {
     expect(
       getCheckinErrorMessage({ message: 'GEOFENCE_FAILED: estás a 900m' }),
     ).toMatch(/lejos de la cancha/i);
+  });
+
+  it('F3: conserva cuántos faltan entre los titulares de un equipo mixto', () => {
+    expect(
+      getCheckinErrorMessage({
+        message:
+          'MIXED_COMPOSITION: los titulares no cumplen la composición mínima de un equipo mixto: falta 1 de género femenino',
+      }),
+    ).toBe(
+      'Los titulares no cumplen la composición mínima de un equipo mixto: falta 1 de género femenino.',
+    );
   });
 
   it('usa el mensaje del CheckinError ya tipado', () => {

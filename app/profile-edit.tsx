@@ -294,6 +294,8 @@ export default function ProfileEditScreen() {
               errors={errors}
               setValue={setValue}
               onOpenFavoriteTeamPicker={() => setShowFavoriteTeamPicker(true)}
+              // F3: un perfil viejo sin género lo elige acá; con género, queda fijo.
+              genderLocked={Boolean(profile?.gender)}
             />
 
             {/* POSITION */}

@@ -23,6 +23,7 @@ import { TeamManageHeader } from '@/components/team-manage/TeamManageHeader';
 import { TeamManagePendingRequests } from '@/components/team-manage/TeamManagePendingRequests';
 import { TeamManageHistoryRequests } from '@/components/team-manage/TeamManageHistoryRequests';
 import { TeamMembersList } from '@/components/team-manage/TeamMembersList';
+import { MixedCompositionCard } from '@/components/team-manage/MixedCompositionCard';
 import { TeamManageViewData, TeamMemberRow, TeamJoinRequestRow } from '@/components/team-manage/types';
 import {
   fetchTeamManageViewData,
@@ -58,6 +59,7 @@ export default function TeamManageScreen() {
   const [viewData, setViewData] = useState<TeamManageViewData | null>(null);
 
   const team = viewData?.team ?? null;
+  const mixedComposition = viewData?.mixedComposition ?? null;
   const members = useMemo(() => viewData?.members ?? [], [viewData?.members]);
   const pendingRequests = useMemo(() => viewData?.pendingRequests ?? [], [viewData?.pendingRequests]);
   const historyRequests = useMemo(() => viewData?.historyRequests ?? [], [viewData?.historyRequests]);
@@ -710,6 +712,8 @@ export default function TeamManageScreen() {
             </View>
           </View>
         )}
+
+        {mixedComposition && <MixedCompositionCard status={mixedComposition} />}
 
         {/* El Plantel va PRIMERO y las solicitudes debajo. Al reves, un capitan
             con solicitudes pendientes tenia que scrollear por encima de ellas

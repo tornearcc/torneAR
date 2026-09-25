@@ -2,6 +2,10 @@ import { supabase } from '@/lib/supabase';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { Logger } from '@/lib/logger';
+import {
+  getMixedCompositionErrorMessage,
+  isMixedCompositionError,
+} from '@/lib/mixed-composition';
 import type { ChallengeInboxEntry } from '@/components/ranking/types';
 import type { Database } from '@/types/supabase';
 
@@ -13,7 +17,13 @@ type NotificationType = Database['public']['Enums']['notification_type'];
 // `RAISE EXCEPTION` de esas funciones ya vienen redactados para el usuario
 // (cooldown de 30 días, tope de 3 por temporada, jugadores en común) y se
 // muestran tal cual: traducirlos acá sería mantener el mismo texto dos veces.
-const CHALLENGE_ERROR_CODES = ['RANKING_MATCH_ACTIVE', 'TEAM_INACTIVE', 'TEAM_NOT_FOUND'] as const;
+const CHALLENGE_ERROR_CODES = [
+  'RANKING_MATCH_ACTIVE',
+  'TEAM_INACTIVE',
+  'TEAM_NOT_FOUND',
+  // F3 (20260925160000), detrás de ranking_same_category_enforced.
+  'CATEGORY_MISMATCH',
+] as const;
 
 type ChallengeErrorCode = (typeof CHALLENGE_ERROR_CODES)[number];
 
@@ -24,6 +34,8 @@ const CHALLENGE_ERROR_MESSAGES: Record<ChallengeErrorCode, string> = {
     'Uno de los dos equipos está dado de baja. Si es el tuyo, reactivalo desde la gestión del equipo.',
   TEAM_NOT_FOUND:
     'No encontramos alguno de los dos equipos. Actualizá la pantalla y probá de nuevo.',
+  CATEGORY_MISMATCH:
+    'Los partidos de ranking se juegan entre equipos de la misma categoría. Con este equipo podés jugar un amistoso.',
 };
 
 function readErrorMessage(error: unknown): string {
@@ -61,6 +73,10 @@ export function getChallengeErrorMessage(
 
   const code = parseChallengeErrorCode(raw);
   if (code) return CHALLENGE_ERROR_MESSAGES[code];
+
+  // F3: el detalle nombra al equipo y, si es el propio, cuántos faltan de cada
+  // género. Se conserva, sin el prefijo.
+  if (isMixedCompositionError(raw)) return getMixedCompositionErrorMessage(raw);
 
   // Con fallback vacío, el genérico devuelve '' cuando no reconoce el error:
   // eso es la señal de "no es un error técnico, dejá pasar el texto original".
