@@ -154,6 +154,30 @@ $function$;
 COMMENT ON FUNCTION public.mixed_composition_eval(uuid[], team_format) IS
   'F3. Cuenta géneros sobre un conjunto de perfiles y dice si cumple el mínimo de un equipo MIXTO. Interna: la llaman las RPC. No mira la bandera ni la categoría.';
 
+-- «falta 1 de género femenino», «faltan 2 de género masculino y 1 de género
+-- femenino». Con X como comodín, lo que falta se puede cubrir con cualquiera de
+-- los dos (o con X), así que se dice el total.
+CREATE OR REPLACE FUNCTION public.mixed_composition_missing_text(p_eval jsonb)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path TO 'public'
+AS $function$
+  SELECT CASE WHEN n = 1 THEN 'falta ' ELSE 'faltan ' END || detail
+  FROM (
+    SELECT CASE WHEN (p_eval->>'xCountsAsAny')::boolean
+                THEN (p_eval->>'missingTotal')::int
+                ELSE (p_eval->>'missingMale')::int + (p_eval->>'missingFemale')::int END AS n,
+           CASE WHEN (p_eval->>'xCountsAsAny')::boolean
+                THEN (p_eval->>'missingTotal') || ' de género masculino o femenino'
+                ELSE concat_ws(' y ',
+                       CASE WHEN (p_eval->>'missingMale')::int > 0
+                            THEN (p_eval->>'missingMale') || ' de género masculino' END,
+                       CASE WHEN (p_eval->>'missingFemale')::int > 0
+                            THEN (p_eval->>'missingFemale') || ' de género femenino' END) END AS detail
+  ) t;
+$function$;
+
 -- La regla corre para este equipo: bandera encendida y categoría MIXTO.
 CREATE OR REPLACE FUNCTION public.mixed_composition_applies(p_team_id uuid)
 RETURNS boolean
@@ -199,8 +223,8 @@ BEGIN
   SELECT name INTO v_name FROM teams WHERE id = p_team_id;
 
   IF p_own THEN
-    RAISE EXCEPTION 'MIXED_COMPOSITION: el plantel de % no cumple la composición mínima de un equipo mixto (faltan % de género masculino y % de género femenino)',
-      v_name, v_eval->>'missingMale', v_eval->>'missingFemale';
+    RAISE EXCEPTION 'MIXED_COMPOSITION: el plantel de % no cumple la composición mínima de un equipo mixto: %',
+      v_name, public.mixed_composition_missing_text(v_eval);
   ELSE
     RAISE EXCEPTION 'MIXED_COMPOSITION: % no cumple la composición mínima de un equipo mixto', v_name;
   END IF;
@@ -866,8 +890,8 @@ BEGIN
       v_match.format);
 
     IF NOT (v_comp->>'ok')::boolean THEN
-      RAISE EXCEPTION 'MIXED_COMPOSITION: los titulares no cumplen la composición mínima de un equipo mixto (faltan % de género masculino y % de género femenino)',
-        v_comp->>'missingMale', v_comp->>'missingFemale';
+      RAISE EXCEPTION 'MIXED_COMPOSITION: los titulares no cumplen la composición mínima de un equipo mixto: %',
+        public.mixed_composition_missing_text(v_comp);
     END IF;
   END IF;
 
@@ -1359,6 +1383,7 @@ COMMENT ON FUNCTION public.admin_set_profile_gender(uuid, text, text) IS
 -- `public`: las internas se cierran a mano.
 REVOKE ALL ON FUNCTION public.mixed_composition_eval(uuid[], team_format)      FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.mixed_composition_applies(uuid)                 FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.mixed_composition_missing_text(jsonb)           FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.assert_mixed_roster(uuid, team_format, boolean) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.assert_ranking_same_category(uuid, uuid)        FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.enforce_gender_lock()                           FROM PUBLIC, anon, authenticated;

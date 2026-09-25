@@ -19,12 +19,13 @@
 --   C-25..C-28 get_mixed_composition_status: integrante, no integrante, equipo
 --              no MIXTO y sin sesión.
 --   C-29       las funciones internas no son ejecutables por la app.
+--   C-30..C-31 el texto de lo que falta: plural y comodín.
 --
 -- Usuarios, equipos y partidos propios, con prefijos f3a0…/f3b0…/f3c0….
 -- ============================================================
 
 begin;
-select plan(29);
+select plan(31);
 
 -- ── Setup (postgres) ────────────────────────────────────────────────────────
 -- 01..05 → MXA (MIXTO): M, M, F, X y una F que entra y sale del plantel.
@@ -129,7 +130,7 @@ select tests.authenticate_as_profile('f3a00000-0000-0000-0000-000000000001');
 select throws_ok(
   $$ select public.send_challenge('f3c00000-0000-0000-0000-00000000000a',
                                   'f3c00000-0000-0000-0000-0000000000d1', 'AMISTOSO') $$,
-  'MIXED_COMPOSITION: el plantel de MXA no cumple la composición mínima de un equipo mixto (faltan 0 de género masculino y 1 de género femenino)',
+  'MIXED_COMPOSITION: el plantel de MXA no cumple la composición mínima de un equipo mixto: falta 1 de género femenino',
   'C-8: al que desafía se le dice cuántos le faltan de cada género');
 select tests.clear_auth();
 
@@ -221,7 +222,7 @@ select throws_ok(
          {"profile_id":"f3b00000-0000-0000-0000-000000000003","lineup_role":"TITULAR"},
          {"profile_id":"f3b00000-0000-0000-0000-000000000004","lineup_role":"TITULAR"},
          {"profile_id":"f3b00000-0000-0000-0000-000000000005","lineup_role":"SUPLENTE"}]'::jsonb) $$,
-  'MIXED_COMPOSITION: los titulares no cumplen la composición mínima de un equipo mixto (faltan 0 de género masculino y 1 de género femenino)',
+  'MIXED_COMPOSITION: los titulares no cumplen la composición mínima de un equipo mixto: falta 1 de género femenino',
   'C-15: la segunda F en el banco no cuenta: los mínimos son entre los titulares');
 
 select lives_ok(
@@ -346,12 +347,27 @@ select is(
   (select array_agg(f order by f) from unnest(array[
      'public.mixed_composition_eval(uuid[], team_format)',
      'public.mixed_composition_applies(uuid)',
+     'public.mixed_composition_missing_text(jsonb)',
      'public.assert_mixed_roster(uuid, team_format, boolean)',
      'public.assert_ranking_same_category(uuid, uuid)']) f
     where has_function_privilege('authenticated', f, 'execute')
        or has_function_privilege('anon', f, 'execute')),
   null,
   'C-29: ni anon ni authenticated pueden llamar a las funciones internas');
+
+
+-- ── C-30..C-31. Texto de lo que falta ───────────────────────────────────────
+select is(
+  public.mixed_composition_missing_text(
+    '{"xCountsAsAny": false, "missingMale": 2, "missingFemale": 1, "missingTotal": 3}'),
+  'faltan 2 de género masculino y 1 de género femenino',
+  'C-30: nombra cada género que falta, en plural cuando son varios');
+
+select is(
+  public.mixed_composition_missing_text(
+    '{"xCountsAsAny": true, "missingMale": 1, "missingFemale": 1, "missingTotal": 1}'),
+  'falta 1 de género masculino o femenino',
+  'C-31: con X como comodín, dice el total que falta sin atarlo a un género');
 
 select * from finish();
 rollback;
