@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { Logger } from '@/lib/logger';
 import { requestGoogleIdToken } from '@/lib/google-signin';
 import { PASSWORD_RECOVERY_PATH } from '@/lib/deep-linking';
-import { LEGAL_VERSIONS } from '@/constants/legal';
+import { LEGAL_VERSIONS, type LegalDocument } from '@/constants/legal';
+import { pendingLegalDocuments } from '@/lib/legal-acceptance';
 import { AuthError, User } from '@supabase/supabase-js';
 
 export async function signIn(email: string, password: string): Promise<{ error: AuthError | null }> {
@@ -79,18 +80,20 @@ export async function recordLegalAcceptance(): Promise<{ error: AuthError | null
  * `accepted_tyc` contra `true` estricto y no por truthiness: la metadata es
  * JSON libre y un `"false"` o un `1` no deben pasar por una aceptación.
  *
- * Además de la aceptación en sí, compara `tyc_version` contra
- * `LEGAL_VERSIONS.terms`: aceptar unos Términos viejos no cubre una versión
- * publicada después — sin esto, actualizar el documento no volvía a pedir
- * consentimiento a nadie que ya lo hubiera aceptado alguna vez (gap cerrado
- * en LegalVersionGate.tsx).
+ * Compara las versiones aceptadas de los Términos Y de la Política de
+ * Privacidad contra las vigentes (ver `pendingLegalDocuments`): aceptar un
+ * documento viejo no cubre una versión publicada después.
  *
  * Sin usuario devuelve `true` —hay que pedir el consentimiento— porque el error
  * barato es pedirlo de más y el caro es dar de alta sin él.
  */
 export function needsLegalAcceptance(user: User | null): boolean {
-  if (user?.user_metadata?.accepted_tyc !== true) return true;
-  return user.user_metadata.tyc_version !== LEGAL_VERSIONS.terms;
+  return legalDocumentsToAccept(user).length > 0;
+}
+
+/** Qué documentos tiene que volver a aceptar la cuenta (vacío si ninguno). */
+export function legalDocumentsToAccept(user: User | null): LegalDocument[] {
+  return pendingLegalDocuments(user?.user_metadata);
 }
 
 export async function signUp(

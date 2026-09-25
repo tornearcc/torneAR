@@ -19,7 +19,7 @@ import { ColdStartPushLinkGate } from '@/components/push/ColdStartPushLinkGate';
 import { Colors } from '@/constants/theme';
 import { useForceUpdate } from '@/hooks/useForceUpdate';
 import { isProfileComplete } from '@/lib/auth-utils';
-import { completePasswordRecovery, needsLegalAcceptance } from '@/lib/auth-data';
+import { completePasswordRecovery, legalDocumentsToAccept } from '@/lib/auth-data';
 import { getRecoveryLinkErrorMessage } from '@/lib/auth-error-messages';
 import { deepLinkToHref, resolveDeepLink } from '@/lib/deep-linking';
 import { initLogger, Logger } from '@/lib/logger';
@@ -357,8 +357,8 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
   // modal aparezca detrás/encima de la animación de arranque — un `Modal`
   // de RN se monta en su propia capa nativa por encima de todo, sin
   // importar dónde esté en el árbol de JS.
-  const mustReacceptLegal =
-    hydrated && !showIntro && !!session && isProfileComplete(profile) && needsLegalAcceptance(user);
+  const legalToReaccept =
+    hydrated && !showIntro && !!session && isProfileComplete(profile) ? legalDocumentsToAccept(user) : [];
 
   return (
     <>
@@ -394,7 +394,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="(modals)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
-      <LegalVersionGate visible={mustReacceptLegal} />
+      <LegalVersionGate documents={legalToReaccept} />
       {/* El intro va SUPERPUESTO, no en lugar del navegador.
 
           Antes esto era un `return <AppIntroSplash />` antes del <Stack>: durante

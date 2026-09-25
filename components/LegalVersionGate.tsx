@@ -1,25 +1,50 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { openLegalDocument } from '@/constants/legal';
+import { openLegalDocument, type LegalDocument } from '@/constants/legal';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { recordLegalAcceptance } from '@/lib/auth-data';
 import { Logger } from '@/lib/logger';
 
 interface Props {
-  /** `true` cuando hay que bloquear: sesión completa + Términos desactualizados. */
-  visible: boolean;
+  /**
+   * Documentos a re-aceptar (sesión completa + versión aceptada vieja). Vacío
+   * = no se muestra.
+   */
+  documents: LegalDocument[];
 }
 
+const COPY: Record<'terms' | 'privacy' | 'both', { title: string; body: string }> = {
+  terms: {
+    title: 'Actualizamos los Términos',
+    body: 'Actualizamos nuestros Términos y Condiciones. Para seguir usando torneAR necesitás aceptar la nueva versión.',
+  },
+  privacy: {
+    title: 'Actualizamos la Política de Privacidad',
+    body: 'Actualizamos nuestra Política de Privacidad. Para seguir usando torneAR necesitás aceptar la nueva versión.',
+  },
+  both: {
+    title: 'Actualizamos los Términos y la Política',
+    body: 'Actualizamos los Términos y Condiciones y la Política de Privacidad. Para seguir usando torneAR necesitás aceptar las nuevas versiones.',
+  },
+};
+
+const LINK_LABEL: Record<LegalDocument, string> = {
+  terms: 'Leer los Términos actualizados',
+  privacy: 'Leer la Política actualizada',
+};
+
 /**
- * Modal de re-aceptación de Términos y Condiciones.
+ * Modal de re-aceptación de los Términos y Condiciones y/o la Política de
+ * Privacidad.
  *
  * Mismo criterio de no-descartable que `AppUpdateModal`: sin
  * `onRequestClose` que cierre, sin botón de cerrar ni tap-fuera. La decisión
- * de CUÁNDO mostrarse la calcula `needsLegalAcceptance` (lib/auth-data.ts)
- * en `app/_layout.tsx`, comparando `tyc_version` contra
- * `LEGAL_VERSIONS.terms` — este componente sólo resuelve la acción de
- * aceptar, no decide si corresponde mostrarse.
+ * de CUÁNDO mostrarse y QUÉ documentos pedir la calcula
+ * `legalDocumentsToAccept` (lib/auth-data.ts) en `app/_layout.tsx`,
+ * comparando `tyc_version` y `privacy_version` contra `LEGAL_VERSIONS` —
+ * este componente sólo resuelve la acción de aceptar, no decide si
+ * corresponde mostrarse.
  *
  * "Aceptar" reusa `recordLegalAcceptance()` (ya existía para el alta por
  * Google): dispara `supabase.auth.updateUser()` con la constancia
@@ -28,7 +53,10 @@ interface Props {
  * metadata nueva sola, y `visible` pasa a `false` porque el `user` con el
  * que se recalcula en `_layout.tsx` ya cambió.
  */
-export function LegalVersionGate({ visible }: Props) {
+export function LegalVersionGate({ documents }: Props) {
+  const visible = documents.length > 0;
+  const copy =
+    COPY[documents.length > 1 ? 'both' : documents[0] === 'privacy' ? 'privacy' : 'terms'];
   const [accepting, setAccepting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -41,8 +69,9 @@ export function LegalVersionGate({ visible }: Props) {
     setAccepting(false);
 
     if (error) {
-      Logger.error('No se pudo registrar la re-aceptación de Términos', {
+      Logger.error('No se pudo registrar la re-aceptación de los documentos legales', {
         scope: 'LegalVersionGate.handleAccept',
+        documents,
         error,
       });
       setErrorMessage(getGenericSupabaseErrorMessage(error));
@@ -59,24 +88,26 @@ export function LegalVersionGate({ visible }: Props) {
             </View>
 
             <Text className="font-displayBlack mt-4 text-center text-2xl text-neutral-on-surface">
-              Actualizamos los Términos
+              {copy.title}
             </Text>
 
             <Text className="font-ui mt-3 text-center text-sm leading-5 text-neutral-on-surface-variant">
-              Actualizamos nuestros Términos y Condiciones. Para seguir usando torneAR necesitás
-              aceptar la nueva versión.
+              {copy.body}
             </Text>
           </View>
 
-          <TouchableOpacity
-            onPress={() => void openLegalDocument('terms')}
-            activeOpacity={0.7}
-            className="mt-5 items-center"
-          >
-            <Text className="font-uiBold text-xs uppercase tracking-wide text-brand-primary underline">
-              Leer los Términos actualizados
-            </Text>
-          </TouchableOpacity>
+          {documents.map((doc, index) => (
+            <TouchableOpacity
+              key={doc}
+              onPress={() => void openLegalDocument(doc)}
+              activeOpacity={0.7}
+              className={`${index === 0 ? 'mt-5' : 'mt-3'} items-center`}
+            >
+              <Text className="font-uiBold text-xs uppercase tracking-wide text-brand-primary underline">
+                {LINK_LABEL[doc]}
+              </Text>
+            </TouchableOpacity>
+          ))}
 
           {errorMessage && (
             <Text className="font-ui mt-3 text-center text-xs text-danger-error">{errorMessage}</Text>

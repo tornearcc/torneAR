@@ -33,9 +33,10 @@
  *
  * ── Versionado ───────────────────────────────────────────────────────────────
  * `PRIVACY_LAST_UPDATED` alimenta `LEGAL_VERSIONS.privacy` y se guarda como
- * constancia al aceptar. A diferencia de los TyC NO dispara re-aceptación:
- * `needsLegalAcceptance()` (lib/auth-data.ts) sólo compara
- * `LEGAL_VERSIONS.terms`.
+ * constancia al aceptar. Igual que los TyC, cambiarlo DISPARA re-aceptación:
+ * `pendingLegalDocuments()` (lib/legal-acceptance.ts) compara las dos
+ * versiones, y `LegalVersionGate` bloquea hasta aceptar. Cambiarlo sólo al
+ * publicar una versión que de verdad lo requiera (§11).
  */
 
 import type { LegalSection } from './termsContent';
