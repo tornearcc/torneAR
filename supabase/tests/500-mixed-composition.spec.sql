@@ -184,10 +184,18 @@ from matches m
 where m.team_a_id = 'f3c00000-0000-0000-0000-00000000000a'
   and m.team_b_id = 'f3c00000-0000-0000-0000-00000000000b';
 
+-- El id del partido se resuelve acá, como postgres. Leer match_proposals con la
+-- sesión de authenticated depende de los GRANT por defecto de la imagen de
+-- Supabase: en el stack efímero del CI no están y la subconsulta fallaba con
+-- "permission denied for table match_proposals".
+create temp table f3_match on commit drop as
+  select match_id as id from match_proposals where id = 'f3e00000-0000-0000-0000-000000000001';
+grant select on f3_match to authenticated;
+
 select tests.authenticate_as_profile('f3a00000-0000-0000-0000-000000000011');
 select throws_ok(
   $$ select public.confirm_match_proposal('f3e00000-0000-0000-0000-000000000001',
-       (select match_id from match_proposals where id = 'f3e00000-0000-0000-0000-000000000001')) $$,
+       (select id from f3_match)) $$,
   'MIXED_COMPOSITION: MXA no cumple la composición mínima de un equipo mixto',
   'C-13: confirmar la fecha controla el plantel del equipo que propuso');
 select tests.clear_auth();
@@ -197,7 +205,7 @@ insert into team_members (team_id, profile_id, role) values
 
 select tests.authenticate_as_profile('f3a00000-0000-0000-0000-000000000011');
 select public.confirm_match_proposal('f3e00000-0000-0000-0000-000000000001',
-  (select match_id from match_proposals where id = 'f3e00000-0000-0000-0000-000000000001'));
+  (select id from f3_match));
 select tests.clear_auth();
 
 select is(
@@ -207,9 +215,6 @@ select is(
   'CONFIRMADO',
   'C-14: con los dos planteles en regla, el partido queda confirmado');
 
-create temp table f3_match on commit drop as
-  select match_id as id from match_proposals where id = 'f3e00000-0000-0000-0000-000000000001';
-grant select on f3_match to authenticated;
 
 
 -- ── C-15..C-16. Lista de titulares ──────────────────────────────────────────
