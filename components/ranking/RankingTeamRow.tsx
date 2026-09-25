@@ -2,6 +2,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInRight } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { GOLD, podiumColor } from '@/constants/podium';
 import { RANKING_COL, RANKING_ROW_PX } from './rankingGrid';
 import type { RankingTeamEntry } from './types';
@@ -75,7 +76,14 @@ export function RankingTeamRow({ entry, onPress, index = 0, animated = true }: P
                 columna del nombre. */}
             <View style={{ width: RANKING_COL.shield }}>
                 {entry.shieldUrl ? (
-                    <Image source={{ uri: entry.shieldUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} contentFit="cover" />
+                    <ExpandablePhoto
+                        uri={entry.shieldUrl}
+                        subject={{ kind: 'shield', teamId: entry.teamId }}
+                        title={entry.teamName}
+                        hitSlop={6}
+                    >
+                        <Image source={{ uri: entry.shieldUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} contentFit="cover" />
+                    </ExpandablePhoto>
                 ) : (
                     <View className="h-[34px] w-[34px] items-center justify-center rounded-full bg-surface-high">
                         <AppIcon family="material-community" name="shield" size={18} color="#869585" />

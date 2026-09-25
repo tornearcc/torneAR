@@ -4,15 +4,15 @@ import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'rea
 // y el bundler falla. `useFocusEffect` se toma de expo-router, igual que en el
 // resto de las pantallas.
 import { useFocusEffect } from 'expo-router';
-import { Image } from 'expo-image';
 import { GlobalLoader } from '@/components/GlobalLoader';
-import { AppIcon } from '@/components/ui/AppIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Avatar } from '@/components/ui/Avatar';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { fetchMyBlocks, unblockUser, type BlockedUser } from '@/lib/blocks-data';
 import { Logger } from '@/lib/logger';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
 
 /**
  * «Usuarios bloqueados», accesible desde Perfil → Preferencias.
@@ -108,17 +108,10 @@ export default function BlockedUsersScreen() {
                 key={user.profile_id}
                 className="flex-row items-center gap-3 rounded-xl bg-surface-container p-4"
               >
-                {user.avatar_url ? (
-                  <Image
-                    source={{ uri: user.avatar_url }}
-                    style={{ width: 40, height: 40, borderRadius: 20 }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-high">
-                    <AppIcon family="material-community" name="account" size={20} color="#869585" />
-                  </View>
-                )}
+                {/* Sin visor: son justamente las personas bloqueadas. El path se
+                    resuelve contra el bucket; antes se usaba crudo como URL y
+                    las fotos subidas a Storage no cargaban. */}
+                <Avatar uri={resolveAvatarUrl(user.avatar_url)} size={40} />
 
                 <View className="flex-1">
                   <Text className="font-uiBold text-sm text-neutral-on-surface" numberOfLines={1}>

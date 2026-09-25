@@ -80,7 +80,7 @@ export function TeamRecentMatches({ matches }: TeamRecentMatchesProps) {
                     Rival". El escudo delante partia la frase al medio. */}
                 <View className="flex-row items-center gap-2">
                   <Text className="font-ui text-sm text-neutral-on-surface-variant">vs</Text>
-                  <TeamShield shieldUrl={match.rivalShieldUrl} name={match.rivalName} size={28} />
+                  <TeamShield shieldUrl={match.rivalShieldUrl} name={match.rivalName} size={28} teamId={match.rivalTeamId} expandable />
                   <Text
                     className="font-uiBold flex-1 text-sm text-neutral-on-surface"
                     numberOfLines={1}

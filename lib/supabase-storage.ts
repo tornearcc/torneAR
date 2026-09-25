@@ -51,6 +51,17 @@ export function resolveShieldUrl(shieldUrl: string | null | undefined): string |
 }
 
 /**
+ * Foto de perfil tal como viene de `profiles.avatar_url`: path del bucket
+ * `avatars` o URL absoluta (registros viejos, seeds). Mismo criterio que
+ * `resolveShieldUrl`: `null` —y no `''`— cuando no hay foto, para que la UI
+ * elija el fallback con un chequeo directo.
+ */
+export function resolveAvatarUrl(avatarUrl: string | null | undefined): string | null {
+  if (!avatarUrl) return null;
+  return getSupabaseStorageUrl('avatars', avatarUrl) || null;
+}
+
+/**
  * Get badge icon URL from storage
  */
 export function getBadgeIconUrl(badgeSlug: string): string {

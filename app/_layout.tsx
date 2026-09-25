@@ -29,6 +29,7 @@ import { useSignupGateStore } from '@/stores/signupGateStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { UIProvider } from '../context/UIContext';
+import { ImageViewerProvider } from '@/components/ui/image-viewer/ImageViewerProvider';
 
 LogBox.ignoreLogs([
   '[Reanimated] Reading from `value` during component render',
@@ -468,7 +469,12 @@ export default function RootLayout() {
       <ThemeProvider value={navigationTheme}>
         <AuthProvider>
           <UIProvider>
-            <RootNavigation fontsLoaded={fontsLoaded} />
+            {/* Visor de fotos: una sola instancia del Modal para toda la app.
+                Adentro de AuthProvider porque necesita saber quién mira
+                (bloqueos, "Denunciar" vs. "Cambiar foto"). */}
+            <ImageViewerProvider>
+              <RootNavigation fontsLoaded={fontsLoaded} />
+            </ImageViewerProvider>
             <AppUpdateModal
               visible={forceUpdate.required}
               currentVersion={forceUpdate.currentVersion}

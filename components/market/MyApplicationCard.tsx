@@ -1,5 +1,6 @@
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import {
   APPLICATION_STATUS_CLASS,
   APPLICATION_STATUS_LABEL,
@@ -28,7 +29,20 @@ export function MyApplicationCard({ entry, onAction, actionLabel }: Props) {
   return (
     <View className="rounded-xl bg-surface-container p-4">
       <View className="flex-row items-center gap-3">
-        {entry.targetImageUrl ? (
+        {entry.targetImageUrl && entry.targetId ? (
+          <ExpandablePhoto
+            uri={entry.targetImageUrl}
+            subject={isTeamPost
+              ? { kind: 'shield', teamId: entry.targetId }
+              : { kind: 'avatar', profileId: entry.targetId }}
+            title={entry.targetName}
+          >
+            <Image
+              source={{ uri: entry.targetImageUrl }}
+              style={{ width: 44, height: 44, borderRadius: 22 }}
+            />
+          </ExpandablePhoto>
+        ) : entry.targetImageUrl ? (
           <Image
             source={{ uri: entry.targetImageUrl }}
             style={{ width: 44, height: 44, borderRadius: 22 }}

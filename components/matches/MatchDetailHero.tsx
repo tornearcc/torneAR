@@ -187,7 +187,7 @@ export function MatchDetailHero({ match, myTeamId }: Props) {
       <View className="flex-row items-center justify-center gap-6">
         {/* My team — local si mi equipo es teamA (localía absoluta) */}
         <View className="flex-1 items-center gap-2">
-          <TeamShield shieldUrl={myTeam.shieldUrl} size={72} isMyTeam />
+          <TeamShield shieldUrl={myTeam.shieldUrl} size={72} isMyTeam teamId={myTeam.id} viewerTitle={myTeam.name} expandable />
           <VenueBadge isHome={isMyTeamA} />
           <Text
             className="font-uiBold text-center text-sm text-neutral-on-surface"
@@ -203,7 +203,7 @@ export function MatchDetailHero({ match, myTeamId }: Props) {
 
         {/* Opponent team — la localía inversa a la mía */}
         <View className="flex-1 items-center gap-2">
-          <TeamShield shieldUrl={opponentTeam.shieldUrl} size={72} />
+          <TeamShield shieldUrl={opponentTeam.shieldUrl} size={72} teamId={opponentTeam.id} viewerTitle={opponentTeam.name} expandable />
           <VenueBadge isHome={!isMyTeamA} />
           <Text
             className="font-uiBold text-center text-sm text-neutral-on-surface"
