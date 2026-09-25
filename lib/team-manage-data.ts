@@ -5,6 +5,7 @@ import { sendPushNotification } from '@/lib/push-notifications';
 import { TeamCategory, TeamFormat, TeamRole, getTeamRoleLabel } from '@/lib/team-options';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { decode } from 'base64-arraybuffer';
+import { fetchMixedCompositionStatus } from '@/lib/mixed-composition-data';
 
 // ─── Errores estables de las RPCs de membresía ───────────────────────────────
 // Desde la migración 20260723123000 el DELETE directo sobre team_members está
@@ -153,11 +154,18 @@ export async function fetchTeamManageViewData(teamId: string, profileId: string 
   const withAge = <T extends { profiles: { id: string } | null }>(row: T): T =>
     row.profiles ? { ...row, profiles: { ...row.profiles, age: agesById.get(row.profiles.id) ?? null } } : row;
 
+  // F3: sólo los MIXTO tienen regla de composición. Sin formato: el servidor
+  // usa el mínimo más bajo del catálogo, que es lo que se exige al desafiar.
+  const team = (teamRes.data as TeamDetailRow | null) ?? null;
+  const mixedComposition =
+    team?.category === 'MIXTO' ? await fetchMixedCompositionStatus(teamId) : null;
+
   return {
-    team: (teamRes.data as TeamDetailRow | null) ?? null,
+    team,
     members: membersData.map(withAge),
     pendingRequests: selfCanModerate ? pendingData.map(withAge) : [],
     historyRequests: selfCanModerate ? historyData.map(withAge) : [],
+    mixedComposition,
   };
 }
 

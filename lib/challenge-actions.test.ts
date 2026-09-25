@@ -96,6 +96,29 @@ describe('getChallengeErrorMessage', () => {
       .toContain('No encontramos');
   });
 
+  it('F3: ranking entre categorías distintas propone el amistoso', () => {
+    const message = getChallengeErrorMessage(
+      new Error(
+        'CATEGORY_MISMATCH: los partidos de ranking se juegan entre equipos de la misma categoría (tu equipo: MIXTO, rival: HOMBRES)',
+      ),
+    );
+    expect(message).toContain('misma categoría');
+    expect(message).toContain('amistoso');
+    expect(message).not.toContain('CATEGORY_MISMATCH');
+  });
+
+  it('F3: la composición mixta conserva el detalle del servidor sin el prefijo', () => {
+    expect(
+      getChallengeErrorMessage(
+        new Error(
+          'MIXED_COMPOSITION: el plantel de Leones no cumple la composición mínima de un equipo mixto: falta 1 de género femenino',
+        ),
+      ),
+    ).toBe(
+      'El plantel de Leones no cumple la composición mínima de un equipo mixto: falta 1 de género femenino.',
+    );
+  });
+
   it('deja pasar los mensajes de dominio que ya vienen redactados', () => {
     // Sin prefijo de código: el texto de la RPC es la explicación. Mandarlo al
     // traductor genérico lo reemplazaría por "No se pudo completar la operación".

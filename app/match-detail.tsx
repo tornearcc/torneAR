@@ -12,6 +12,8 @@ import type { DisputeState } from '@/lib/match-detail-data';
 // real en vez del mensaje genérico de Supabase.
 import { getCheckinErrorMessage, fetchFormatRules } from '@/lib/checkin-data';
 import { getCheckinLocation } from '@/lib/checkin-location';
+import { describeCompositionMissing } from '@/lib/mixed-composition';
+import { fetchMixedCompositionStatus } from '@/lib/mixed-composition-data';
 import * as Clipboard from 'expo-clipboard';
 import {
   submitProposal,
@@ -195,6 +197,31 @@ export default function MatchDetailScreen() {
     return () => { cancelled = true; };
   }, [format, matchId]);
 
+  // F3: si mi equipo es MIXTO y la regla ya se exige, el sello del check-in
+  // además pide la composición entre los presentes. Mismo patrón que las
+  // reglas del formato: se guarda con su clave y se deriva en el render. Sin
+  // el dato, la sección no muestra el aviso; la regla la aplica el servidor.
+  const [mixedRule, setMixedRule] = useState<{ key: string; minPerGender: number | null } | null>(
+    null,
+  );
+  const matchStatus = match?.status ?? null;
+  // Sólo CONFIRMADO: es el único estado con la sección de check-in (EN_VIVO
+  // ya implica los dos equipos presentados).
+  const needsMixedRule = !!myTeamId && !!format && matchStatus === 'CONFIRMADO';
+  const mixedRuleKey = `${myTeamId}|${format}`;
+  const mixedMinPerGender = mixedRule?.key === mixedRuleKey ? mixedRule.minPerGender : null;
+
+  useEffect(() => {
+    if (!needsMixedRule || !format) return;
+    let cancelled = false;
+    void fetchMixedCompositionStatus(myTeamId, format).then((status) => {
+      if (cancelled) return;
+      const applies = !!status?.applies && status.enforced && status.counts !== null;
+      setMixedRule({ key: `${myTeamId}|${format}`, minPerGender: applies ? status!.counts!.minPerGender : null });
+    });
+    return () => { cancelled = true; };
+  }, [needsMixedRule, myTeamId, format]);
+
   // Realtime: cuando el rival carga su resultado, el partido pasa a FINALIZADO
   // o EN_DISPUTA y esta pantalla se entera sin salir y volver a entrar.
   useMatchRealtime(matchId, useCallback(() => { void loadData(); }, [loadData]));
@@ -355,10 +382,21 @@ export default function MatchDetailScreen() {
         showAlert('¡Check-in realizado!', 'Marcaste tu llegada. Tu equipo ya estaba presentado.');
       } else {
         const missing = Math.max(result.minPlayers - result.checkedInPlayers, 0);
+        // F3: en un equipo MIXTO el quórum solo no alcanza; el servidor dice
+        // cuántos faltan de cada género entre los presentes.
+        const composition = result.compositionOk
+          ? ''
+          : describeCompositionMissing(result.compositionMissing ?? { male: 0, female: 0, total: 0 });
+        const pending = [
+          missing > 0 ? `Faltan ${missing} compañero(s) para dar por presentado al equipo.` : '',
+          composition
+            ? `Para presentar a un equipo mixto, entre los presentes ${composition}.`
+            : '',
+        ].filter(Boolean);
         showAlert(
           '¡Check-in realizado!',
           `Marcaste tu llegada (${result.checkedInPlayers}/${result.minPlayers}). ` +
-            `Faltan ${missing} compañero(s) para dar por presentado al equipo.`,
+            (pending.length > 0 ? pending.join(' ') : 'Tu equipo todavía no está presentado.'),
         );
       }
     } catch (err) {
@@ -650,6 +688,7 @@ export default function MatchDetailScreen() {
               onCheckin={() => void handleCheckin()}
               myProfileId={profile?.id ?? null}
               minPlayers={minPlayersToStart}
+              mixedMinPerGender={mixedMinPerGender}
               onOpenSquadList={
                 isMatchStaff
                   ? () =>

@@ -64,9 +64,12 @@ function ratio(v: number, d: number): string {
  * vista traeria tambien `age`, que va separada en `ProfileStatsViewData`, y
  * dejar el `*` invita a que la proxima columna sensible que se agregue a la
  * vista viaje sola hasta el cliente.
+ *
+ * Sin `gender` desde F3: la vista lo devuelve NULL (20260925160000) y la
+ * columna sigue ahi solo porque las versiones instaladas la piden.
  */
 const PROFILE_PUBLIC_COLUMNS =
-  'id, username, full_name, avatar_url, zone, preferred_position, favorite_team, strong_foot, gender, created_at, age';
+  'id, username, full_name, avatar_url, zone, preferred_position, favorite_team, strong_foot, created_at, age';
 
 export async function fetchProfileStatsViewData(profileId: string): Promise<ProfileStatsViewData> {
   const [profileRes, statsRes, participantsRes, badgesRpcRes, teamsRes] = await Promise.all([

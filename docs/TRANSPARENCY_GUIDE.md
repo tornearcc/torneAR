@@ -178,6 +178,40 @@ que pudiera cubrirlo.
 > código todavía no existen al momento de confirmar, así que **no cuentan para
 > confirmar** — aunque sí cuentan para el check-in (ver 3.3).
 
+### 2.4 Equipos mixtos y categorías
+
+Dos reglas que se activan con aviso previo, cada una con su interruptor en
+`app_settings` (**ajustable**; las dos arrancan apagadas):
+
+1. **Composición de los equipos Mixtos** (`mixed_composition_enforced`). Un
+   equipo de categoría Mixto necesita al menos `2` jugadores de género
+   masculino y `2` de género femenino (`format_rules.mixed_min_per_gender`,
+   por formato). Se controla:
+   - **en el plantel**, al desafiar, al aceptar un desafío y al confirmar la
+     fecha (con el formato acordado);
+   - **entre los titulares**, al presentar la lista;
+   - **entre los presentes**, para dar por presentado al equipo en el check-in:
+     el quórum solo no alcanza. Sin presentación, el walkover automático corre
+     igual que con cualquier equipo que no llegó.
+
+   El género «Otro» cuenta para completar el equipo, **no para los mínimos**
+   (`mixed_composition_x_counts_as_any` = 1 lo convierte en comodín). La regla
+   es sólo para el lado Mixto: en un amistoso Mixto contra un equipo de Hombres
+   se controla únicamente al Mixto. Al activarla corre también sobre los
+   partidos ya abiertos.
+
+2. **Ranking entre la misma categoría** (`ranking_same_category_enforced`). Los
+   partidos de ranking se juegan entre equipos de la misma categoría, al
+   desafiar y al aceptar. Los amistosos siguen libres.
+
+**Privacidad.** El género de cada jugador no se muestra a nadie. Los integrantes
+de un equipo Mixto ven cuántos jugadores de cada género tiene el plantel y
+cuántos faltan (pantalla del equipo); un rival sólo ve si el equipo cumple o no.
+El género se elige una sola vez, al registrarse: para corregirlo hay que
+escribir a soporte (`admin_set_profile_gender` desde el dashboard).
+
+Dónde vive: `20260925160000_mixed_composition.sql`.
+
 ---
 
 ## 3. El check-in: el sistema anti-fantasmas

@@ -1,4 +1,5 @@
 import { TeamCategory, TeamFormat, TeamRole } from '@/lib/team-options';
+import type { MixedCompositionStatus } from '@/lib/mixed-composition';
 
 export type TeamDetailRow = {
   id: string;
@@ -55,4 +56,6 @@ export type TeamManageViewData = {
   members: TeamMemberRow[];
   pendingRequests: TeamJoinRequestRow[];
   historyRequests: TeamJoinRequestRow[];
+  /** F3: sólo para equipos MIXTO, y `null` si no se pudo leer. */
+  mixedComposition: MixedCompositionStatus | null;
 };

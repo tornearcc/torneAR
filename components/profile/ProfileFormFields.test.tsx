@@ -47,8 +47,10 @@ const BASE_VALUES: UserProfileFormData = {
 /** Espeja app/profile-edit.tsx: defaults vacíos + reset cuando "llega" el perfil. */
 function Harness({
   onSetValue,
+  genderLocked,
 }: {
   onSetValue?: (setValue: UseFormSetValue<UserProfileFormData>) => void;
+  genderLocked?: boolean;
 }) {
   const {
     control,
@@ -83,6 +85,7 @@ function Harness({
       errors={errors}
       setValue={setValue}
       onOpenFavoriteTeamPicker={() => {}}
+      genderLocked={genderLocked}
     />
   );
 }
@@ -132,5 +135,22 @@ describe('ProfileFormFields · selección visible después de reset()', () => {
 
     expect(screen.getByText('Boca Juniors')).toBeTruthy();
     expect(screen.queryByText('Selecciona tu equipo')).toBeNull();
+  });
+});
+
+describe('ProfileFormFields · género bloqueado (F3)', () => {
+  it('con el género ya elegido, tocar otra opción no lo cambia y dice cómo corregirlo', () => {
+    render(<Harness genderLocked />);
+
+    fireEvent.click(screen.getByText('Femenino'));
+
+    expect(selectedState('Masculino')).toBe('true');
+    expect(selectedState('Femenino')).toBe('false');
+    expect(screen.getByText(/Para corregirlo, escribinos a tornearcc@gmail.com/)).toBeTruthy();
+  });
+
+  it('en el onboarding (sin bloquear) avisa que después no se cambia desde la app', () => {
+    render(<Harness />);
+    expect(screen.getByText(/sólo se puede corregir escribiéndonos/)).toBeTruthy();
   });
 });

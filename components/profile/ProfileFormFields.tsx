@@ -12,6 +12,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { applyDateMask, fromDateToDisplay, fromDisplayToDate } from '@/lib/date-mask';
 import { maxSignupBirthDate, MINIMUM_SIGNUP_AGE } from '@/lib/age';
 import type { UserProfileFormData } from '@/lib/schemas/userSchema';
+import { GENDER_LOCKED_MESSAGE } from '@/lib/mixed-composition';
 
 const GENDER_OPTIONS: { value: UserProfileFormData['gender']; label: string }[] = [
   { value: 'M', label: 'Masculino' },
@@ -30,6 +31,11 @@ interface ProfileFormFieldsProps {
   errors: FieldErrors<UserProfileFormData>;
   setValue: UseFormSetValue<UserProfileFormData>;
   onOpenFavoriteTeamPicker: () => void;
+  /**
+   * F3: el género ya se eligió y no se cambia desde la app (sólo soporte). Las
+   * opciones quedan a la vista, deshabilitadas, con la vía para corregirlo.
+   */
+  genderLocked?: boolean;
 }
 
 /**
@@ -47,6 +53,7 @@ export function ProfileFormFields({
   errors,
   setValue,
   onOpenFavoriteTeamPicker,
+  genderLocked = false,
 }: ProfileFormFieldsProps) {
   /*
    * useWatch y NO el `watch` de useForm — no es un detalle de estilo.
@@ -174,12 +181,14 @@ export function ProfileFormFields({
               // no llega al DOM. Props W3C (RN 0.71+): valen en nativo y en web.
               role="radio"
               aria-selected={selectedGender === value}
+              aria-disabled={genderLocked}
+              disabled={genderLocked}
               onPress={() => setValue('gender', value, { shouldValidate: true })}
               className={`flex-1 py-3.5 rounded-xl border items-center ${
                 selectedGender === value
                   ? 'bg-brand-primary border-[#003914]'
                   : 'bg-surface-low border-neutral-outline-variant/15'
-              }`}
+              } ${genderLocked && selectedGender !== value ? 'opacity-40' : ''}`}
             >
               <Text
                 className={`font-display uppercase tracking-widest text-xs ${
@@ -195,6 +204,11 @@ export function ProfileFormFields({
         {errors.gender && (
           <Text className="text-red-500 text-xs mt-2">{errors.gender.message}</Text>
         )}
+        <Text className="font-ui mt-2 text-xs text-neutral-outline">
+          {genderLocked
+            ? GENDER_LOCKED_MESSAGE
+            : 'Se usa para la composición de los equipos mixtos. Una vez elegido, sólo se puede corregir escribiéndonos.'}
+        </Text>
       </View>
 
       {/* ── PIERNA HÁBIL ────────────────────────────────────────────────── */}
