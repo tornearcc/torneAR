@@ -834,6 +834,10 @@ export default function TeamManageScreen() {
                     )}
                   </View>
                 </TouchableOpacity>
+                {/* D-55: el servidor rechaza la segunda mudanza de la temporada (ZONE_LOCKED). */}
+                <Text className="font-ui mt-1.5 text-[11px] leading-4 text-neutral-on-surface-variant">
+                  Podés cambiar la zona una vez por temporada.
+                </Text>
 
                 <Text className="font-display mb-2 mt-4 text-[10px] uppercase tracking-wide text-neutral-on-surface-variant">Categoría</Text>
                 <View className="mb-4 flex-row flex-wrap gap-2">

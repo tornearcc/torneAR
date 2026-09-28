@@ -42,6 +42,17 @@ describe('getGenericSupabaseErrorMessage', () => {
     expect(message).toBe('Ya existe un registro con esos datos. Revisa e intentalo nuevamente.');
   });
 
+  it('D-55: explica el candado de zona y la zona fuera del catálogo', () => {
+    expect(
+      getGenericSupabaseErrorMessage({
+        message: 'ZONE_LOCKED: el equipo ya cambió de zona en Clausura 2026. Vas a poder cambiarla de nuevo cuando empiece la próxima temporada',
+      }),
+    ).toBe('Tu equipo ya cambió de zona esta temporada. Vas a poder cambiarla de nuevo cuando empiece la próxima.');
+    expect(
+      getGenericSupabaseErrorMessage({ message: 'ZONE_UNKNOWN: la zona «Narnia» no está en el catálogo' }),
+    ).toBe('Esa zona no está en la lista. Elegí una de las opciones.');
+  });
+
   it('returns fallback when message is unknown', () => {
     const fallback = 'Mensaje personalizado';
     const message = getGenericSupabaseErrorMessage({ message: 'random backend error' }, fallback);
