@@ -7,29 +7,32 @@ automática (CI con GitHub Actions) y manejo de la base de datos (Supabase).
 
 ## 1. Ramas
 
-> ⚠️ **Convención VIGENTE de este repo (verificada el 2026-09-14): la rama viva
-> es `develop`, no `main`.**
+> **Convención desde el 27/09/2026 (D-58), igual en los dos repos:** `develop`
+> es donde se trabaja y `main` es lo que está en producción.
 >
-> La build de producción que está en la App Store (1.0.0, build 9, EAS
-> `c487b0e9`) se compiló desde `develop`, commit `f2d97f6`. `main` no recibe
-> merges desde el 20/08/2026 y **no** refleja lo que está en producción.
+> En este repo, `main` se puso al día ese día con el commit del último OTA de
+> producción (`c0c2bda`, 25/09). Del 20/08 al 27/09 `main` estuvo abandonada;
+> si ves referencias viejas a "`main` desactualizada", son de esa época.
 >
-> **El repo de la web (`torneAR-web`, carpeta `dashboard/`) usa la convención
-> opuesta:** ahí `main` es la rama viva y la que Vercel despliega. Antes de
-> mergear, confirmá en qué repo estás.
+> **Ningún merge dispara builds.** Los workflows de EAS (`eas-build.yml` y
+> `eas-build-preview.yml`) corren sólo a mano, desde la pestaña Actions.
 
-| Rama | Rol hoy | Qué sale de acá |
-|------|---------|-----------------|
-| `develop` | **Rama viva.** Integración y fuente de lo que llega a producción. | Builds de EAS (perfil `production`) y `eas update --channel production` |
-| `main` | **Desactualizada** desde el 20/08/2026. No representa producción. | Nada. No mergear acá hasta decidir la convención (ver más abajo). |
-| `feature/<nombre>` | Trabajo de una feature puntual. Sale de `develop`, vuelve a `develop`. | — |
+| Rama | Rol | Qué sale de acá |
+|------|-----|-----------------|
+| `develop` | **Integración.** Donde se mergea todo el trabajo. | Builds de EAS (perfil `production`) y `eas update --channel production`, siempre publicados a mano desde local |
+| `main` | **Espejo de producción.** Se actualiza con un PR `develop → main` después de cada release. | Nada automático |
+| `feature/<nombre>` · `fix/<nombre>` · `chore/<nombre>` | Trabajo puntual. Sale de `develop`, vuelve a `develop`. | — |
 | `hotfix/<nombre>` | Arreglo urgente. Sale del commit de la build vigente y vuelve a `develop`. | — |
 
 **Reglas:**
 
-- Los features salen de `develop` y vuelven a `develop` por Pull Request.
-- **Nunca** abrir un PR hacia `main` "para liberar": hoy ese paso no existe, y
-  mergear ahí mezclaría tres semanas de historia divergente.
+- Todo sale de `develop` y vuelve a `develop` por Pull Request.
+- **Después de cada release** (build nueva en las tiendas o `eas update` a
+  producción), abrir un PR `develop → main` y mergearlo con *merge commit*, no
+  con *squash*. Si lo publicado no fue la punta de `develop`, mergear el commit
+  publicado, no la punta. Así `main` siempre dice qué está en producción.
+- `main` no recibe trabajo directo: nada se mergea a `main` que no haya pasado
+  antes por `develop`.
 - **Un OTA empaqueta el JS del checkout local, no el de GitHub.** `eas update`
   se corre parado en el commit que corresponde y sin cambios sin commitear. Si
   el working tree tiene algo más, eso también viaja a los teléfonos.
@@ -111,19 +114,19 @@ mergea a `develop`.
 
 - **Build nueva (binario):** desde `develop`, `eas build --profile production`,
   y submit. Anotar el `gitCommitHash` de la build en el PR o en el release.
+  Alternativa sin máquina local: pestaña Actions → *EAS Build (Production)* →
+  *Run workflow* (sólo Android).
 - **OTA:** desde la rama que parte del commit de la build vigente,
   `eas update --channel production --environment production --platform ios --rollout-percentage 10`,
   24 h mirando `app_logs` de nivel `error`, y recién después al 100%.
-
-### ¿Alinear con la web o dejarlo documentado?
-
-Pendiente de decisión. La propuesta es alinear el **significado**, no el nombre
-de la rama: que en los dos repos `main` sea "lo que está en producción".
-
-- En este repo: fast-forward de `main` al commit de cada build que se publica en
-  las tiendas, más un tag (`ios-1.0.0-b9`). `develop` sigue siendo la rama de
-  integración.
-- Hasta que eso se haga, esta sección manda y `main` no se toca.
+- **Después de publicar:** PR `develop → main` con el commit publicado (ver
+  Reglas). El merge no dispara ningún build.
+- Para saber qué commit está en producción:
+  ```bash
+  npx eas-cli build:list --platform ios --limit 1 --json   # → gitCommitHash de la build
+  npx eas-cli update:list --branch production --limit 1 --json   # → group del último OTA
+  npx eas-cli update:view <group> --json                   # → gitCommitHash del OTA
+  ```
 
 ---
 
@@ -136,8 +139,12 @@ Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 - Push directo a `main` y `develop`.
 
 **No se dispara si el cambio toca sólo documentación** (`docs/`, `README.md`,
-`CLAUDE.md`): `paths-ignore` en `ci.yml` y en los dos workflows de EAS. Un PR
-que mezcla documentación con cualquier otro archivo corre entero.
+`CLAUDE.md`): `paths-ignore` en `ci.yml`. Un PR que mezcla documentación con
+cualquier otro archivo corre entero.
+
+Los dos workflows de EAS (`eas-build.yml`, `eas-build-preview.yml`) **no** se
+disparan con pushes ni PRs: sólo con *Run workflow* desde la pestaña Actions
+(desde el 27/09/2026).
 
 > ⚠️ **Choca con la branch protection de abajo.** Si se marca un check de CI
 > como obligatorio, un PR de sólo documentación queda esperando un check que
@@ -279,4 +286,5 @@ aislamiento de datos por entorno. Hasta entonces, rige la disciplina de arriba.
 3. OTA: `npm run ota:check` (obligatorio) y después
    `eas update --channel production --environment production --platform ios --rollout-percentage 10`
    desde el commit de la build vigente, 24 h de observación, luego 100%.
-4. `main` no se toca (ver §1).
+4. PR `develop → main` con el commit publicado, mergeado con *merge commit*
+   (ver §1). No dispara builds.

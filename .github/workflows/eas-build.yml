@@ -1,17 +1,11 @@
 name: EAS Build (Production)
 
-# Compila los binarios de producción (Android .aab + iOS .ipa) en la
-# infraestructura de EAS cada vez que se pushea a main (Producción).
+# Compila el binario de producción de Android (.aab) en la infraestructura de
+# EAS. Sólo a mano, desde la pestaña Actions: un merge a main NO dispara builds.
+# main refleja lo que está en producción (D-58) y se actualiza después de cada
+# release, así que un build automático ahí compilaría algo que ya salió.
 # Requiere el secret EXPO_TOKEN en Settings → Secrets → Actions del repo.
 on:
-  push:
-    branches: [main]
-    # Un push que sólo toca documentación no justifica un build de producción.
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-      - 'CLAUDE.md'
-  # Permite disparar el build manualmente desde la pestaña Actions.
   workflow_dispatch:
 
 # Un build de producción a la vez por rama: si llega un push nuevo mientras
