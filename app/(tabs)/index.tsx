@@ -29,14 +29,14 @@ import { MyTeamsRankingSection } from '@/components/home/MyTeamsRankingSection';
 import { QuickActionsSection } from '@/components/home/QuickActionsSection';
 
 /**
- * Ventana de la cuenta regresiva "fina": en las últimas 24 h el reloj muestra
- * horas, minutos y segundos, con el borde verde. Antes de eso muestra días,
- * horas y minutos (decisión del 27/09/2026; hasta entonces fuera de la ventana
- * sólo se veía la fecha).
+ * Un día, en ms. Desde el 28/09/2026 la cuenta regresiva se ve siempre, igual
+ * en todos los casos (segundos, borde verde): con un día o más por delante suma
+ * adelante el contador de días (DÍAS : HS : MIN : SEG). Hasta el 27/09, con más
+ * de 24 h sólo se veía la fecha.
  */
-const COUNTDOWN_WINDOW_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Cadencia del reloj: al segundo dentro de la ventana, cada 30 s fuera (sin segundos en pantalla). */
+/** Cadencia del reloj: al segundo mientras cuenta; floja cuando no hay nada que contar. */
 const COUNTDOWN_TICK_MS = 1_000;
 const IDLE_TICK_MS = 30_000;
 
@@ -286,14 +286,13 @@ export default function HomeScreen() {
 
   const targetTs = nextMatch?.scheduledAt ? new Date(nextMatch.scheduledAt).getTime() : null;
   const msLeft = targetTs === null ? null : targetTs - nowTs;
-  const isCountingDown = msLeft !== null && msLeft > 0 && msLeft <= COUNTDOWN_WINDOW_MS;
-  const isLongCountdown = msLeft !== null && msLeft > COUNTDOWN_WINDOW_MS;
+  const isCountingDown = msLeft !== null && msLeft > 0;
   const hasStarted = msLeft !== null && msLeft <= 0;
 
-  // Un solo `setInterval` para todo: late cada segundo dentro de la ventana de
-  // 24 h y cada 30 s fuera de ella —lo justo para detectar el cruce hacia la
-  // ventana sin quemar renders mientras el partido sigue lejos—. Cuando
-  // `isCountingDown` cambia, el efecto se reinicia con la nueva cadencia.
+  // Un solo `setInterval` para todo: late cada segundo mientras hay cuenta
+  // regresiva (sólo con la Home en foco) y cada 30 s cuando ya no hay nada que
+  // contar. Cuando `isCountingDown` cambia, el efecto se reinicia con la nueva
+  // cadencia.
   useEffect(() => {
     if (targetTs === null || !isFocused) return;
 
@@ -311,25 +310,17 @@ export default function HomeScreen() {
     };
   }, [targetTs, isCountingDown, isFocused]);
 
-  // Más de 24 h: días · horas · minutos. Últimas 24 h: horas · minutos · segundos.
+  // HS : MIN : SEG, y el contador de días adelante cuando falta un día o más.
   const countdownSegments = useMemo(() => {
     const totalSeconds = Math.max(0, Math.floor((msLeft ?? 0) / 1000));
-    const days = Math.floor(totalSeconds / 86400);
-    const minutes = pad(Math.floor((totalSeconds % 3600) / 60));
-
-    if (isLongCountdown) {
-      return [
-        { value: pad(days), label: days === 1 ? 'Día' : 'Días' },
-        { value: pad(Math.floor((totalSeconds % 86400) / 3600)), label: 'Hs' },
-        { value: minutes, label: 'Min' },
-      ];
-    }
-    return [
-      { value: pad(Math.floor(totalSeconds / 3600)), label: 'Hs' },
-      { value: minutes, label: 'Min' },
+    const days = Math.floor((msLeft ?? 0) / DAY_MS);
+    const clock = [
+      { value: pad(Math.floor((totalSeconds % 86400) / 3600)), label: 'Hs' },
+      { value: pad(Math.floor((totalSeconds % 3600) / 60)), label: 'Min' },
       { value: pad(totalSeconds % 60), label: 'Seg' },
     ];
-  }, [msLeft, isLongCountdown]);
+    return days >= 1 ? [{ value: pad(days), label: days === 1 ? 'Día' : 'Días' }, ...clock] : clock;
+  }, [msLeft]);
 
   // ─── TAREA 3 — Guía inicial ────────────────────────────────────────────────
 
@@ -579,9 +570,9 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              {/* Cuenta regresiva: días/horas/minutos antes de las 24 h, horas/minutos/segundos adentro */}
+              {/* Cuenta regresiva: HS : MIN : SEG, con DÍAS adelante si falta un día o más */}
               <View className="border-t border-neutral-outline/20 bg-surface-high/40 px-4 py-3">
-                {isCountingDown || isLongCountdown ? (
+                {isCountingDown ? (
                   <>
                     <Text className="font-ui mb-2 text-center text-[10px] uppercase tracking-wider text-brand-primary">
                       Empieza en
@@ -608,13 +599,6 @@ export default function HomeScreen() {
                         </View>
                       ))}
                     </View>
-
-                    {/* Con días por delante importa también CUÁNDO es, no sólo cuánto falta. */}
-                    {isLongCountdown && nextMatch.scheduledAt && (
-                      <Text className="font-ui mt-2 text-center text-[12px] text-neutral-on-surface-variant">
-                        {formatMatchDate(nextMatch.scheduledAt)}
-                      </Text>
-                    )}
                   </>
                 ) : hasStarted ? (
                   <Text className="font-uiBold text-center text-[13px] text-brand-primary">

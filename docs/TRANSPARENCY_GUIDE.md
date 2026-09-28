@@ -56,13 +56,12 @@ que contar hasta que se acuerde el día y la hora.
 
 | Falta… | Qué ves |
 |---|---|
-| Más de 24 h | La cuenta regresiva en días, horas y minutos (`DÍAS : HS : MIN`) y, abajo, la fecha larga: `vie 8 ago · 21:30` |
-| 24 h o menos | La cuenta regresiva `HH : MM : SS`, con el borde verde |
+| Un día o más | La cuenta regresiva `DÍAS : HH : MM : SS`, con el borde verde |
+| Menos de un día | La cuenta regresiva `HH : MM : SS`, con el borde verde |
 | Ya pasó la hora | «¡Es la hora del partido!» |
 
-El reloj **late cada segundo** dentro de las últimas 24 h y **cada 30 segundos**
-fuera de esa ventana, donde no muestra segundos (lo justo para que los minutos
-estén al día sin gastar batería). Se
+El reloj **late cada segundo** mientras hay cuenta regresiva y la Home está en
+pantalla. Se
 detiene cuando salís de la pantalla y se re-sincroniza con la hora real cada vez
 que volvés: si dejaste la app en segundo plano tres horas, al volver la cuenta ya
 está corregida, no arranca atrasada.
@@ -830,7 +829,7 @@ creer que no te postulaste.
 | Factor K del Elo | **40** | No |
 | Movimiento máximo por partido | ±40 | No |
 | Resultado de un walkover | **3 – 0** | No |
-| Ventana de la cuenta regresiva | 24 h | No |
+| Cuenta regresiva | Siempre; suma los días con 24 h o más | No |
 | Fair Play inicial | 100 (rango 0–100) | No |
 | Multa: cancelación tardía | −5 | ✅ Sí |
 | Multa: walkover por falta de quórum | −5 | ✅ Sí |
