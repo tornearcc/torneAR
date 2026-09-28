@@ -215,6 +215,11 @@ select is(
   'CONFIRMADO',
   'C-14: con los dos planteles en regla, el partido queda confirmado');
 
+-- La propuesta agendó el partido en 2 días. Para las listas y los check-ins de
+-- abajo el horario pasa a "ahora": desde 20260928210000 fuera de la ventana
+-- (2 h antes / 1 h después) no hay check-in, y acá se prueba la composición.
+update matches set scheduled_at = now() where id = (select id from f3_match);
+
 
 
 -- ── C-15..C-16. Lista de titulares ──────────────────────────────────────────
