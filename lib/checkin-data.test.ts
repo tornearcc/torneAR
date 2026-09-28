@@ -123,6 +123,15 @@ describe('getCheckinErrorMessage', () => {
     ).toMatch(/lejos de la cancha/i);
   });
 
+  it('P1-3: explica la ventana horaria que ahora aplica el servidor', () => {
+    expect(
+      getCheckinErrorMessage({ message: 'CHECKIN_NOT_OPEN: el check-in abre 2 horas antes' }),
+    ).toMatch(/2 horas antes/i);
+    expect(
+      getCheckinErrorMessage({ message: 'CHECKIN_CLOSED: el check-in cerró 1 hora después' }),
+    ).toMatch(/1 hora después/i);
+  });
+
   it('F3: conserva cuántos faltan entre los titulares de un equipo mixto', () => {
     expect(
       getCheckinErrorMessage({

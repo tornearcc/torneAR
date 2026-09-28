@@ -137,7 +137,11 @@ select tests.clear_auth();
 insert into venues (id, name, lat, lng)
 values ('99999999-0000-0000-0000-000000000004',
         '__TEST P1 Venue', -34.6037, -58.3816);
-update matches set venue_id = '99999999-0000-0000-0000-000000000004'
+-- El horario pasa a "ahora": desde 20260928210000 el check-in fuera de la
+-- ventana (2 h antes / 1 h después) se rechaza antes del geofence, y lo que se
+-- prueba acá es el GPS, no el horario.
+update matches set venue_id = '99999999-0000-0000-0000-000000000004',
+                   scheduled_at = now()
 where id = '99999999-0000-0000-0000-000000000002';
 
 select tests.authenticate_as_profile('aaaaaaaa-0000-0000-0000-000000000001');

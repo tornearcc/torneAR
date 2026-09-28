@@ -39,6 +39,10 @@ export const CHECKIN_ERROR_CODES = [
   // F3 (20260925160000): los titulares de un equipo MIXTO no cumplen la
   // composición. El detalle dice cuántos faltan y se conserva.
   'MIXED_COMPOSITION',
+  // P1-3 (20260928210000): el servidor aplica la misma ventana que
+  // `isWithin2Hours` en CheckinSection, en checkin_team y submit_team_checkin.
+  'CHECKIN_NOT_OPEN',
+  'CHECKIN_CLOSED',
 ] as const;
 
 export type CheckinErrorCode = (typeof CHECKIN_ERROR_CODES)[number];
@@ -69,6 +73,8 @@ const CHECKIN_ERROR_MESSAGES: Record<CheckinErrorCode, string> = {
     'Los partidos de ranking necesitan una cancha del catálogo. Acordá el complejo con el rival antes de confirmar.',
   // No se usa: el detalle del servidor dice cuántos faltan (getCheckinErrorMessage).
   MIXED_COMPOSITION: 'Los titulares no cumplen la composición mínima de un equipo mixto.',
+  CHECKIN_NOT_OPEN: 'El check-in todavía no abrió: se habilita 2 horas antes del horario del partido.',
+  CHECKIN_CLOSED: 'El check-in ya cerró: se puede hacer hasta 1 hora después del horario del partido.',
 };
 
 export class CheckinError extends Error {
