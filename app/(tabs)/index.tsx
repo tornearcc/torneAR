@@ -8,6 +8,7 @@ import { useTeamStore } from '@/stores/teamStore';
 import { GlobalHeader } from '@/components/GlobalHeader';
 import { HomeSkeleton } from '@/components/home/HomeSkeleton';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
+import { useAppFonts } from '@/hooks/useAppFonts';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { fetchHomeViewData } from '@/lib/home-data';
 import { fetchActiveTeamRankingInfo, fetchRankingWithFilters } from '@/lib/ranking-data';
@@ -61,6 +62,7 @@ export default function HomeScreen() {
   const { profile } = useAuth();
   const activeTeamId = useTeamStore((state) => state.activeTeamId);
   const isFocused = useIsFocused();
+  const fontsReady = useAppFonts();
   const [loading, setLoading] = useState(true);
   const [viewData, setViewData] = useState<HomeViewData | null>(null);
   const { showAlert, AlertComponent } = useCustomAlert();
@@ -475,6 +477,11 @@ export default function HomeScreen() {
   // La guía señala tarjetas que sólo existen con equipo cargado; sin eso, el
   // usuario ya tiene su propia pantalla de bienvenida.
   const showTour = tourPending === true && !isInitialLoad && !hasNoTeams;
+
+  // Sin las fuentes no se dibuja ningún texto: medido con la de reemplazo,
+  // Android lo corta cuando llega Inter (M-02, ver `useAppFonts`). No se ve
+  // nada raro porque hasta ese momento el overlay de `_layout` tapa la Home.
+  if (!fontsReady) return <View className="flex-1 bg-surface-base" />;
 
   return (
     <View className="flex-1 bg-surface-base">

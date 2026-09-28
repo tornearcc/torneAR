@@ -61,9 +61,10 @@ export function HomeOnboardingState({
       </Text>
 
       {/* Primary CTAs. `flexShrink` + `textAlign` en los textos: si la etiqueta no
-          entra en una línea (pantalla angosta o letra grande en Android), baja a
-          una segunda línea centrada en vez de perder la última palabra
-          ("Unirse con", "Buscar Equipo en el": reporte #7761, M-02). */}
+          entra en una línea (pantalla angosta o letra grande), baja a una
+          segunda línea centrada. El corte de M-02 ("Unirse con", "Buscar Equipo
+          en el", reporte #7761) no venía de acá sino de medir el texto antes de
+          que cargara Inter: lo resuelve la espera de `useAppFonts` en la Home. */}
       <View className="mt-8 w-full gap-3">
         <TouchableOpacity
           activeOpacity={0.85}
