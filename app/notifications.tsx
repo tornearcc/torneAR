@@ -196,6 +196,11 @@ export default function NotificationsScreen() {
           router.push('/market-chats');
           break;
 
+        case 'ANUNCIO':
+          // Un aviso general se lee acá mismo: no tiene pantalla de destino, y
+          // no es un tipo "sin ruta" que haya que registrar como el default.
+          break;
+
         default:
           // D11: todo evento de partido —confirmación, cancelación, disputa,
           // WO aprobado/rechazado/automático, recordatorio de 24h— viaja con
