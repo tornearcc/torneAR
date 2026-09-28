@@ -57,7 +57,7 @@ export default function TeamCreateScreen() {
     const sanitizedZone = zone.trim();
 
     if (sanitizedName.length < 3) {
-      showAlert('Nombre invalido', 'El nombre del equipo debe tener al menos 3 caracteres.');
+      showAlert('Nombre inválido', 'El nombre del equipo debe tener al menos 3 caracteres.');
       return;
     }
     if (!sanitizedZone) {
@@ -78,7 +78,7 @@ export default function TeamCreateScreen() {
         format,
       });
 
-      showAlert('Equipo creado', `Tu equipo ${teamData.name} ya esta listo.`, async () => {
+      showAlert('Equipo creado', `Tu equipo ${teamData.name} ya está listo.`, async () => {
         if (profile?.id) {
           await fetchMyTeams(profile.id);
         }
@@ -108,7 +108,7 @@ export default function TeamCreateScreen() {
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
       <SecondaryHeader
         title="Crear equipo"
-        subtitle="Defini la identidad de tu equipo y empeza a competir."
+        subtitle="Definí la identidad de tu equipo y empezá a competir."
       />
 
       <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 36 }}>
@@ -134,7 +134,7 @@ export default function TeamCreateScreen() {
           />
 
           <View>
-            <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Categoria</Text>
+            <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Categoría</Text>
             <View className="flex-row flex-wrap gap-2">
               {TEAM_CATEGORY_OPTIONS.map((option) => {
                 const active = category === option.value;

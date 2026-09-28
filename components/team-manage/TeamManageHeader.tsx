@@ -117,7 +117,7 @@ export function TeamManageHeader({
 
       <View className="mt-4 rounded-lg bg-surface-high px-3 py-2.5">
         <Text className="font-display text-[10px] uppercase tracking-widest text-neutral-on-surface-variant">
-          Codigo de invitacion
+          Código de invitación
         </Text>
         <View className="mt-1.5 flex-row items-center justify-between">
           <Text className="font-displayBlack text-xl uppercase tracking-[1px] text-brand-primary">

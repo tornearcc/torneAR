@@ -157,3 +157,30 @@ export function getGenericSupabaseErrorMessage(
 
   return fallback;
 }
+
+/**
+ * Detalle de un error de login para `app_logs`, sin perder el motivo.
+ *
+ * Los rechazos de Apple quedaban como `reason: "[object Object]"` (9 de 10 al
+ * 27/09): `oauthError()` devuelve un objeto plano, no una instancia de `Error`,
+ * y `String(error)` tiraba el mensaje. Esto saca los campos que sí sirven para
+ * diagnosticar (mensaje, nombre, status y código de Supabase o del SDK nativo)
+ * de cualquier forma de error. Sólo para logs: no cambia qué ve el usuario.
+ */
+export function describeAuthFailure(error: unknown): {
+  reason: string;
+  errorName?: string;
+  status?: number;
+  code?: string;
+} {
+  if (typeof error === 'string') return { reason: error };
+  if (typeof error !== 'object' || error === null) return { reason: String(error) };
+
+  const e = error as { message?: unknown; name?: unknown; status?: unknown; code?: unknown };
+  return {
+    reason: typeof e.message === 'string' && e.message ? e.message : JSON.stringify(error),
+    ...(typeof e.name === 'string' ? { errorName: e.name } : {}),
+    ...(typeof e.status === 'number' ? { status: e.status } : {}),
+    ...(typeof e.code === 'string' ? { code: e.code } : {}),
+  };
+}

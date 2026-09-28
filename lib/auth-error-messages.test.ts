@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAuthErrorMessage, getGenericSupabaseErrorMessage } from './auth-error-messages';
+import { describeAuthFailure, getAuthErrorMessage, getGenericSupabaseErrorMessage } from './auth-error-messages';
 import { PASSWORD_MIN_LENGTH } from './schemas/authSchema';
 
 describe('getAuthErrorMessage', () => {
@@ -46,5 +46,33 @@ describe('getGenericSupabaseErrorMessage', () => {
     const fallback = 'Mensaje personalizado';
     const message = getGenericSupabaseErrorMessage({ message: 'random backend error' }, fallback);
     expect(message).toBe(fallback);
+  });
+});
+
+describe('describeAuthFailure', () => {
+  it('saca el mensaje de un objeto plano (el caso de oauthError, antes "[object Object]")', () => {
+    expect(describeAuthFailure({ name: 'AuthError', message: 'The authorization attempt failed', status: 0 })).toEqual({
+      reason: 'The authorization attempt failed',
+      errorName: 'AuthError',
+      status: 0,
+    });
+  });
+
+  it('conserva el código de un error nativo', () => {
+    const nativeError = Object.assign(new Error('Bad ID token'), { code: 'ERR_INVALID_TOKEN' });
+    expect(describeAuthFailure(nativeError)).toEqual({
+      reason: 'Bad ID token',
+      errorName: 'Error',
+      code: 'ERR_INVALID_TOKEN',
+    });
+  });
+
+  it('un objeto sin mensaje se guarda serializado, nunca como "[object Object]"', () => {
+    expect(describeAuthFailure({ foo: 1 }).reason).toBe('{"foo":1}');
+  });
+
+  it('strings y valores sueltos', () => {
+    expect(describeAuthFailure('boom')).toEqual({ reason: 'boom' });
+    expect(describeAuthFailure(undefined)).toEqual({ reason: 'undefined' });
   });
 });

@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { Logger } from '@/lib/logger';
 import { TeamManageViewData, TeamDetailRow, TeamMemberRow, TeamJoinRequestRow } from '@/components/team-manage/types';
-import { sendPushNotification } from '@/lib/push-notifications';
 import { TeamCategory, TeamFormat, TeamRole, getTeamRoleLabel } from '@/lib/team-options';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { decode } from 'base64-arraybuffer';
@@ -206,6 +205,20 @@ export async function updateTeam(
   if (error) throw error;
 }
 
+/**
+ * Marca de las notificaciones cuyo push manda el servidor.
+ *
+ * Hasta la 1.1.0, la app mandaba ella misma a Expo el push de
+ * SOLICITUD_UNION_ACEPTADA, ROL_ACTUALIZADO y EXPULSADO_EQUIPO, y además
+ * insertaba la notificación, que dispara push-dispatch. Para no duplicar, el
+ * trigger `mark_client_pushed_notification` (20260927121000) sella `pushed_at`
+ * de esos tipos cuando los inserta la app. Desde esta versión la app ya no los
+ * manda: con esta marca el trigger no sella y el push sale sólo por el
+ * servidor (D-27). Las apps viejas no la mandan y siguen como antes, así que
+ * las dos versiones conviven sin push duplicado ni perdido (20260928120000).
+ */
+const SERVER_PUSH = { server_push: true } as const;
+
 // El capitán/subcapitán ACEPTA la solicitud, pero ya NO agrega al jugador al
 // plantel: sólo marca la solicitud como ACEPTADA. El alta la dispara el propio
 // jugador al confirmar el traspaso (transfer_to_team), que exige justamente una
@@ -226,28 +239,14 @@ export async function acceptJoinRequest(request: TeamJoinRequestRow, team: { id:
 
   if (updateRequestError) throw updateRequestError;
 
-  // `expo_push_token` de OTRO perfil ya no es legible por un SELECT directo
-  // (20260819100000_privacy_and_age_compliance): esta RPC SECURITY DEFINER
-  // es el único camino, y valida de nuevo que el caller sea captain/
-  // subcapitán del equipo de la solicitud antes de devolverlo.
-  const { data: applicantToken } = await supabase.rpc('get_join_request_applicant_push_token', {
-    p_request_id: request.id,
-  });
-
-  if (applicantToken) {
-    void sendPushNotification(
-      applicantToken,
-      '¡Solicitud aceptada!',
-      `${team.name} aceptó tu solicitud. Entrá a "Mis solicitudes" y confirmá tu traspaso para unirte.`,
-    );
-  }
-
+  // El push lo manda push-dispatch al insertar la notificación (D-27). Ver
+  // SERVER_PUSH más abajo.
   await supabase.from('notifications').insert({
     profile_id: request.profile_id,
     type: 'SOLICITUD_UNION_ACEPTADA',
     title: '¡Solicitud aceptada!',
-    body: `${team.name} aceptó tu solicitud. Confirmá tu traspaso para unirte al equipo.`,
-    data: { team_id: team.id },
+    body: `${team.name} aceptó tu solicitud. Entrá a "Mis solicitudes" y confirmá tu traspaso para unirte.`,
+    data: { team_id: team.id, ...SERVER_PUSH },
   });
 }
 
@@ -275,29 +274,12 @@ export async function updateMemberRole(
 
   if (error) throw error;
 
-  // `expo_push_token` de otro perfil ya no es legible por un SELECT directo
-  // (20260819100000_privacy_and_age_compliance): esta RPC SECURITY DEFINER
-  // valida de nuevo que el caller sea captain/subcapitán del equipo antes
-  // de devolverlo.
-  const { data: pushToken } = await supabase.rpc('get_team_member_push_token', {
-    p_team_id: teamId,
-    p_profile_id: profileId,
-  });
-
-  if (pushToken) {
-    void sendPushNotification(
-      pushToken,
-      "Rol de equipo actualizado",
-      `Tu rol en el equipo ${team.name} ahora es ${getTeamRoleLabel(role)}.`
-    );
-  }
-
   await supabase.from('notifications').insert({
     profile_id: profileId,
     type: 'ROL_ACTUALIZADO',
     title: 'Rol de equipo actualizado',
     body: `Tu rol en el equipo ${team.name} ahora es ${getTeamRoleLabel(role)}.`,
-    data: { team_id: teamId },
+    data: { team_id: teamId, ...SERVER_PUSH },
   });
 }
 
@@ -308,15 +290,6 @@ export async function removeMember(
   profileId: string,
   team: { id: string; name: string },
 ): Promise<void> {
-  // Se busca el token ANTES de remover: `get_team_member_push_token`
-  // valida que `profileId` siga siendo team_members del equipo, y
-  // `remove_team_member` lo saca de esa tabla — pedirlo después siempre
-  // devolvería NULL y el push de "te removieron" nunca saldría.
-  const { data: pushToken } = await supabase.rpc('get_team_member_push_token', {
-    p_team_id: teamId,
-    p_profile_id: profileId,
-  });
-
   const { error } = await supabase.rpc('remove_team_member', {
     p_team_id: teamId,
     p_profile_id: profileId,
@@ -324,20 +297,14 @@ export async function removeMember(
 
   if (error) throwTeamActionError(error);
 
-  if (pushToken) {
-    void sendPushNotification(
-      pushToken,
-      "Eliminado del equipo",
-      `Fuiste removido del equipo ${team.name}.`
-    );
-  }
-
+  // Después de remover: la policy de notifications habilita al capitán a
+  // avisarle a quien expulsó en los últimos 10 minutos (20260927121000).
   await supabase.from('notifications').insert({
     profile_id: profileId,
     type: 'EXPULSADO_EQUIPO',
     title: 'Eliminado del equipo',
     body: `Fuiste removido del equipo ${team.name}.`,
-    data: { team_id: teamId },
+    data: { team_id: teamId, ...SERVER_PUSH },
   });
 }
 

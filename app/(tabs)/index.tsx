@@ -28,10 +28,15 @@ import { UpcomingMatchesSection } from '@/components/home/UpcomingMatchesSection
 import { MyTeamsRankingSection } from '@/components/home/MyTeamsRankingSection';
 import { QuickActionsSection } from '@/components/home/QuickActionsSection';
 
-/** Ventana en la que el partido deja de ser "una fecha" y pasa a ser una cuenta regresiva. */
-const COUNTDOWN_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * Un día, en ms. Desde el 28/09/2026 la cuenta regresiva se ve siempre, igual
+ * en todos los casos (segundos, borde verde): con un día o más por delante suma
+ * adelante el contador de días (DÍAS : HS : MIN : SEG). Hasta el 27/09, con más
+ * de 24 h sólo se veía la fecha.
+ */
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Cadencia del reloj: al segundo dentro de la ventana, floja fuera de ella. */
+/** Cadencia del reloj: al segundo mientras cuenta; floja cuando no hay nada que contar. */
 const COUNTDOWN_TICK_MS = 1_000;
 const IDLE_TICK_MS = 30_000;
 
@@ -281,13 +286,13 @@ export default function HomeScreen() {
 
   const targetTs = nextMatch?.scheduledAt ? new Date(nextMatch.scheduledAt).getTime() : null;
   const msLeft = targetTs === null ? null : targetTs - nowTs;
-  const isCountingDown = msLeft !== null && msLeft > 0 && msLeft <= COUNTDOWN_WINDOW_MS;
+  const isCountingDown = msLeft !== null && msLeft > 0;
   const hasStarted = msLeft !== null && msLeft <= 0;
 
-  // Un solo `setInterval` para todo: late cada segundo dentro de la ventana de
-  // 24 h y cada 30 s fuera de ella —lo justo para detectar el cruce hacia la
-  // ventana sin quemar renders mientras el partido sigue lejos—. Cuando
-  // `isCountingDown` cambia, el efecto se reinicia con la nueva cadencia.
+  // Un solo `setInterval` para todo: late cada segundo mientras hay cuenta
+  // regresiva (sólo con la Home en foco) y cada 30 s cuando ya no hay nada que
+  // contar. Cuando `isCountingDown` cambia, el efecto se reinicia con la nueva
+  // cadencia.
   useEffect(() => {
     if (targetTs === null || !isFocused) return;
 
@@ -305,13 +310,16 @@ export default function HomeScreen() {
     };
   }, [targetTs, isCountingDown, isFocused]);
 
-  const countdown = useMemo(() => {
+  // HS : MIN : SEG, y el contador de días adelante cuando falta un día o más.
+  const countdownSegments = useMemo(() => {
     const totalSeconds = Math.max(0, Math.floor((msLeft ?? 0) / 1000));
-    return {
-      hours: pad(Math.floor(totalSeconds / 3600)),
-      minutes: pad(Math.floor((totalSeconds % 3600) / 60)),
-      seconds: pad(totalSeconds % 60),
-    };
+    const days = Math.floor((msLeft ?? 0) / DAY_MS);
+    const clock = [
+      { value: pad(Math.floor((totalSeconds % 86400) / 3600)), label: 'Hs' },
+      { value: pad(Math.floor((totalSeconds % 3600) / 60)), label: 'Min' },
+      { value: pad(totalSeconds % 60), label: 'Seg' },
+    ];
+    return days >= 1 ? [{ value: pad(days), label: days === 1 ? 'Día' : 'Días' }, ...clock] : clock;
   }, [msLeft]);
 
   // ─── TAREA 3 — Guía inicial ────────────────────────────────────────────────
@@ -562,7 +570,7 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              {/* Cuenta regresiva (< 24 h) o fecha larga */}
+              {/* Cuenta regresiva: HS : MIN : SEG, con DÍAS adelante si falta un día o más */}
               <View className="border-t border-neutral-outline/20 bg-surface-high/40 px-4 py-3">
                 {isCountingDown ? (
                   <>
@@ -571,11 +579,7 @@ export default function HomeScreen() {
                     </Text>
 
                     <View className="flex-row items-center justify-center gap-1">
-                      {[
-                        { value: countdown.hours, label: 'Hs' },
-                        { value: countdown.minutes, label: 'Min' },
-                        { value: countdown.seconds, label: 'Seg' },
-                      ].map((segment, index) => (
+                      {countdownSegments.map((segment, index) => (
                         <View key={segment.label} className="flex-row items-center gap-1">
                           {index > 0 && (
                             <Text className="font-displayBlack text-lg text-neutral-outline/60">

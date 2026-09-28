@@ -23,7 +23,7 @@ const STEPS: TourStep[] = [
     tag: 'Paso 1 de 3',
     title: 'Tu próximo partido',
     description:
-      'Arriba de todo vas a encontrar el partido que viene. Cuando falten menos de 24 horas aparece una cuenta regresiva en vivo. Tocala para abrir el detalle y coordinar con el rival.',
+      'Arriba de todo vas a encontrar el partido que viene, con una cuenta regresiva en vivo hasta el pitazo inicial. Tocala para abrir el detalle y coordinar con el rival.',
   },
   {
     icon: 'trophy-outline',

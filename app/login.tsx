@@ -12,7 +12,8 @@ import {
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { GlobalLoader } from '@/components/GlobalLoader';
-import { getAuthErrorMessage } from '@/lib/auth-error-messages';
+import { describeAuthFailure, getAuthErrorMessage } from '@/lib/auth-error-messages';
+import { getCurrentAppVersion } from '@/lib/app-version';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { GoogleAuthButton } from '@/components/ui/GoogleAuthButton';
 import { AppleAuthButton } from '@/components/ui/AppleAuthButton';
@@ -230,7 +231,9 @@ export default function LoginScreen() {
       if (!cancelled && error) {
         Logger.warn('Autenticación con Google rechazada', {
           scope: 'login.onGooglePress',
-          reason: error instanceof Error ? error.message : String(error),
+          ...describeAuthFailure(error),
+          platform: Platform.OS,
+          appVersion: getCurrentAppVersion(),
         });
         showAlert('Error de autenticacion', getAuthErrorMessage(error, 'login'));
       } else if (cancelled) {
@@ -265,7 +268,11 @@ export default function LoginScreen() {
       if (!cancelled && error) {
         Logger.warn('Autenticación con Apple rechazada', {
           scope: 'login.onApplePress',
-          reason: error instanceof Error ? error.message : String(error),
+          // Antes `String(error)`: con el objeto plano de `oauthError()` quedaba
+          // "[object Object]" y se perdía el motivo (9 de 10 rechazos al 27/09).
+          ...describeAuthFailure(error),
+          platform: Platform.OS,
+          appVersion: getCurrentAppVersion(),
         });
         showAlert('Error de autenticacion', getAuthErrorMessage(error, 'login'));
       } else if (cancelled) {
@@ -299,7 +306,7 @@ export default function LoginScreen() {
 
         <View className="space-y-4 mb-8 gap-4">
           <View>
-            <Text className="font-uiBold mb-2 text-neutral-on-surface">Correo Electronico</Text>
+            <Text className="font-uiBold mb-2 text-neutral-on-surface">Correo Electrónico</Text>
             {/* 4. Usamos Controller para el input */}
             <Controller
               control={control}
