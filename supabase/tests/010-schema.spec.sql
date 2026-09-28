@@ -15,8 +15,9 @@
 --
 -- ── Sobre los privilegios afirmados (medidos post `supabase db reset`,
 --    es decir, contra migraciones puras = lo que construye CI) ──
---   challenges / matches : los 7 (incluye REFERENCES, TRIGGER, TRUNCATE que
---     Supabase otorga por default a authenticated en toda tabla de public) +
+--   challenges / matches : los 6 (incluye REFERENCES y TRIGGER, que
+--     Supabase otorga por default a authenticated en toda tabla de public;
+--     TRUNCATE se revoca en todo public desde 20260929020000, P2-7) +
 --     INSERT/UPDATE/DELETE de nuestros grants.
 --   team_members : los mismos MENOS DELETE — revocado por 20260723123000
 --     para que las salidas pasen por las RPCs que fijan tornear.leave_reason.
@@ -71,10 +72,10 @@ select is((select relrowsecurity from pg_class where oid = 'public.team_stints':
 -- ── 3. Matriz de privilegios de `authenticated` (exact-match) ───────────────
 -- Tablas con DML completo (los 7 privilegios reales).
 select table_privs_are('public', 'challenges', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'],
+  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','UPDATE'],
   'challenges: authenticated conserva DML completo');
 select table_privs_are('public', 'matches', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'],
+  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','UPDATE'],
   'matches: authenticated conserva DML completo');
 -- team_members: SIN DELETE a nivel tabla desde 20260723123000. El borrado
 -- directo del cliente dejaba el GUC tornear.leave_reason sin setear y TODA
@@ -85,7 +86,7 @@ select table_privs_are('public', 'matches', 'authenticated',
 -- Que DELETE NO aparezca acá es la aserción que protege la integridad del
 -- ledger de trayectoria.
 select table_privs_are('public', 'team_members', 'authenticated',
-  array['INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'],
+  array['INSERT','REFERENCES','SELECT','TRIGGER','UPDATE'],
   'team_members: authenticated NO tiene DELETE (las salidas pasan por RPC con motivo)');
 
 -- profiles: SIN UPDATE **y SIN SELECT** a nivel tabla. Los dos están por
@@ -100,16 +101,16 @@ select table_privs_are('public', 'team_members', 'authenticated',
 -- podía angostar nada. Que SELECT tampoco aparezca acá es parte de la
 -- aserción.
 select table_privs_are('public', 'profiles', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','TRIGGER','TRUNCATE'],
+  array['DELETE','INSERT','REFERENCES','TRIGGER'],
   'profiles: authenticated NO tiene UPDATE ni SELECT a nivel tabla (ambos por columna)');
 select table_privs_are('public', 'teams', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE'],
+  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER'],
   'teams: authenticated NO tiene UPDATE a nivel tabla (anti-manipulación de elo_rating)');
 
 -- team_stints: sólo lectura + defaults; SIN INSERT/UPDATE/DELETE (lo escriben
 -- los triggers SECURITY DEFINER). La app no puede tocar la trayectoria.
 select table_privs_are('public', 'team_stints', 'authenticated',
-  array['REFERENCES','SELECT','TRIGGER','TRUNCATE'],
+  array['REFERENCES','SELECT','TRIGGER'],
   'team_stints: authenticated es sólo-lectura (el ledger lo escriben triggers)');
 
 -- ── 4. El lockdown por COLUMNA de profiles ──────────────────────────────────
