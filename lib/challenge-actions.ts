@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { Logger } from '@/lib/logger';
+import { membersNeededToConfirm } from '@/lib/squad-rules';
 import {
   getMixedCompositionErrorMessage,
   isMixedCompositionError,
@@ -257,7 +258,10 @@ async function notifyTeamLeaders(
 export interface SquadReadiness {
   ok: boolean;
   memberCount: number;
+  /** Miembros del plantel necesarios para confirmar (ya descontados los invitados, D-60). */
   minRequired: number;
+  /** Lugares que se pueden completar con invitados el día del partido. */
+  guestSlots: number;
   format: Database['public']['Enums']['team_format'];
 }
 
@@ -269,26 +273,33 @@ export async function fetchSquadReadiness(teamId: string): Promise<SquadReadines
     .single();
   if (teamError || !team) return null;
 
-  const [{ count, error: countError }, { data: rules, error: rulesError }] = await Promise.all([
-    supabase
-      .from('team_members')
-      .select('profile_id', { count: 'exact', head: true })
-      .eq('team_id', teamId),
-    supabase
-      .from('format_rules')
-      .select('min_players_to_start')
-      .eq('format', team.preferred_format)
-      .maybeSingle(),
-  ]);
+  const [{ count, error: countError }, { data: rules, error: rulesError }, { data: slotsRow }] =
+    await Promise.all([
+      supabase
+        .from('team_members')
+        .select('profile_id', { count: 'exact', head: true })
+        .eq('team_id', teamId),
+      supabase
+        .from('format_rules')
+        .select('min_players_to_start')
+        .eq('format', team.preferred_format)
+        .maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', 'confirm_guest_slots').maybeSingle(),
+    ]);
 
   // Ante cualquier hueco devolvemos null: el aviso se omite, pero nunca se
   // bloquea ni se miente con un número inventado.
   if (countError || rulesError || !rules || count === null) return null;
 
+  // Sin la fila, el mismo default que el servidor (1 lugar de invitado).
+  const guestSlots = slotsRow ? Number(slotsRow.value) : 1;
+  const minRequired = membersNeededToConfirm(rules.min_players_to_start, guestSlots);
+
   return {
-    ok: count >= rules.min_players_to_start,
+    ok: count >= minRequired,
     memberCount: count,
-    minRequired: rules.min_players_to_start,
+    minRequired,
+    guestSlots: rules.min_players_to_start - minRequired,
     format: team.preferred_format,
   };
 }

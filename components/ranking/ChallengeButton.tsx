@@ -116,9 +116,13 @@ export function ChallengeButton({
           <View className="mb-2 rounded-lg border border-warning-tertiary/30 bg-warning-tertiary/10 px-3 py-2">
             <Text className="font-ui text-[11px] leading-4 text-warning-tertiary">
               ⚠️ Tenés {readiness.memberCount} jugador{readiness.memberCount === 1 ? '' : 'es'} en el
-              plantel y {FORMAT_SHORT[readiness.format] ?? readiness.format} necesita al menos{' '}
-              {readiness.minRequired} para presentarse. Podés desafiar igual, pero no vas a poder
-              confirmar el partido hasta sumar gente o acordar un formato más chico.
+              plantel y para {FORMAT_SHORT[readiness.format] ?? readiness.format} necesitás al menos{' '}
+              {readiness.minRequired}
+              {readiness.guestSlots > 0
+                ? ` (el resto lo podés completar con ${readiness.guestSlots === 1 ? 'un invitado' : `${readiness.guestSlots} invitados`})`
+                : ''}
+              . Podés desafiar igual, pero no vas a poder confirmar el partido hasta sumar gente o
+              acordar un formato más chico.
             </Text>
           </View>
         )}
