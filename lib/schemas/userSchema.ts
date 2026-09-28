@@ -97,3 +97,32 @@ export const userProfileSchema = z.object({
 });
 
 export type UserProfileFormData = z.infer<typeof userProfileSchema>;
+
+/**
+ * Error del nombre de usuario mientras se escribe, sin esperar al blur.
+ *
+ * Los formularios validan con `mode: 'onTouched'` (recién al perder el foco), y
+ * con `keyboardShouldPersistTaps="handled"` tocar otro control no desenfoca el
+ * input: con "ana reddy!!" el botón quedaba gris sin ningún mensaje (reporte
+ * #7761 de PrimeTestLab, M-03). Los caracteres inválidos se marcan en cuanto
+ * aparecen; el largo mínimo espera a que haya 3, para no retar con la primera
+ * letra.
+ */
+export function liveUsernameError(username: string | undefined): string | undefined {
+  if (!username) return undefined;
+  const result = userProfileSchema.shape.username.safeParse(username);
+  if (result.success) return undefined;
+  return result.error.issues.find((issue) => username.length >= 3 || issue.code !== 'too_small')
+    ?.message;
+}
+
+/**
+ * Error de la fecha de nacimiento apenas está completa (DD/MM/AAAA), sin
+ * esperar al blur. Mismo motivo que `liveUsernameError`: una fecha futura o de
+ * un menor dejaba «Siguiente» gris sin explicación (reporte #7761, S-03).
+ * Mientras se tipea no se reta.
+ */
+export function liveBirthDateError(value: string | undefined): string | undefined {
+  if (value?.length !== 10) return undefined;
+  return userProfileSchema.shape.dateOfBirth.safeParse(value).error?.issues[0]?.message;
+}

@@ -23,7 +23,7 @@ export function TeamManageSkeleton() {
     // `edges={['bottom']}`: el inset superior ya lo aplica SecondaryHeader.
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
       <SecondaryHeader
-        title="Gestion de equipo"
+        title="Gestión de equipo"
         subtitle="Administracion y estado de tu plantel."
       />
 

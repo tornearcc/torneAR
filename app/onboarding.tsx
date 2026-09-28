@@ -1,6 +1,7 @@
 // tornear/app/onboarding.tsx
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  BackHandler,
   View,
   Text,
   TextInput,
@@ -8,7 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { HeroButton } from '@/components/ui/HeroButton';
@@ -21,7 +22,7 @@ import { ZoneSelectField } from '@/components/ui/ZoneSelect';
 import { OptionPickerDialog } from '@/components/ui/OptionPickerDialog';
 import { ProfileFormFields } from '@/components/profile/ProfileFormFields';
 import { FAVORITE_TEAM_OPTIONS } from '@/lib/favorite-teams';
-import { userProfileSchema, UserProfileFormData } from '@/lib/schemas/userSchema';
+import { liveUsernameError, userProfileSchema, UserProfileFormData } from '@/lib/schemas/userSchema';
 import { saveOnboardingProfile } from '@/lib/onboarding-data';
 import { needsLegalAcceptance, recordLegalAcceptance } from '@/lib/auth-data';
 import { LegalConsentCheckbox } from '@/components/ui/LegalConsentCheckbox';
@@ -142,9 +143,39 @@ export default function OnboardingScreen() {
     // bloquea: decide el índice único al guardar.
     (step !== 1 || (usernameAvailability !== 'taken' && usernameAvailability !== 'checking'));
 
+  // Ver `liveUsernameError`: el error aparece mientras se escribe, sin blur.
+  const usernameError = errors.username?.message ?? liveUsernameError(values.username);
+
   // El consentimiento gatea el envío igual que un campo incompleto: sin él no
   // hay alta posible. Sólo aplica al paso 3 — los pasos 1 y 2 no crean nada.
   const canSubmit = isStepValid && (!mustAcceptLegal || acceptedLegal);
+
+  /**
+   * «Atrás» de Android = el link «Atrás» de arriba.
+   *
+   * Los 3 pasos son una sola pantalla, y se llega acá con `router.replace`: no
+   * hay nada detrás en el stack. Sin este handler, el «Atrás» del sistema en el
+   * paso 2 o 3 cerraba la app y el paso 1 se perdía (reporte #7761 de
+   * PrimeTestLab, M-01). En el paso 1 no se intercepta: sale como cualquier
+   * pantalla raíz.
+   *
+   * `useFocusEffect` y no `useEffect`: con los Términos o la Privacidad abiertos
+   * encima, el «Atrás» tiene que cerrar ese modal, no retroceder un paso.
+   * Mientras se guarda el perfil se consume sin hacer nada.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (loading) return true;
+        if (step > 1) {
+          setStep(step - 1);
+          return true;
+        }
+        return false;
+      });
+      return () => subscription.remove();
+    }, [step, loading]),
+  );
 
   const handleNextStep = async () => {
     if (step === 1) {
@@ -240,7 +271,7 @@ export default function OnboardingScreen() {
             onPress={() => setStep((s) => s - 1)}
           >
             <AppIcon family="material-icons" name="arrow-back-ios-new" size={20} color="#BCCBB9" />
-            <Text className="font-uiBold text-sm text-neutral-on-surface-variant">Atras</Text>
+            <Text className="font-uiBold text-sm text-neutral-on-surface-variant">Atrás</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -279,7 +310,7 @@ export default function OnboardingScreen() {
                 Datos Personales
               </Text>
               <Text className="font-ui text-neutral-on-surface-variant">
-                Cuentanos como te llamas y por donde prefieres jugar.
+                Contanos cómo te llamás y dónde preferís jugar.
               </Text>
             </View>
 
@@ -318,7 +349,7 @@ export default function OnboardingScreen() {
                   name="username"
                   render={({ field: { onChange, onBlur, value } }) => (
                     <TextInput
-                      className={`w-full rounded-xl border px-4 py-4 text-neutral-on-surface ${errors.username || usernameAvailability === 'taken' ? 'border-red-500' : 'border-neutral-outline-variant/15'} bg-surface-low`}
+                      className={`w-full rounded-xl border px-4 py-4 text-neutral-on-surface ${usernameError || usernameAvailability === 'taken' ? 'border-red-500' : 'border-neutral-outline-variant/15'} bg-surface-low`}
                       placeholder="Ej: leomessi"
                       placeholderTextColor="#3A3939"
                       autoCapitalize="none"
@@ -328,8 +359,8 @@ export default function OnboardingScreen() {
                     />
                   )}
                 />
-                {errors.username ? (
-                  <Text className="text-red-500 text-xs mt-1">{errors.username.message}</Text>
+                {usernameError ? (
+                  <Text className="text-red-500 text-xs mt-1">{usernameError}</Text>
                 ) : usernameAvailability === 'checking' ? (
                   <Text className="font-ui text-xs mt-1 text-neutral-on-surface-variant">
                     Verificando disponibilidad...
@@ -393,7 +424,7 @@ export default function OnboardingScreen() {
                 Tu Cancha
               </Text>
               <Text className="font-ui text-neutral-on-surface-variant">
-                Toca el sector de la cancha donde te destacas.
+                Tocá el sector de la cancha donde te destacás.
               </Text>
             </View>
 
@@ -458,7 +489,7 @@ export default function OnboardingScreen() {
             ) : (
               <View className="mb-6 flex-row flex-wrap items-center justify-center px-4 mt-8">
                 <Text className="font-ui text-xs text-neutral-on-surface-variant text-center">
-                  Al comenzar aceptas los{' '}
+                  Al comenzar aceptás los{' '}
                 </Text>
                 <TouchableOpacity onPress={() => router.push('/(modals)/terms' as any)}>
                   <Text className="font-uiBold text-xs text-brand-primary">Términos</Text>

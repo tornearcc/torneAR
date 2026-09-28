@@ -246,7 +246,7 @@ export default function TeamManageScreen() {
     const sanitizedZone = editZone.trim();
 
     if (sanitizedName.length < 3) {
-      showAlert('Nombre invalido', 'El nombre del equipo debe tener al menos 3 caracteres.');
+      showAlert('Nombre inválido', 'El nombre del equipo debe tener al menos 3 caracteres.');
       return;
     }
     if (!sanitizedZone) {
@@ -651,7 +651,7 @@ export default function TeamManageScreen() {
     if (!team) return;
     try {
       await Clipboard.setStringAsync(team.invite_code);
-      showAlert('Codigo copiado', 'El codigo de invitacion fue copiado al portapapeles.');
+      showAlert('Código copiado', 'El código de invitación fue copiado al portapapeles.');
     } catch (error) {
       Logger.error('No se pudo copiar el código de invitación', {
         scope: 'team-manage.handleCopyInviteCode',
@@ -669,7 +669,7 @@ export default function TeamManageScreen() {
   if (!team) {
     return (
       <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
-        <SecondaryHeader title="Gestion de equipo" />
+        <SecondaryHeader title="Gestión de equipo" />
         <View className="flex-1 items-center justify-center px-6">
           <Text className="font-display text-xl text-neutral-on-surface">Equipo no disponible</Text>
           <Text className="font-ui mt-2 text-center text-neutral-on-surface-variant">No encontramos informacion para este equipo.</Text>
@@ -683,7 +683,7 @@ export default function TeamManageScreen() {
     // `edges={['bottom']}`: el inset superior ya lo aplica SecondaryHeader.
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
       <SecondaryHeader
-        title="Gestion de equipo"
+        title="Gestión de equipo"
         subtitle="Administracion y estado de tu plantel."
       />
 
@@ -835,7 +835,7 @@ export default function TeamManageScreen() {
                   </View>
                 </TouchableOpacity>
 
-                <Text className="font-display mb-2 mt-4 text-[10px] uppercase tracking-wide text-neutral-on-surface-variant">Categoria</Text>
+                <Text className="font-display mb-2 mt-4 text-[10px] uppercase tracking-wide text-neutral-on-surface-variant">Categoría</Text>
                 <View className="mb-4 flex-row flex-wrap gap-2">
                   {TEAM_CATEGORY_OPTIONS.map((option) => {
                     const active = editCategory === option.value;

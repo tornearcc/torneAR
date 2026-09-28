@@ -299,7 +299,7 @@ export default function LoginScreen() {
 
         <View className="space-y-4 mb-8 gap-4">
           <View>
-            <Text className="font-uiBold mb-2 text-neutral-on-surface">Correo Electronico</Text>
+            <Text className="font-uiBold mb-2 text-neutral-on-surface">Correo Electrónico</Text>
             {/* 4. Usamos Controller para el input */}
             <Controller
               control={control}
