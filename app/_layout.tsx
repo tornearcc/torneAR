@@ -1,9 +1,5 @@
 import '../global.css';
 import { useCallback, useEffect, useState } from 'react';
-import { useFonts } from 'expo-font';
-import { Inter_500Medium, Inter_700Bold, Inter_900Black } from '@expo-google-fonts/inter';
-import { BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold } from '@expo-google-fonts/barlow-condensed';
-import { Epilogue_700Bold } from '@expo-google-fonts/epilogue';
 import { DarkTheme, ThemeProvider, Theme } from "expo-router/react-navigation";
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +14,7 @@ import { LegalVersionGate } from '@/components/LegalVersionGate';
 import { ColdStartPushLinkGate } from '@/components/push/ColdStartPushLinkGate';
 import { Colors } from '@/constants/theme';
 import { useForceUpdate } from '@/hooks/useForceUpdate';
+import { useAppFonts } from '@/hooks/useAppFonts';
 import { isProfileComplete } from '@/lib/auth-utils';
 import { completePasswordRecovery, needsLegalAcceptance } from '@/lib/auth-data';
 import { getRecoveryLinkErrorMessage } from '@/lib/auth-error-messages';
@@ -422,14 +419,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Inter_500Medium,
-    Inter_700Bold,
-    Inter_900Black,
-    BarlowCondensed_700Bold,
-    BarlowCondensed_800ExtraBold,
-    Epilogue_700Bold,
-  });
+  const fontsLoaded = useAppFonts();
 
   // Telemetria: engancha excepciones globales y unhandled rejections a app_logs.
   // Va lo más arriba posible del árbol para cubrir también los errores que
