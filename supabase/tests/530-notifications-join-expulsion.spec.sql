@@ -22,6 +22,16 @@ begin;
 select plan(8);
 
 -- ── Setup como postgres ─────────────────────────────────────────────────────
+-- Grants de producción (relacl verificado el 27/09). Una base nueva de la CLI
+-- actual no los otorga por default (deriva P2-7): sin esto el INSERT muere
+-- con "permission denied" antes de evaluar la policy. Mueren con el rollback.
+grant insert on public.notifications to authenticated;
+grant select on public.team_members, public.profiles, public.team_join_requests,
+  public.challenges, public.matches, public.team_stints,
+  public.market_team_posts, public.market_team_post_applications,
+  public.market_player_posts, public.market_player_post_applications
+  to authenticated;
+
 insert into team_join_requests (id, team_id, profile_id, status) values
   ('7a7a7a7a-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222221',
    'ef88b757-4d4e-48b1-b300-51da1cb2e678', 'ACEPTADA'),
