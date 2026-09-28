@@ -3801,6 +3801,7 @@ export type Database = {
         | "WO_AUTOMATICO"
         | "DISPUTA_RESUELTA"
         | "DENUNCIA_NUEVA"
+        | "ANUNCIO"
       player_position:
         | "CUALQUIERA"
         | "ARQUERO"
@@ -4005,6 +4006,7 @@ export const Constants = {
         "WO_AUTOMATICO",
         "DISPUTA_RESUELTA",
         "DENUNCIA_NUEVA",
+        "ANUNCIO",
       ],
       player_position: [
         "CUALQUIERA",
