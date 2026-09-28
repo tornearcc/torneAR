@@ -31,10 +31,20 @@
 --      push-dispatch no los vuelve a mandar.
 --      Temporal: cuando la app deje de mandar esos pushes (OTA), se borra este
 --      trigger en la misma tanda.
+--   3. GRANT INSERT explícito a authenticated. La app inserta notificaciones
+--      desde el cliente y la policy es la que decide cuáles. En producción el
+--      grant ya existe (viene del default privilege de Supabase: relacl
+--      `authenticated=arwdxtm`, verificado el 27/09), pero una base nueva de
+--      la CLI actual ya no lo otorga solo y la policy nunca llegaba a
+--      evaluarse (deriva de grants entre entornos, registro P2-7). En
+--      producción es un no-op.
 --
--- Idempotente: DROP POLICY IF EXISTS + CREATE, CREATE OR REPLACE y DROP
--- TRIGGER IF EXISTS.
+-- Idempotente: DROP POLICY IF EXISTS + CREATE, CREATE OR REPLACE, DROP
+-- TRIGGER IF EXISTS y GRANT.
 -- ============================================================
+
+-- ─── 0. Grant que la policy necesita ─────────────────────────────────────────
+GRANT INSERT ON public.notifications TO authenticated;
 
 -- ─── 1. Policy de INSERT ─────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "notifications_insert_authenticated" ON public.notifications;
