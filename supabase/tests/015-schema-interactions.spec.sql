@@ -13,8 +13,9 @@
 --   team_join_requests / messages / conversations : DML COMPLETO. Son tablas
 --     de escritura directa del DAL (solicitudes de unión, mensajes, aperturas
 --     de conversación de mercado). SELECT/INSERT/UPDATE/DELETE otorgados
---     explícitamente en 20260722123000; REFERENCES/TRIGGER/TRUNCATE son el
---     baseline de Supabase para authenticated en public.
+--     explícitamente en 20260722123000; REFERENCES/TRIGGER son el
+--     baseline de Supabase para authenticated en public (TRUNCATE se revoca
+--     en todo public desde 20260929020000, P2-7).
 --   match_participants : SÓLO LECTURA a nivel tabla. Sus escrituras van por
 --     grants POR COLUMNA (INSERT de identidad de invitado, UPDATE de check-in)
 --     y por la RPC submit_team_checkin (SECURITY DEFINER) — nada de eso figura
@@ -32,20 +33,20 @@ select plan(4);
 
 -- ── Tablas de comunicación: DML completo (7 privilegios) ────────────────────
 select table_privs_are('public', 'team_join_requests', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'],
+  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','UPDATE'],
   'team_join_requests: authenticated tiene DML completo (SELECT/INSERT/UPDATE/DELETE)');
 select table_privs_are('public', 'messages', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'],
+  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','UPDATE'],
   'messages: authenticated tiene DML completo (SELECT/INSERT/UPDATE/DELETE)');
 select table_privs_are('public', 'conversations', 'authenticated',
-  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'],
+  array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','UPDATE'],
   'conversations: authenticated tiene DML completo (SELECT/INSERT/UPDATE/DELETE)');
 
 -- ── match_participants: SÓLO LECTURA a nivel tabla (DML por columna/RPC) ─────
 -- La ausencia de INSERT/UPDATE/DELETE de tabla es el invariante de seguridad:
 -- la lista masiva sólo entra por submit_team_checkin.
 select table_privs_are('public', 'match_participants', 'authenticated',
-  array['REFERENCES','SELECT','TRIGGER','TRUNCATE'],
+  array['REFERENCES','SELECT','TRIGGER'],
   'match_participants: authenticated es sólo-lectura a nivel tabla (sin INSERT/UPDATE/DELETE de tabla)');
 
 select * from finish();
