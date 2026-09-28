@@ -38,6 +38,35 @@ let inFlight = false;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** Por qué no se pidió la valoración en una oportunidad válida. */
+type ReviewPromptSkipReason = 'app_not_active' | 'store_review_unavailable' | 'gate_denied';
+
+/**
+ * Deja rastro de cada oportunidad que NO terminó en diálogo.
+ *
+ * Al 27/09 `review_prompts` estaba vacía y no se podía saber por qué: el
+ * cliente descartaba en silencio los tres caminos de abajo (tarjeta #75). Con
+ * esto, `app_logs` (event `review_prompt.skipped`) dice cuál corta. Para
+ * `gate_denied` el motivo exacto lo da la RPC en la base (edad de la cuenta,
+ * tope por versión o por año, señales negativas); acá sólo se registra que dijo
+ * que no. Nivel `info`: es un dato de diagnóstico, no un error.
+ */
+function logSkip(
+  reason: ReviewPromptSkipReason,
+  trigger: ReviewPromptTrigger,
+  platform: string,
+  appVersion: string,
+) {
+  Logger.info('Pedido de valoración no mostrado', {
+    scope: 'store-review.runStoreReviewPrompt',
+    event: 'review_prompt.skipped',
+    reason,
+    trigger,
+    platform,
+    appVersion,
+  });
+}
+
 /**
  * Versión awaitable, para los tests. En la app se usa
  * `requestStoreReviewIfEligible`. Nunca tira: un pedido de valoración que falla
@@ -62,12 +91,18 @@ export async function runStoreReviewPrompt(
     // Con la app en segundo plano (el usuario se fue a Instagram) ni iOS ni
     // Play muestran el diálogo. Se mira ANTES de reclamar, porque la RPC gasta
     // el pedido de esta versión aunque el diálogo nunca aparezca.
-    if (AppState.currentState !== 'active') return false;
+    if (AppState.currentState !== 'active') {
+      logSkip('app_not_active', trigger, platform, appVersion);
+      return false;
+    }
 
     // El dispositivo antes que la RPC: la RPC GASTA el pedido de esta versión.
     // En TestFlight `isAvailableAsync` da false, y reclamar ahí quemaría el
     // cupo de la versión sin que nadie viera el diálogo.
-    if (!(await StoreReview.isAvailableAsync())) return false;
+    if (!(await StoreReview.isAvailableAsync())) {
+      logSkip('store_review_unavailable', trigger, platform, appVersion);
+      return false;
+    }
 
     const { data, error } = await supabase.rpc('claim_review_prompt', {
       p_trigger: trigger,
@@ -84,7 +119,10 @@ export async function runStoreReviewPrompt(
       });
       return false;
     }
-    if (data !== true) return false;
+    if (data !== true) {
+      logSkip('gate_denied', trigger, platform, appVersion);
+      return false;
+    }
 
     await StoreReview.requestReview();
 

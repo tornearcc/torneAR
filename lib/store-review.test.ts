@@ -102,6 +102,46 @@ describe('runStoreReviewPrompt', () => {
     expect(rpcMock).toHaveBeenCalledTimes(1);
   });
 
+  describe('diagnóstico: cada oportunidad sin diálogo deja el motivo (tarjeta #75)', () => {
+    const skippedWith = (reason: string) =>
+      expect(loggerMock.info).toHaveBeenCalledWith(
+        'Pedido de valoración no mostrado',
+        expect.objectContaining({
+          event: 'review_prompt.skipped',
+          reason,
+          trigger: 'match_shared',
+          platform: 'ios',
+          appVersion: '1.1.0',
+        }),
+      );
+
+    it('gate en false → gate_denied', async () => {
+      rpcMock.mockResolvedValue({ data: false, error: null });
+      await runStoreReviewPrompt('match_shared', 0);
+      skippedWith('gate_denied');
+    });
+
+    it('sin API de la tienda → store_review_unavailable', async () => {
+      storeReviewMock.isAvailableAsync.mockResolvedValue(false);
+      await runStoreReviewPrompt('match_shared', 0);
+      skippedWith('store_review_unavailable');
+    });
+
+    it('app en segundo plano → app_not_active', async () => {
+      appStateMock.currentState = 'background';
+      await runStoreReviewPrompt('match_shared', 0);
+      skippedWith('app_not_active');
+    });
+
+    it('cuando se pide, no registra un "no mostrado"', async () => {
+      await runStoreReviewPrompt('match_shared', 0);
+      expect(loggerMock.info).not.toHaveBeenCalledWith(
+        'Pedido de valoración no mostrado',
+        expect.anything(),
+      );
+    });
+  });
+
   it('libera el candado al terminar: un disparo posterior vuelve a consultar', async () => {
     rpcMock.mockResolvedValue({ data: false, error: null });
     await runStoreReviewPrompt('match_shared', 0);
