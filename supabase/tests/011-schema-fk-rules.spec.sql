@@ -64,6 +64,10 @@ select set_eq(
       -- borra, sus filas de ranking no le sirven a nadie (a diferencia de
       -- matches/match_results, que le pertenecen también al rival).
       ('team_rankings_team_id_fkey => CASCADE'),
+      -- Las mudanzas de zona (D-55, 20260928240000) sólo sirven para el
+      -- candado del propio equipo: disuelto el equipo, no hay nada que auditar.
+      -- La zona al cierre de cada temporada vive aparte, en season_standings.
+      ('team_zone_changes_team_id_fkey => CASCADE'),
       ('messages_sender_team_id_fkey => SET NULL'),
       ('match_participants_team_id_fkey => NO ACTION'),
       ('match_proposals_from_team_id_fkey => NO ACTION'),
