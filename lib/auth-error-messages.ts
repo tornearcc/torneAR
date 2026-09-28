@@ -155,6 +155,16 @@ export function getGenericSupabaseErrorMessage(
     return 'Elegí un motivo para la denuncia.';
   }
 
+  // D-55: el trigger de teams.zone (20260928240000). Se mapean acá porque la
+  // zona se edita con un UPDATE directo a `teams`, no con una RPC propia.
+  if (msg.includes('zone_locked')) {
+    return 'Tu equipo ya cambió de zona esta temporada. Vas a poder cambiarla de nuevo cuando empiece la próxima.';
+  }
+
+  if (msg.includes('zone_unknown')) {
+    return 'Esa zona no está en la lista. Elegí una de las opciones.';
+  }
+
   return fallback;
 }
 
