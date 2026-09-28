@@ -48,7 +48,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: '¿Los invitados cuentan para el quórum?',
         answer:
-          'Sí. Si completaste el equipo con jugadores que entraron por el código único del partido, cuentan igual: están físicamente en la cancha, que es lo único que el sello afirma.\n\nOjo con la contracara: los invitados NO cuentan al momento de confirmar el partido, porque en ese momento todavía no existen. Un equipo de 6 que habitualmente completa con invitados no va a poder confirmar un Fútbol 11.',
+          'Sí. Si completaste el equipo con jugadores que entraron por el código único del partido, cuentan igual: están físicamente en la cancha, que es lo único que el sello afirma.\n\nY al confirmar el partido también se los tiene en cuenta: como los invitados recién pueden sumarse con el partido confirmado, a cada plantel se le deja un lugar para completar con un invitado. Para un formato que pide 4, alcanza con 3 miembros. Si el día del partido no llegan al quórum, el equipo no se presenta y rige el walkover automático.',
       },
       {
         question: '¿Por qué me pide la ubicación?',
@@ -124,7 +124,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: '¿Por qué no me deja confirmar el partido?',
         answer:
-          'Al confirmar se verifica que los dos planteles lleguen al mínimo de jugadores del formato acordado. Se validan los dos, no sólo el que confirma: el que propuso es justamente quien eligió el formato, y nada garantizaba que pudiera cubrirlo.\n\nLa regla existía desde antes, pero se aplicaba recién en la cancha, dentro de las 2 horas previas. Ahora se avisa cuando todavía se puede corregir.',
+          'Al confirmar se verifica que los dos planteles lleguen al mínimo de jugadores del formato acordado, dejando un lugar para completar con un invitado (para un formato que pide 4, alcanza con 3 miembros). Se validan los dos, no sólo el que confirma: el que propuso es justamente quien eligió el formato, y nada garantizaba que pudiera cubrirlo.\n\nLa regla existía desde antes, pero se aplicaba recién en la cancha, dentro de las 2 horas previas. Ahora se avisa cuando todavía se puede corregir.',
       },
     ],
   },

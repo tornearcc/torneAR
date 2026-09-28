@@ -174,9 +174,12 @@ al mínimo de jugadores del formato acordado. Se valida a los dos, no sólo al q
 confirma: el proponente es justamente quien eligió el formato, y nada garantizaba
 que pudiera cubrirlo.
 
-> ⚠️ Ese conteo mira los **miembros del equipo**. Los invitados que entran con
-> código todavía no existen al momento de confirmar, así que **no cuentan para
-> confirmar** — aunque sí cuentan para el check-in (ver 3.3).
+> Los invitados que entran con el código del partido recién pueden sumarse cuando
+> el partido ya está confirmado. Por eso, al confirmar, a cada plantel se le deja
+> **un lugar para completar con un invitado**: para un formato que pide 4 alcanza
+> con 3 miembros. Ese lugar es ajustable (ver la tabla del punto 10). Si el día
+> del partido el equipo no llega al quórum, no se presenta y rige el walkover
+> automático, como siempre (ver 3.3 y 4.4).
 
 ### 2.4 Equipos mixtos y categorías
 
@@ -229,11 +232,10 @@ Se cierra: 1 hora DESPUÉS del horario pactado
 Fuera de esa ventana el botón no aparece y ves el mensaje *«El check-in se
 habilita 2 horas antes del partido»*.
 
-**Aclaración honesta:** esa ventana la aplica **la app**. El servidor, por su
-lado, sólo exige que el partido esté en estado `CONFIRMADO` o `EN_VIVO`. Es decir:
-la ventana horaria es una regla de la interfaz, no una barrera criptográfica. Lo
-que sí controla el servidor sin excepción son la pertenencia al equipo, el estado
-del partido y la ubicación.
+Desde el 28/09/2026 esa ventana la controla también **el servidor**, con los
+mismos bordes: aunque alguien le hable a la API sin pasar por la app, un check-in
+o una lista fuera de horario se rechaza. Además, el servidor controla sin
+excepción la pertenencia al equipo, el estado del partido y la ubicación.
 
 ### 3.2 Dos hechos distintos: «yo llegué» ≠ «mi equipo se presentó»
 
@@ -518,6 +520,11 @@ una decisión administrativa, no automática**.
 - **El Elo y los partidos jugados de por vida NO se resetean.** El Elo es continuo
   entre temporadas.
 - Los partidos todavía abiertos se traspasan a la temporada nueva.
+- **Un equipo puede cambiar de zona una vez por temporada.** El segundo cambio se
+  rechaza hasta que empiece la próxima. Si un equipo se muda de verdad, un
+  administrador puede hacer una excepción, que queda registrada con su motivo. La
+  regla existe porque la zona de cada equipo queda congelada al cierre de la
+  temporada, y sin límite un equipo podría mudarse a la zona que va ganando.
 
 > **Sobre la vieja reducción semestral de Elo:** durante un tiempo existió una
 > tarea automática (`season_reset_elo`, al 1 de enero y 1 de julio) que achicaba
@@ -819,7 +826,9 @@ creer que no te postulaste.
 
 | Regla | Valor | ¿Ajustable sin actualizar la app? |
 |---|---|:---:|
-| Ventana de check-in | 2 h antes → 1 h después | No (vive en la app) |
+| Ventana de check-in | 2 h antes → 1 h después | No (app y servidor) |
+| Lugares de invitado al confirmar un partido | 1 | ✅ Sí |
+| Cambios de zona de un equipo por temporada | 1 (excepciones sólo de un admin) | No |
 | Radio de la geocerca | **150 m** | ✅ Sí |
 | Precisión mínima del GPS | 100 m | No |
 | Espera máxima del GPS | 15 s | No |
@@ -865,14 +874,9 @@ puntos abiertos conocidos al día de hoy:
    global**, no el del formato. Puede haber diferencias con la tabla de ranking
    hasta que se complete la migración.
 3. **El historial de evolución del Elo no distingue formatos** todavía.
-4. **La ventana horaria del check-in la aplica la app, no el servidor.** El
-   servidor valida pertenencia, estado, quórum y ubicación, pero no la ventana.
-5. **Los invitados no cuentan para confirmar un partido**, aunque sí cuentan para
-   el check-in. Un equipo de 6 que habitualmente completa con invitados no puede
-   confirmar un Fútbol 11.
-6. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
+4. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
    limitación de cobertura, no de diseño, y se resuelve sumando canchas.
-7. **El director técnico no puede escribir en el chat del partido.** Recibió los
+5. **El director técnico no puede escribir en el chat del partido.** Recibió los
    permisos operativos del día del partido, pero las políticas de mensajería
    quedaron fuera de ese cambio y siguen admitiendo sólo a capitán y subcapitán.
    Es una inconsistencia con el resto de sus atribuciones, no una decisión
