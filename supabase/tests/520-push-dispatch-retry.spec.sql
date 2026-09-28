@@ -5,18 +5,18 @@
 --   R-1  send_push_dispatch arma el pedido con timeout de 30 s.
 --   R-2  Ni el helper ni el reintento son ejecutables por anon/authenticated.
 --   R-3  El job retry-pending-pushes existe, corre cada 5 minutos y está activo.
---   R-4  Sin secretos en Vault (base local/CI) el reintento no rompe y no
---        cuenta nada como reenviado, aunque haya filas pendientes.
+--   R-4  El reintento corre sin error.
 --   R-5  Con secretos, reenvía sólo lo que está en la ventana de 2 min a 2 h
 --        y sin pushed_at: ni la recién creada, ni la vieja, ni la ya empujada.
 --   R-6  Deja un warn en app_logs con la cantidad y los ids reenviados.
 --
--- Los secretos de Vault se crean dentro de la transacción y apuntan a un
--- puerto cerrado: pg_net sólo encola el pedido y el rollback lo descarta.
+-- Los secretos de Vault los crea g1_a2 (20260711032948) en cualquier base;
+-- si faltaran, se crean acá. pg_net sólo encola el pedido y el rollback lo
+-- descarta: nada sale de la base de test.
 -- ============================================================
 
 begin;
-select plan(9);
+select plan(8);
 
 -- ── R-1 ─────────────────────────────────────────────────────────────────────
 select ok(
@@ -57,17 +57,7 @@ insert into notifications (id, profile_id, type, title, body, created_at, pushed
   ('5e5e5e5e-0000-0000-0000-000000000004', '33333333-3333-3333-3333-000000000001',
    'TEMPORADA_INICIADA', 'Ya empujada', 'x', now() - interval '10 minutes', now());
 
--- ── R-4: sin secretos ───────────────────────────────────────────────────────
-select lives_ok(
-  $$ select public.retry_pending_pushes() $$,
-  'R-4a: el reintento corre sin error aunque falten los secretos de Vault');
-
-select is(
-  public.retry_pending_pushes(),
-  0,
-  'R-4b: sin secretos no cuenta nada como reenviado');
-
--- ── R-5 / R-6: con secretos ─────────────────────────────────────────────────
+-- ── R-4 / R-5 / R-6 ───────────────────────────────────────────────────────────
 do $$
 begin
   if not exists (select 1 from vault.secrets where name = 'push_dispatch_url') then
@@ -77,6 +67,10 @@ begin
     perform vault.create_secret('pgtap-secret', 'push_dispatch_secret');
   end if;
 end $$;
+
+select lives_ok(
+  $$ select public.retry_pending_pushes(0) $$,
+  'R-4: el reintento corre sin error');
 
 select is(
   public.retry_pending_pushes(),
