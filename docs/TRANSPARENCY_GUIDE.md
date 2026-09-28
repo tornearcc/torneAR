@@ -56,12 +56,13 @@ que contar hasta que se acuerde el día y la hora.
 
 | Falta… | Qué ves |
 |---|---|
-| Más de 24 h | La fecha larga: `vie 8 ago · 21:30` |
+| Más de 24 h | La cuenta regresiva en días, horas y minutos (`DÍAS : HS : MIN`) y, abajo, la fecha larga: `vie 8 ago · 21:30` |
 | 24 h o menos | La cuenta regresiva `HH : MM : SS`, con el borde verde |
 | Ya pasó la hora | «¡Es la hora del partido!» |
 
 El reloj **late cada segundo** dentro de las últimas 24 h y **cada 30 segundos**
-fuera de esa ventana (lo justo para detectar el cruce sin gastar batería). Se
+fuera de esa ventana, donde no muestra segundos (lo justo para que los minutos
+estén al día sin gastar batería). Se
 detiene cuando salís de la pantalla y se re-sincroniza con la hora real cada vez
 que volvés: si dejaste la app en segundo plano tres horas, al volver la cuenta ya
 está corregida, no arranca atrasada.

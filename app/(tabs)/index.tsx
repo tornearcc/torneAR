@@ -28,10 +28,15 @@ import { UpcomingMatchesSection } from '@/components/home/UpcomingMatchesSection
 import { MyTeamsRankingSection } from '@/components/home/MyTeamsRankingSection';
 import { QuickActionsSection } from '@/components/home/QuickActionsSection';
 
-/** Ventana en la que el partido deja de ser "una fecha" y pasa a ser una cuenta regresiva. */
+/**
+ * Ventana de la cuenta regresiva "fina": en las últimas 24 h el reloj muestra
+ * horas, minutos y segundos, con el borde verde. Antes de eso muestra días,
+ * horas y minutos (decisión del 27/09/2026; hasta entonces fuera de la ventana
+ * sólo se veía la fecha).
+ */
 const COUNTDOWN_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-/** Cadencia del reloj: al segundo dentro de la ventana, floja fuera de ella. */
+/** Cadencia del reloj: al segundo dentro de la ventana, cada 30 s fuera (sin segundos en pantalla). */
 const COUNTDOWN_TICK_MS = 1_000;
 const IDLE_TICK_MS = 30_000;
 
@@ -282,6 +287,7 @@ export default function HomeScreen() {
   const targetTs = nextMatch?.scheduledAt ? new Date(nextMatch.scheduledAt).getTime() : null;
   const msLeft = targetTs === null ? null : targetTs - nowTs;
   const isCountingDown = msLeft !== null && msLeft > 0 && msLeft <= COUNTDOWN_WINDOW_MS;
+  const isLongCountdown = msLeft !== null && msLeft > COUNTDOWN_WINDOW_MS;
   const hasStarted = msLeft !== null && msLeft <= 0;
 
   // Un solo `setInterval` para todo: late cada segundo dentro de la ventana de
@@ -305,14 +311,25 @@ export default function HomeScreen() {
     };
   }, [targetTs, isCountingDown, isFocused]);
 
-  const countdown = useMemo(() => {
+  // Más de 24 h: días · horas · minutos. Últimas 24 h: horas · minutos · segundos.
+  const countdownSegments = useMemo(() => {
     const totalSeconds = Math.max(0, Math.floor((msLeft ?? 0) / 1000));
-    return {
-      hours: pad(Math.floor(totalSeconds / 3600)),
-      minutes: pad(Math.floor((totalSeconds % 3600) / 60)),
-      seconds: pad(totalSeconds % 60),
-    };
-  }, [msLeft]);
+    const days = Math.floor(totalSeconds / 86400);
+    const minutes = pad(Math.floor((totalSeconds % 3600) / 60));
+
+    if (isLongCountdown) {
+      return [
+        { value: pad(days), label: days === 1 ? 'Día' : 'Días' },
+        { value: pad(Math.floor((totalSeconds % 86400) / 3600)), label: 'Hs' },
+        { value: minutes, label: 'Min' },
+      ];
+    }
+    return [
+      { value: pad(Math.floor(totalSeconds / 3600)), label: 'Hs' },
+      { value: minutes, label: 'Min' },
+      { value: pad(totalSeconds % 60), label: 'Seg' },
+    ];
+  }, [msLeft, isLongCountdown]);
 
   // ─── TAREA 3 — Guía inicial ────────────────────────────────────────────────
 
@@ -562,20 +579,16 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              {/* Cuenta regresiva (< 24 h) o fecha larga */}
+              {/* Cuenta regresiva: días/horas/minutos antes de las 24 h, horas/minutos/segundos adentro */}
               <View className="border-t border-neutral-outline/20 bg-surface-high/40 px-4 py-3">
-                {isCountingDown ? (
+                {isCountingDown || isLongCountdown ? (
                   <>
                     <Text className="font-ui mb-2 text-center text-[10px] uppercase tracking-wider text-brand-primary">
                       Empieza en
                     </Text>
 
                     <View className="flex-row items-center justify-center gap-1">
-                      {[
-                        { value: countdown.hours, label: 'Hs' },
-                        { value: countdown.minutes, label: 'Min' },
-                        { value: countdown.seconds, label: 'Seg' },
-                      ].map((segment, index) => (
+                      {countdownSegments.map((segment, index) => (
                         <View key={segment.label} className="flex-row items-center gap-1">
                           {index > 0 && (
                             <Text className="font-displayBlack text-lg text-neutral-outline/60">
@@ -595,6 +608,13 @@ export default function HomeScreen() {
                         </View>
                       ))}
                     </View>
+
+                    {/* Con días por delante importa también CUÁNDO es, no sólo cuánto falta. */}
+                    {isLongCountdown && nextMatch.scheduledAt && (
+                      <Text className="font-ui mt-2 text-center text-[12px] text-neutral-on-surface-variant">
+                        {formatMatchDate(nextMatch.scheduledAt)}
+                      </Text>
+                    )}
                   </>
                 ) : hasStarted ? (
                   <Text className="font-uiBold text-center text-[13px] text-brand-primary">
