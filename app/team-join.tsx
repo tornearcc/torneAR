@@ -156,7 +156,7 @@ export default function TeamJoinScreen() {
                 solo tenia el nombre para confirmar que el codigo lo llevo al
                 club correcto, y los nombres se repiten entre zonas. */}
             <View className="flex-row items-center gap-3">
-              <TeamShield shieldUrl={team.shieldUrl} name={team.name} size={52} />
+              <TeamShield shieldUrl={team.shieldUrl} name={team.name} size={52} teamId={team.id} expandable />
               <View className="flex-1">
                 <Text className="font-display text-2xl text-neutral-on-surface" numberOfLines={1}>
                   {team.name}

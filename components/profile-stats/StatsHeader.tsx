@@ -1,6 +1,7 @@
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { Avatar } from '@/components/ui/Avatar';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
 import { formatAge } from '@/lib/age';
 import type { PublicProfileRow } from './types';
 
@@ -21,9 +22,7 @@ type StatsHeaderProps = {
 };
 
 export function StatsHeader({ profile, age, isEmbajador = false }: StatsHeaderProps) {
-  const avatarUrl = profile.avatar_url
-    ? getSupabaseStorageUrl('avatars', profile.avatar_url)
-    : null;
+  const avatarUrl = resolveAvatarUrl(profile.avatar_url);
 
   // `null` cuando el jugador no cargo su fecha de nacimiento: en ese caso no se
   // renderiza el badge en vez de mostrar un "0 años" que parece un dato real.
@@ -37,18 +36,8 @@ export function StatsHeader({ profile, age, isEmbajador = false }: StatsHeaderPr
         }`}
         style={{ height: 128, width: 128 }}
       >
-        {avatarUrl ? (
-          <Image
-            source={{ uri: avatarUrl }}
-            className="rounded-full"
-            style={{ height: '100%', width: '100%' }}
-            resizeMode="cover"
-          />
-        ) : (
-          <View className="h-full w-full items-center justify-center rounded-full bg-surface-high">
-            <AppIcon family="material-community" name="account" size={42} color="#BCCBB9" />
-          </View>
-        )}
+        {/* 112 = 128 − aro (4 × 2) − padding (4 × 2). */}
+        <Avatar uri={avatarUrl} size={112} profileId={profile.id} name={profile.full_name} expandable />
       </View>
 
       <Text className="font-uiBold mt-4 text-3xl text-neutral-on-surface">

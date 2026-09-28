@@ -71,15 +71,20 @@ está corregida, no arranca atrasada.
 
 ### 1.2 El mini-ranking (Top 3)
 
-La tarjeta «Top 3» **no es un ranking global**. Es el podio del **formato
-principal de tu equipo**.
+La tarjeta «Top 3» es el podio de la **categoría de tu equipo** (Hombres,
+Mujeres o Mixto), **sin filtro de zona ni de formato**.
 
 Se arma en dos pasos:
 
 1. Se elige tu equipo de referencia: **el equipo activo** que tenés seleccionado
    y, si no hay ninguno seleccionado, el primero de tu lista.
-2. Se lee el **formato preferido** de ese equipo (Fútbol 5, 7, 11…) y se pide el
-   ranking de **ese formato**, recortado a las tres primeras posiciones.
+2. Se toma la **categoría** de ese equipo y se pide el ranking de esa categoría,
+   recortado a las tres primeras posiciones. Como no hay filtro de formato, cada
+   equipo aparece con el Elo de su **mejor formato** (ver §4.1).
+
+La zona y el formato no se heredan a propósito: con pocos equipos, «mi zona × mi
+formato × mi categoría» suele tener uno o dos equipos, o ninguno, y la tarjeta
+quedaba vacía en el centro de la pantalla principal.
 
 Es exactamente la misma consulta que alimenta la pestaña **Ranking** (`get_team_ranking`),
 así que los números coinciden siempre. Si tu equipo está en el podio, la fila
@@ -89,8 +94,10 @@ aparece resaltada en verde con la etiqueta «Tu equipo».
 
 - Si todavía no tenés equipo, la tarjeta no se muestra (ves la pantalla de
   bienvenida con las opciones de crear o unirte a un equipo).
-- Si nadie jugó todavía ese formato, ves «Todavía no hay equipos rankeados en
-  Fútbol X». No es un error.
+- Si todavía no hay equipos rankeados en tu categoría, ves «Todavía no hay
+  equipos rankeados». No es un error.
+- Si no se puede leer la categoría de tu equipo, la tarjeta muestra el Top 3 sin
+  filtro de categoría en vez de quedar vacía.
 - Si la consulta del ranking falla, **sólo se apaga esa tarjeta**: el resto de la
   Home sigue funcionando normal. Es deliberado.
 
@@ -170,6 +177,40 @@ que pudiera cubrirlo.
 > ⚠️ Ese conteo mira los **miembros del equipo**. Los invitados que entran con
 > código todavía no existen al momento de confirmar, así que **no cuentan para
 > confirmar** — aunque sí cuentan para el check-in (ver 3.3).
+
+### 2.4 Equipos mixtos y categorías
+
+Dos reglas que se activan con aviso previo, cada una con su interruptor en
+`app_settings` (**ajustable**; las dos arrancan apagadas):
+
+1. **Composición de los equipos Mixtos** (`mixed_composition_enforced`). Un
+   equipo de categoría Mixto necesita al menos `2` jugadores de género
+   masculino y `2` de género femenino (`format_rules.mixed_min_per_gender`,
+   por formato). Se controla:
+   - **en el plantel**, al desafiar, al aceptar un desafío y al confirmar la
+     fecha (con el formato acordado);
+   - **entre los titulares**, al presentar la lista;
+   - **entre los presentes**, para dar por presentado al equipo en el check-in:
+     el quórum solo no alcanza. Sin presentación, el walkover automático corre
+     igual que con cualquier equipo que no llegó.
+
+   El género «Otro» cuenta para completar el equipo, **no para los mínimos**
+   (`mixed_composition_x_counts_as_any` = 1 lo convierte en comodín). La regla
+   es sólo para el lado Mixto: en un amistoso Mixto contra un equipo de Hombres
+   se controla únicamente al Mixto. Al activarla corre también sobre los
+   partidos ya abiertos.
+
+2. **Ranking entre la misma categoría** (`ranking_same_category_enforced`). Los
+   partidos de ranking se juegan entre equipos de la misma categoría, al
+   desafiar y al aceptar. Los amistosos siguen libres.
+
+**Privacidad.** El género de cada jugador no se muestra a nadie. Los integrantes
+de un equipo Mixto ven cuántos jugadores de cada género tiene el plantel y
+cuántos faltan (pantalla del equipo); un rival sólo ve si el equipo cumple o no.
+El género se elige una sola vez, al registrarse: para corregirlo hay que
+escribir a soporte (`admin_set_profile_gender` desde el dashboard).
+
+Dónde vive: `20260925160000_mixed_composition.sql`.
 
 ---
 
@@ -336,8 +377,12 @@ por cada formato que juega**.
 - En la pestaña **Ranking** con un formato elegido, ves el Elo ganado en ese
   formato.
 - Sin filtro de formato, cada equipo aparece **una sola vez**, con el Elo de su
-  **formato preferido**. Mezclar Elos de formatos distintos en una misma tabla no
-  significaría nada.
+  **mejor formato**: el formato en el que tiene el Elo más alto, que no tiene por
+  qué ser el que declaró al crearse. Si empata en dos formatos, se toma el más
+  chico (Fútbol 5 antes que Fútbol 7). Un equipo que se anotó como Fútbol 11 pero
+  juega y gana en Fútbol 5 aparece con su Elo de Fútbol 5.
+- Esa es también la posición que queda **congelada al cerrar la temporada**: la
+  tabla que veías el último día es la que se guarda.
 
 > **Nota de transición, dicha claramente:** el día que se activó el Elo por
 > formato, el Elo histórico de cada equipo se atribuyó **entero a su formato

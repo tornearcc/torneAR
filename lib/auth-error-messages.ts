@@ -86,6 +86,31 @@ export function getAuthErrorMessage(error: unknown, mode: 'login' | 'signup' = '
     : 'No se pudo crear la cuenta. Revisa los datos e intentalo otra vez.';
 }
 
+/**
+ * Traduce el fallo del canje del link de recuperación.
+ *
+ * Separado de `getAuthErrorMessage` porque los errores no llegan como códigos
+ * de una excepción sino como texto que Supabase cuelga de la URL de vuelta
+ * (`error_description`), y porque acá el mensaje tiene que terminar SIEMPRE en
+ * una instrucción: quien está leyendo esto se quedó afuera de su cuenta y
+ * necesita saber que el próximo paso es pedir otro mail, no reintentar.
+ */
+export function getRecoveryLinkErrorMessage(error: unknown): string {
+  const msg = normalizeMessage(error);
+
+  if (msg.includes('network request failed') || msg.includes('failed to fetch')) {
+    return 'No hay conexion con el servidor. Verifica internet y volve a abrir el enlace del correo.';
+  }
+
+  // `otp_expired` es el caso dominante: el link dura una hora y es de un solo
+  // uso, asi que tambien cae aca el usuario que lo abrio dos veces.
+  if (msg.includes('expired') || msg.includes('invalid') || msg.includes('access_denied')) {
+    return 'Este enlace ya se uso o expiro. Pedi uno nuevo desde «Olvide mi contrasena».';
+  }
+
+  return 'No pudimos validar el enlace. Pedi uno nuevo desde «Olvide mi contrasena».';
+}
+
 export function getGenericSupabaseErrorMessage(
   error: unknown,
   fallback = 'No se pudo completar la operacion. Intentalo nuevamente.'
@@ -104,6 +129,30 @@ export function getGenericSupabaseErrorMessage(
 
   if (msg.includes('permission denied') || msg.includes('row-level security')) {
     return 'No tienes permisos para realizar esta accion.';
+  }
+
+  // Códigos que levantan las RPCs de moderación (submit_content_report,
+  // block_user) y los triggers de bloqueo. Se mapean acá y no en cada pantalla
+  // porque son los mismos tres mensajes en las cinco superficies donde se puede
+  // denunciar o bloquear. Sin esto el usuario ve el texto crudo de Postgres.
+  if (msg.includes('content_blocked')) {
+    return 'Ese texto tiene lenguaje que no permitimos. Editalo y volvé a intentar.';
+  }
+
+  if (msg.includes('user_blocked')) {
+    return 'No podés interactuar con este usuario porque hay un bloqueo entre ustedes.';
+  }
+
+  if (msg.includes('entity_not_found')) {
+    return 'Ese contenido ya no está disponible.';
+  }
+
+  if (msg.includes('invalid_target')) {
+    return 'No podés hacer eso sobre tu propio contenido.';
+  }
+
+  if (msg.includes('invalid_reason')) {
+    return 'Elegí un motivo para la denuncia.';
   }
 
   return fallback;

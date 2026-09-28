@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
+import { getMixedCompositionErrorMessage } from '@/lib/mixed-composition';
+import { fetchMixedCompositionStatus } from '@/lib/mixed-composition-data';
 import type { Database } from '@/types/supabase';
 import type {
   CheckinViewData,
@@ -34,6 +36,9 @@ export const CHECKIN_ERROR_CODES = [
   // coords deja de ser opcional. Antes, omitirlas salteaba el geofence entero.
   'LOCATION_REQUIRED',
   'VENUE_REQUIRED',
+  // F3 (20260925160000): los titulares de un equipo MIXTO no cumplen la
+  // composición. El detalle dice cuántos faltan y se conserva.
+  'MIXED_COMPOSITION',
 ] as const;
 
 export type CheckinErrorCode = (typeof CHECKIN_ERROR_CODES)[number];
@@ -62,6 +67,8 @@ const CHECKIN_ERROR_MESSAGES: Record<CheckinErrorCode, string> = {
     'Este partido se juega en un complejo registrado: necesitamos tu ubicación para confirmar que estás ahí.',
   VENUE_REQUIRED:
     'Los partidos de ranking necesitan una cancha del catálogo. Acordá el complejo con el rival antes de confirmar.',
+  // No se usa: el detalle del servidor dice cuántos faltan (getCheckinErrorMessage).
+  MIXED_COMPOSITION: 'Los titulares no cumplen la composición mínima de un equipo mixto.',
 };
 
 export class CheckinError extends Error {
@@ -89,6 +96,9 @@ function parseCheckinErrorCode(error: unknown): CheckinErrorCode | null {
 export function getCheckinErrorMessage(error: unknown): string {
   if (error instanceof CheckinError) return error.message;
   const code = parseCheckinErrorCode(error);
+  if (code === 'MIXED_COMPOSITION') {
+    return getMixedCompositionErrorMessage(String((error as { message?: unknown }).message ?? ''));
+  }
   return code ? CHECKIN_ERROR_MESSAGES[code] : getGenericSupabaseErrorMessage(error);
 }
 
@@ -150,7 +160,7 @@ export async function fetchCheckinViewData(
     throw new CheckinError('FORMAT_NOT_SET', CHECKIN_ERROR_MESSAGES.FORMAT_NOT_SET);
   }
 
-  const [rules, membersRes, participantsRes] = await Promise.all([
+  const [rules, membersRes, participantsRes, mixedStatus] = await Promise.all([
     fetchFormatRules(match.format),
     supabase
       .from('team_members')
@@ -161,6 +171,7 @@ export async function fetchCheckinViewData(
       .select('profile_id, is_guest, lineup_role, profiles(full_name, username, avatar_url)')
       .eq('match_id', matchId)
       .eq('team_id', teamId),
+    fetchMixedCompositionStatus(teamId, match.format),
   ]);
   if (membersRes.error) throw membersRes.error;
   if (participantsRes.error) throw participantsRes.error;
@@ -209,6 +220,10 @@ export async function fetchCheckinViewData(
     myTeamCheckinAt: isMyTeamA ? match.checkin_team_a_at : match.checkin_team_b_at,
     rules,
     roster,
+    mixedMinPerGender:
+      mixedStatus?.applies && mixedStatus.enforced && mixedStatus.counts
+        ? mixedStatus.counts.minPerGender
+        : null,
   };
 }
 

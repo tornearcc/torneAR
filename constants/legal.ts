@@ -1,4 +1,5 @@
 import { Linking } from 'react-native';
+import { router } from 'expo-router';
 import { Logger } from '@/lib/logger';
 import { TERMS_LAST_UPDATED } from '@/components/legal/termsContent';
 import { PRIVACY_LAST_UPDATED } from '@/components/legal/privacyContent';
@@ -6,7 +7,7 @@ import { PRIVACY_LAST_UPDATED } from '@/components/legal/privacyContent';
 /**
  * Destinos de los documentos legales.
  *
- * Modo activo: `'external'`. `tornear.app/legal/tyc` y `/legal/privacidad`
+ * Modo activo: `'external'`. `tornear.vercel.app/legal/tyc` y `/legal/privacidad`
  * ya están publicados (torneAR/dashboard, Hito 1) con el mismo texto
  * versionado que `components/legal/` — dejaron de ser un placeholder.
  *
@@ -18,8 +19,8 @@ import { PRIVACY_LAST_UPDATED } from '@/components/legal/privacyContent';
 export const LEGAL_LINK_MODE: 'external' | 'in-app' = 'external';
 
 export const LEGAL_URLS = {
-  terms: 'https://tornear.app/legal/tyc',
-  privacy: 'https://tornear.app/legal/privacidad',
+  terms: 'https://tornear.vercel.app/legal/tyc',
+  privacy: 'https://tornear.vercel.app/legal/privacidad',
 } as const;
 
 /** Rutas equivalentes dentro de la app, ya implementadas y con contenido real. */
@@ -60,4 +61,22 @@ export async function openLegalDocument(doc: LegalDocument): Promise<void> {
       error,
     });
   }
+}
+
+/**
+ * Versión para `onPress`: resuelve el destino por `LEGAL_LINK_MODE` y no
+ * devuelve promesa.
+ *
+ * Vive acá y no en cada componente porque ya son tres las superficies que
+ * linkean a los documentos —el checkbox de consentimiento, el aviso legal del
+ * login y el gate de re-aceptación— y la elección entre la ruta in-app y la URL
+ * externa tiene que ser una sola. Cuando cada pantalla hacía su propio `if`,
+ * cambiar el modo obligaba a acordarse de todas.
+ */
+export function openLegal(doc: LegalDocument): void {
+  if (LEGAL_LINK_MODE === 'in-app') {
+    router.push(LEGAL_ROUTES[doc] as never);
+    return;
+  }
+  void openLegalDocument(doc);
 }

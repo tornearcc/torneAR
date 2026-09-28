@@ -68,7 +68,12 @@ export function HomeOnboardingState({
           className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary py-4"
         >
           <AppIcon family="material-community" name="shield-plus" size={20} color="#0E0E0E" />
-          <Text className="font-uiBold text-base text-surface-lowest">Crear un Equipo Nuevo</Text>
+          <Text
+            style={{ includeFontPadding: false }}
+            className="font-uiBold text-base text-surface-lowest pr-1"
+          >
+            Crear un Equipo Nuevo{" "}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -77,7 +82,12 @@ export function HomeOnboardingState({
           className="flex-row items-center justify-center gap-2 rounded-2xl border border-brand-primary py-4"
         >
           <AppIcon family="material-community" name="key-variant" size={20} color="#53E076" />
-          <Text className="font-uiBold text-base text-brand-primary">Unirse con Código</Text>
+          <Text
+            style={{ includeFontPadding: false }}
+            className="font-uiBold text-base text-brand-primary pr-1"
+          >
+            Unirse con Código{" "}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -86,8 +96,11 @@ export function HomeOnboardingState({
           className="flex-row items-center justify-center gap-2 rounded-2xl bg-surface-container py-4"
         >
           <AppIcon family="material-community" name="store-search" size={20} color="#BCCBB9" />
-          <Text className="font-uiBold text-base text-neutral-on-surface-variant">
-            Buscar Equipo en el Mercado
+          <Text
+            style={{ includeFontPadding: false }}
+            className="font-uiBold text-base text-neutral-on-surface-variant pr-1"
+          >
+            Buscar Equipo en el Mercado{" "}
           </Text>
         </TouchableOpacity>
       </View>

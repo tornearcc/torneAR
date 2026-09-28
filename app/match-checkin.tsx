@@ -202,6 +202,19 @@ export default function MatchCheckinScreen() {
           substitutes={substitutes}
         />
 
+        {viewData.mixedMinPerGender !== null && (
+          // F3: la app no sabe el género de cada jugador, así que no puede
+          // validar la composición mientras se arma la lista: la enuncia, y si
+          // no se cumple el servidor responde cuántos faltan.
+          <View className="mb-3 flex-row items-start gap-2 rounded-xl bg-surface-low p-3">
+            <AppIcon family="material-community" name="gender-male-female" size={18} color="#FABD32" />
+            <Text className="font-ui flex-1 text-xs text-neutral-on-surface-variant">
+              Equipo mixto: entre los titulares tiene que haber al menos {viewData.mixedMinPerGender} de
+              género masculino y {viewData.mixedMinPerGender} de género femenino.
+            </Text>
+          </View>
+        )}
+
         {alreadySubmitted && (
           <View className="mb-3 flex-row items-center gap-2 rounded-xl bg-info-secondary/10 px-4 py-3">
             <AppIcon family="material-community" name="information" size={16} color="#8CCDFF" />

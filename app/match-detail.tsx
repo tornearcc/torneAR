@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useTeamStore } from '@/stores/teamStore';
@@ -12,6 +12,8 @@ import type { DisputeState } from '@/lib/match-detail-data';
 // real en vez del mensaje genérico de Supabase.
 import { getCheckinErrorMessage, fetchFormatRules } from '@/lib/checkin-data';
 import { getCheckinLocation } from '@/lib/checkin-location';
+import { describeCompositionMissing } from '@/lib/mixed-composition';
+import { fetchMixedCompositionStatus } from '@/lib/mixed-composition-data';
 import * as Clipboard from 'expo-clipboard';
 import {
   submitProposal,
@@ -34,6 +36,7 @@ import {
   isGuestCodeExpired,
 } from '@/lib/guest-code';
 import { Logger } from '@/lib/logger';
+import { requestStoreReviewIfEligible } from '@/lib/store-review';
 import { useMatchRealtime } from '@/hooks/useMatchRealtime';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
@@ -83,13 +86,19 @@ export default function MatchDetailScreen() {
   const [showWoModal, setShowWoModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
+  // Se extrae el id antes de los callbacks: con `profile?.id` directo en el
+  // array de deps, el React Compiler infiere `profile` entero como dependencia
+  // —menos específica que la declarada— y desactiva la memoización de la
+  // pantalla. Con la variable, lo inferido y lo declarado coinciden.
+  const profileId = profile?.id ?? null;
+
   useEffect(() => {
-    if (!matchId || !profile?.id) return;
+    if (!matchId || !profileId) return;
     let cancelled = false;
 
     void (async () => {
       try {
-        const resolved = await resolveMyTeamIdForMatch(matchId, profile.id, paramTeamId, activeTeamId);
+        const resolved = await resolveMyTeamIdForMatch(matchId, profileId, paramTeamId, activeTeamId);
         if (!cancelled) setMyTeamId(resolved ?? '');
       } catch (err) {
         // Sin equipo resuelto la pantalla muestra "Partido no encontrado". Es
@@ -98,7 +107,7 @@ export default function MatchDetailScreen() {
         Logger.error('No se pudo resolver el equipo del usuario en el partido', {
           scope: 'match-detail.resolveTeam',
           matchId,
-          profileId: profile.id,
+          profileId,
           error: err,
         });
         if (!cancelled) setMyTeamId('');
@@ -108,27 +117,37 @@ export default function MatchDetailScreen() {
     })();
 
     return () => { cancelled = true; };
-  }, [matchId, profile?.id, paramTeamId, activeTeamId]);
+  }, [matchId, profileId, paramTeamId, activeTeamId]);
 
-  const loadData = useCallback(async () => {
+  // Instante contra el que se mide la ventana de 24 h para cancelar. Se sella
+  // con cada carga —la pantalla recarga al tomar foco— en lugar de leer el
+  // reloj durante el render, que es impuro y devolvería un valor distinto en
+  // cada render sin que nada haya cambiado.
+  const [loadedAtTs, setLoadedAtTs] = useState(() => Date.now());
+
+  // Devuelve el partido recién cargado (o null) para que quien acaba de mutar
+  // pueda mirar el estado nuevo sin esperar al re-render.
+  const loadData = useCallback(async (): Promise<MatchDetailViewData | null> => {
     // Mientras no sepamos con qué equipo mira el usuario, no se consulta: pedir
     // el detalle con un teamId equivocado devuelve un partido equivocado.
-    if (!matchId || !teamResolved) return;
+    if (!matchId || !teamResolved) return null;
     if (!myTeamId) {
       setMatch(null);
       setLoading(false);
-      return;
+      return null;
     }
     try {
       setLoading(true);
       const data = await fetchMatchDetailViewData(matchId, myTeamId);
       setMatch(data);
-      if (data.status === 'EN_DISPUTA' && profile?.id) {
-        const dispute = await fetchDisputeState(matchId, profile.id, data.teamA.id, data.teamB.id);
+      setLoadedAtTs(Date.now());
+      if (data.status === 'EN_DISPUTA' && profileId) {
+        const dispute = await fetchDisputeState(matchId, profileId, data.teamA.id, data.teamB.id);
         setDisputeState(dispute);
       } else {
         setDisputeState(null);
       }
+      return data;
     } catch (err) {
       Logger.error('No se pudo cargar el detalle del partido', {
         scope: 'match-detail.loadData',
@@ -137,10 +156,11 @@ export default function MatchDetailScreen() {
         error: err,
       });
       showAlert('Error', getGenericSupabaseErrorMessage(err));
+      return null;
     } finally {
       setLoading(false);
     }
-  }, [matchId, myTeamId, teamResolved, profile?.id, showAlert]);
+  }, [matchId, myTeamId, teamResolved, profileId, showAlert]);
 
   useFocusEffect(useCallback(() => { void loadData(); }, [loadData]));
 
@@ -148,17 +168,22 @@ export default function MatchDetailScreen() {
   // misma tabla que usan submit_team_checkin y confirm_match_proposal. No se
   // hardcodea un mapa por formato acá: sería una cuarta fuente de verdad del
   // mismo número, y el catálogo es configurable sin desplegar.
-  const [minPlayersToStart, setMinPlayersToStart] = useState<number | null>(null);
+  // Se guarda el formato junto al número: así `minPlayersToStart` se deriva en
+  // el render (null mientras no haya formato o mientras la regla del formato
+  // actual todavía no llegó) en vez de limpiarse a mano desde el efecto.
+  const [formatRules, setFormatRules] = useState<{ format: string; minPlayersToStart: number } | null>(
+    null,
+  );
+  const format = match?.format ?? null;
+  const minPlayersToStart = formatRules?.format === format ? formatRules.minPlayersToStart : null;
 
   useEffect(() => {
-    const format = match?.format;
-    if (!format) {
-      setMinPlayersToStart(null);
-      return;
-    }
+    if (!format) return;
     let cancelled = false;
     void fetchFormatRules(format)
-      .then((rules) => { if (!cancelled) setMinPlayersToStart(rules.minPlayersToStart); })
+      .then((rules) => {
+        if (!cancelled) setFormatRules({ format, minPlayersToStart: rules.minPlayersToStart });
+      })
       .catch((err: unknown) => {
         // No crítico: sin el número la sección muestra "N llegaron" en vez de
         // "N/M". El check-in sigue funcionando — el quórum lo aplica el servidor.
@@ -170,7 +195,32 @@ export default function MatchDetailScreen() {
         });
       });
     return () => { cancelled = true; };
-  }, [match?.format, matchId]);
+  }, [format, matchId]);
+
+  // F3: si mi equipo es MIXTO y la regla ya se exige, el sello del check-in
+  // además pide la composición entre los presentes. Mismo patrón que las
+  // reglas del formato: se guarda con su clave y se deriva en el render. Sin
+  // el dato, la sección no muestra el aviso; la regla la aplica el servidor.
+  const [mixedRule, setMixedRule] = useState<{ key: string; minPerGender: number | null } | null>(
+    null,
+  );
+  const matchStatus = match?.status ?? null;
+  // Sólo CONFIRMADO: es el único estado con la sección de check-in (EN_VIVO
+  // ya implica los dos equipos presentados).
+  const needsMixedRule = !!myTeamId && !!format && matchStatus === 'CONFIRMADO';
+  const mixedRuleKey = `${myTeamId}|${format}`;
+  const mixedMinPerGender = mixedRule?.key === mixedRuleKey ? mixedRule.minPerGender : null;
+
+  useEffect(() => {
+    if (!needsMixedRule || !format) return;
+    let cancelled = false;
+    void fetchMixedCompositionStatus(myTeamId, format).then((status) => {
+      if (cancelled) return;
+      const applies = !!status?.applies && status.enforced && status.counts !== null;
+      setMixedRule({ key: `${myTeamId}|${format}`, minPerGender: applies ? status!.counts!.minPerGender : null });
+    });
+    return () => { cancelled = true; };
+  }, [needsMixedRule, myTeamId, format]);
 
   // Realtime: cuando el rival carga su resultado, el partido pasa a FINALIZADO
   // o EN_DISPUTA y esta pantalla se entera sin salir y volver a entrar.
@@ -184,14 +234,16 @@ export default function MatchDetailScreen() {
   // reabría solo, tapando el alert de «Propuesta enviada» —que vive en esta
   // pantalla y queda DETRÁS del <Modal> nativo—, y había que cerrarlo a mano
   // para verlo (auditoría E2E, módulo 5).
-  const autoOpenConsumedRef = useRef(false);
-  useEffect(() => {
-    if (loading || !match || autoOpenConsumedRef.current) return;
-
-    autoOpenConsumedRef.current = true;
+  // Se resuelve durante el render y no en un efecto: el sheet se abre en el
+  // mismo commit en que aparecen los datos, sin un frame intermedio con la
+  // pantalla ya cargada y el modal todavía cerrado. El flag va en estado —y no
+  // en una ref— porque se lee durante el render.
+  const [autoOpenConsumed, setAutoOpenConsumed] = useState(false);
+  if (!loading && match && !autoOpenConsumed) {
+    setAutoOpenConsumed(true);
     if (openProposalModal === 'true') setShowProposalModal(true);
     if (openResultModal === 'true') setShowResultModal(true);
-  }, [loading, match, openProposalModal, openResultModal]);
+  }
 
   // ─── Patrón de resincronización ────────────────────────────────────────────
   // `await loadData()` va SIEMPRE antes del alert, nunca en su callback de
@@ -330,10 +382,21 @@ export default function MatchDetailScreen() {
         showAlert('¡Check-in realizado!', 'Marcaste tu llegada. Tu equipo ya estaba presentado.');
       } else {
         const missing = Math.max(result.minPlayers - result.checkedInPlayers, 0);
+        // F3: en un equipo MIXTO el quórum solo no alcanza; el servidor dice
+        // cuántos faltan de cada género entre los presentes.
+        const composition = result.compositionOk
+          ? ''
+          : describeCompositionMissing(result.compositionMissing ?? { male: 0, female: 0, total: 0 });
+        const pending = [
+          missing > 0 ? `Faltan ${missing} compañero(s) para dar por presentado al equipo.` : '',
+          composition
+            ? `Para presentar a un equipo mixto, entre los presentes ${composition}.`
+            : '',
+        ].filter(Boolean);
         showAlert(
           '¡Check-in realizado!',
           `Marcaste tu llegada (${result.checkedInPlayers}/${result.minPlayers}). ` +
-            `Faltan ${missing} compañero(s) para dar por presentado al equipo.`,
+            (pending.length > 0 ? pending.join(' ') : 'Tu equipo todavía no está presentado.'),
         );
       }
     } catch (err) {
@@ -378,7 +441,7 @@ export default function MatchDetailScreen() {
 
   function isLateForCancellation(): boolean {
     if (!match?.scheduledAt) return false;
-    const diff = new Date(match.scheduledAt).getTime() - Date.now();
+    const diff = new Date(match.scheduledAt).getTime() - loadedAtTs;
     return diff < 24 * 60 * 60 * 1000;
   }
 
@@ -625,6 +688,7 @@ export default function MatchDetailScreen() {
               onCheckin={() => void handleCheckin()}
               myProfileId={profile?.id ?? null}
               minPlayers={minPlayersToStart}
+              mixedMinPerGender={mixedMinPerGender}
               onOpenSquadList={
                 isMatchStaff
                   ? () =>
@@ -799,8 +863,17 @@ export default function MatchDetailScreen() {
             // callback del alert, así que la pantalla mostraba el estado viejo
             // hasta que el usuario cerraba el mensaje: ésa era la ventana en la
             // que el botón seguía habilitado y se podía reenviar.
-            await loadData();
-            showAlert('Resultado cargado', 'Tu resultado fue enviado.');
+            const refreshed = await loadData();
+            // Pedido de valoración (D-50) sólo si esta carga CERRÓ el partido:
+            // los dos resultados coinciden. Con EN_DISPUTA, o si el rival
+            // todavía no cargó, no. Se pide al cerrar el alert, para no montar
+            // el diálogo nativo encima de él.
+            const closedMatch = refreshed?.status === 'FINALIZADO';
+            showAlert(
+              'Resultado cargado',
+              'Tu resultado fue enviado.',
+              closedMatch ? () => requestStoreReviewIfEligible('result_confirmed') : undefined,
+            );
           } catch (err) {
             // Pase lo que pase, resincronizamos: si falló por duplicado, el
             // estado real ya cambió y la UI tiene que reflejarlo.
@@ -883,7 +956,6 @@ export default function MatchDetailScreen() {
           onClose={() => setShowReportModal(false)}
           entityType="MATCH"
           entityId={match.id}
-          reporterId={profile.id}
         />
       )}
 

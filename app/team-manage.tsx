@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from 'react';
-import { ActivityIndicator, FlatList, Modal, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Share, ScrollView } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Share, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { Logger } from '@/lib/logger';
+import { shareActivityType, trackShareIntent } from '@/lib/share-analytics';
 import { supabase } from '@/lib/supabase';
 import { TEAM_CATEGORY_OPTIONS, TEAM_FORMAT_OPTIONS, getTeamRoleLabel, TeamCategory, TeamFormat, TeamRole } from '@/lib/team-options';
 import { allowedRolesToAssign, canManageMember } from '@/lib/team-helpers';
@@ -22,6 +23,7 @@ import { TeamManageHeader } from '@/components/team-manage/TeamManageHeader';
 import { TeamManagePendingRequests } from '@/components/team-manage/TeamManagePendingRequests';
 import { TeamManageHistoryRequests } from '@/components/team-manage/TeamManageHistoryRequests';
 import { TeamMembersList } from '@/components/team-manage/TeamMembersList';
+import { MixedCompositionCard } from '@/components/team-manage/MixedCompositionCard';
 import { TeamManageViewData, TeamMemberRow, TeamJoinRequestRow } from '@/components/team-manage/types';
 import {
   fetchTeamManageViewData,
@@ -57,6 +59,7 @@ export default function TeamManageScreen() {
   const [viewData, setViewData] = useState<TeamManageViewData | null>(null);
 
   const team = viewData?.team ?? null;
+  const mixedComposition = viewData?.mixedComposition ?? null;
   const members = useMemo(() => viewData?.members ?? [], [viewData?.members]);
   const pendingRequests = useMemo(() => viewData?.pendingRequests ?? [], [viewData?.pendingRequests]);
   const historyRequests = useMemo(() => viewData?.historyRequests ?? [], [viewData?.historyRequests]);
@@ -108,6 +111,14 @@ export default function TeamManageScreen() {
     return members.filter((member) => member.profile_id !== profile.id);
   }, [members, profile]);
 
+  // Se extraen los valores antes de los callbacks: con `team?.zone` o
+  // `profile?.id` directo en el array de deps, el React Compiler infiere el
+  // objeto entero (`team`, `profile`) como dependencia —menos específica que
+  // la declarada— y desactiva la memoización de la pantalla. Con las
+  // variables, lo inferido y lo declarado coinciden.
+  const teamZone = team?.zone ?? null;
+  const profileId = profile?.id;
+
   const loadZoneOptions = useCallback(async () => {
     try {
       setLoadingZones(true);
@@ -124,30 +135,30 @@ export default function TeamManageScreen() {
       // nadie: el usuario cree que no hay más zonas disponibles.
       Logger.warn('No se pudieron cargar las zonas; se usa la zona actual como único fallback', {
         scope: 'team-manage.loadZoneOptions',
-        fallbackZone: editZone ?? team?.zone ?? null,
+        fallbackZone: editZone ?? teamZone,
         error,
       });
-      setZones(editZone ? [editZone] : team?.zone ? [team.zone] : []);
+      setZones(editZone ? [editZone] : teamZone ? [teamZone] : []);
     } finally {
       setLoadingZones(false);
     }
-  }, [editZone, team?.zone]);
+  }, [editZone, teamZone]);
 
   const loadTeamData = useCallback(async () => {
     if (!teamId) return;
     try {
-      const data = await fetchTeamManageViewData(teamId, profile?.id);
+      const data = await fetchTeamManageViewData(teamId, profileId);
       setViewData(data);
     } catch (error) {
       Logger.error('No se pudo cargar la gestión del equipo', {
         scope: 'team-manage.loadTeamData',
         teamId,
-        profileId: profile?.id,
+        profileId,
         error,
       });
       showAlert('Error al cargar equipo', getGenericSupabaseErrorMessage(error, 'No se pudo cargar la gestion del equipo.'));
     }
-  }, [teamId, profile?.id, showAlert]);
+  }, [teamId, profileId, showAlert]);
 
   useFocusEffect(
     useCallback(() => {
@@ -608,8 +619,10 @@ export default function TeamManageScreen() {
 
   const handleShareInvite = async () => {
     if (!team) return;
+    let activityType: string | undefined;
     try {
-      await Share.share({ message: `Unite a ${team.name} en TorneAR\nCodigo de invitacion: ${team.invite_code}` });
+      const result = await Share.share({ message: `Unite a ${team.name} en TorneAR\nCodigo de invitacion: ${team.invite_code}` });
+      activityType = shareActivityType(result);
     } catch (error) {
       Logger.error('No se pudo compartir la invitación del equipo', {
         scope: 'team-manage.handleShareInvite',
@@ -617,6 +630,20 @@ export default function TeamManageScreen() {
         error,
       });
       showAlert('No se pudo compartir', getGenericSupabaseErrorMessage(error, 'Intenta nuevamente en unos segundos.'));
+    } finally {
+      // Al cerrarse la hoja y no antes: es cuando iOS informa el destino. Mismo
+      // criterio que ProfileInviteCard (ver lib/share-analytics.ts).
+      //
+      // Sin `?n=`: este mensaje no lleva link. No existe una página web de
+      // invitación a un equipo — el código se canjea adentro de la app, en
+      // "Unirme a un equipo" — así que no hay landing que pueda mostrar el nombre.
+      trackShareIntent({
+        target: 'generic',
+        contentType: 'team_invite',
+        profileId: profile?.id ?? null,
+        teamId: team.id,
+        activityType,
+      });
     }
   };
 
@@ -685,6 +712,8 @@ export default function TeamManageScreen() {
             </View>
           </View>
         )}
+
+        {mixedComposition && <MixedCompositionCard status={mixedComposition} />}
 
         {/* El Plantel va PRIMERO y las solicitudes debajo. Al reves, un capitan
             con solicitudes pendientes tenia que scrollear por encima de ellas
@@ -767,8 +796,21 @@ export default function TeamManageScreen() {
 
       {/* MODALS */}
       <Modal transparent animationType="fade" visible={showEditTeamModal} onRequestClose={() => setShowEditTeamModal(false)}>
+        {/* KeyboardAvoidingView y no View: la card está centrada y tiene el campo
+            de nombre, así que en iPhone el teclado la tapaba. El KAV tiene que
+            estar DENTRO del <Modal>: la ventana nativa que crea iOS ignora
+            cualquiera que viva en la pantalla padre.
+
+            `enabled` sólo en iOS. En Android la Activity ya redimensiona sola,
+            así que el KAV queda como un View de paso y el modal se comporta
+            exactamente igual que antes de este arreglo. Los otros modales de
+            esta pantalla no necesitan nada: ninguno tiene campos de texto. */}
         <TouchableWithoutFeedback onPress={() => setShowEditTeamModal(false)}>
-          <View className="flex-1 items-center justify-center bg-black/80 px-6">
+          <KeyboardAvoidingView
+            behavior="padding"
+            enabled={Platform.OS === 'ios'}
+            className="flex-1 items-center justify-center bg-black/80 px-6"
+          >
             <TouchableWithoutFeedback>
               <View className="w-full max-w-sm rounded-2xl border border-neutral-outline-variant/15 bg-surface-high p-5">
                 <Text className="font-display mb-4 text-lg text-neutral-on-surface">Editar equipo</Text>
@@ -842,7 +884,7 @@ export default function TeamManageScreen() {
                 </View>
               </View>
             </TouchableWithoutFeedback>
-          </View>
+          </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
 

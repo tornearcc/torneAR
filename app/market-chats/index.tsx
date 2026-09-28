@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { GlobalLoader } from '@/components/GlobalLoader';
@@ -117,14 +118,24 @@ export default function MarketInboxScreen() {
         onPress={() => router.push(`/market-chats/${item.id}` as any)}
         activeOpacity={0.7}
       >
-        {/* Usamos style explícito para garantizar las dimensiones y borderRadius */}
+        {/* Usamos style explícito para garantizar las dimensiones y borderRadius.
+            La foto (jugador o escudo, según el lado) abre el visor; el resto de
+            la fila, el chat. */}
         {avatar ? (
-          <Image
-            source={{ uri: avatar }}
-            className="shrink-0 bg-surface-high"
-            style={{ width: 48, height: 48, borderRadius: 24 }}
-            contentFit="cover"
-          />
+          <ExpandablePhoto
+            uri={avatar}
+            subject={asCaptain
+              ? { kind: 'avatar', profileId: item.player_id }
+              : { kind: 'shield', teamId: item.team_id }}
+            title={title}
+          >
+            <Image
+              source={{ uri: avatar }}
+              className="shrink-0 bg-surface-high"
+              style={{ width: 48, height: 48, borderRadius: 24 }}
+              contentFit="cover"
+            />
+          </ExpandablePhoto>
         ) : (
           <View 
             className="shrink-0 bg-surface-high items-center justify-center"

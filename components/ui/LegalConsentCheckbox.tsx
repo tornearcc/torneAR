@@ -1,13 +1,7 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
 import { AppIcon } from '@/components/ui/AppIcon';
-import {
-  LEGAL_LINK_MODE,
-  LEGAL_ROUTES,
-  openLegalDocument,
-  type LegalDocument,
-} from '@/constants/legal';
+import { openLegal } from '@/constants/legal';
 
 interface Props {
   checked: boolean;
@@ -27,14 +21,6 @@ interface Props {
  * que caer, en cualquier ancho de pantalla.
  */
 export function LegalConsentCheckbox({ checked, onToggle, disabled = false }: Props) {
-  const openDoc = (doc: LegalDocument) => {
-    if (LEGAL_LINK_MODE === 'in-app') {
-      router.push(LEGAL_ROUTES[doc] as never);
-      return;
-    }
-    void openLegalDocument(doc);
-  };
-
   return (
     <View className={`mb-6 flex-row items-start gap-3 ${disabled ? 'opacity-60' : ''}`}>
       {/* La caja es su propio Touchable: tocar el texto NO debe alternar el
@@ -58,7 +44,7 @@ export function LegalConsentCheckbox({ checked, onToggle, disabled = false }: Pr
       <Text className="font-ui flex-1 text-xs leading-5 text-neutral-on-surface-variant">
         He leído y acepto los{' '}
         <Text
-          onPress={() => openDoc('terms')}
+          onPress={() => openLegal('terms')}
           suppressHighlighting
           className="font-uiBold text-brand-primary underline"
         >
@@ -66,7 +52,7 @@ export function LegalConsentCheckbox({ checked, onToggle, disabled = false }: Pr
         </Text>
         {' '}y la{' '}
         <Text
-          onPress={() => openDoc('privacy')}
+          onPress={() => openLegal('privacy')}
           suppressHighlighting
           className="font-uiBold text-brand-primary underline"
         >

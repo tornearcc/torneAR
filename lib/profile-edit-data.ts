@@ -9,6 +9,12 @@ function toISODate(ddmmyyyy: string): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * Guarda los datos editables del perfil. El género NO viaja: se elige en el
+ * onboarding y después sólo lo cambia soporte (F3, trigger profiles_gender_lock).
+ * Mandarlo igual sería inofensivo mientras no cambie, pero dejarlo afuera evita
+ * que un formulario desincronizado choque contra GENDER_LOCKED.
+ */
 export async function updateProfile(
   profileId: string,
   data: UserProfileFormData,
@@ -21,7 +27,6 @@ export async function updateProfile(
       zone: data.zone,
       preferred_position: data.position,
       date_of_birth: toISODate(data.dateOfBirth),
-      gender: data.gender,
       strong_foot: data.strongFoot,
       favorite_team: data.favoriteTeam?.trim() || null,
     })

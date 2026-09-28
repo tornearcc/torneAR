@@ -7,6 +7,8 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { MarketTabs } from '@/components/market/MarketTabs';
 import { MarketListSection } from '@/components/market/MarketListSection';
 import { FilterModal } from '@/components/market/FilterModal';
+import { UserActionsSheet } from '@/components/moderation/UserActionsSheet';
+import { ReportModal } from '@/components/reports/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { useUI } from '@/context/UIContext';
 import { useTeamStore } from '@/stores/teamStore';
@@ -15,7 +17,7 @@ import { togglePostStatus } from '@/lib/market-api';
 import { filterPostsByDay, resolveApplicantTeam } from '@/lib/market-utils';
 import { useDistanceResolver } from '@/hooks/useDistanceResolver';
 import { useTabBarInset } from '@/hooks/useTabBarInset';
-import { MarketViewData, TabType } from '@/components/market/types';
+import { MarketViewData, TabType, type MarketModerationTarget } from '@/components/market/types';
 import { getOrCreateMarketChat } from '@/lib/chat-api';
 import { Logger } from '@/lib/logger';
 import {
@@ -48,6 +50,19 @@ export default function MarketScreen() {
   const [activeCaptainTeamId, setActiveCaptainTeamId] = useState<string | null>(null);
   const [postPendingDelete, setPostPendingDelete] = useState<{ id: string; isTeamPost: boolean } | null>(null);
   const [applicationCounts, setApplicationCounts] = useState<Record<string, number>>({});
+  // Moderación. El target NO se limpia al cerrar, sólo se apaga `sheet`: si se
+  // desmontara el sheet, el alert de confirmación que vive adentro se iría con
+  // él y el usuario no vería el resultado de lo que acaba de hacer. Se
+  // reemplaza recién al abrir el menú de otra publicación.
+  const [moderationTarget, setModerationTarget] = useState<MarketModerationTarget | null>(null);
+  const [sheet, setSheet] = useState<'none' | 'actions' | 'report'>('none');
+
+  const openModeration = useCallback((target: MarketModerationTarget) => {
+    setModerationTarget(target);
+    setSheet('actions');
+  }, []);
+
+  const closeModeration = useCallback(() => setSheet('none'), []);
   // Badge de distancia. El hook resuelve origen y destino con la misma
   // prioridad que el selector de complejo y el de la propuesta de partido.
   const { label: distanceLabel } = useDistanceResolver();
@@ -392,6 +407,7 @@ export default function MarketScreen() {
           onViewPlayerStats={handleViewPlayerStats}
           onDeletePost={handleDeletePost}
           onViewApplications={handleViewApplications}
+          onModeratePost={openModeration}
           memberStatusMap={memberStatusMap}
           applicationCounts={applicationCounts}
           resolveDistanceLabel={distanceLabel}
@@ -463,6 +479,41 @@ export default function MarketScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Moderación del Mercado. El target vive acá y no en la lista porque los
+          dos sheets son `<Modal>` nativos y tienen que montarse fuera del
+          FlatList; `sheet` distingue cuál está abierto, porque abrir los dos a
+          la vez deja el segundo debajo del backdrop en iOS. */}
+      {moderationTarget && (
+        <>
+          <UserActionsSheet
+            visible={sheet === 'actions'}
+            onClose={closeModeration}
+            targetProfileId={moderationTarget.authorProfileId}
+            targetName={moderationTarget.authorName}
+            // Siempre `false` y no una consulta: las publicaciones de gente
+            // bloqueada no llegan al feed —las policies RESTRICTIVE las filtran
+            // del lado del servidor—, así que todo lo que se ve acá es de
+            // alguien con quien no hay bloqueo. Preguntarlo sería una consulta
+            // por tarjeta para una respuesta que ya conocemos.
+            isBlocked={false}
+            onReport={() => setSheet('report')}
+            // Al bloquear, la publicación desaparece del feed por las policies
+            // del servidor: alcanza con volver a pedir los datos.
+            onBlockChanged={() => {
+              setModerationTarget(null);
+              void loadMarketData(false);
+            }}
+          />
+
+          <ReportModal
+            visible={sheet === 'report'}
+            onClose={closeModeration}
+            entityType={moderationTarget.entityType}
+            entityId={moderationTarget.postId}
+          />
+        </>
+      )}
     </View>
   );
 }

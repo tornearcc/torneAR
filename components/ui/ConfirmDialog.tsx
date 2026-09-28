@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -42,9 +42,14 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [notes, setNotes] = useState('');
 
-  useEffect(() => {
+  // Se limpia en el flanco de cierre, ajustando el estado durante el render en
+  // vez de copiarlo con un efecto: la próxima apertura no arrastra las notas de
+  // la anterior y no hay un render intermedio con el texto viejo.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (!visible) setNotes('');
-  }, [visible]);
+  }
 
   if (!visible) return null;
 

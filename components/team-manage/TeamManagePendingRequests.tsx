@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { TeamJoinRequestRow } from './types';
 import { positionLabel } from '@/lib/team-helpers';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { Avatar } from '@/components/ui/Avatar';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
 
 interface TeamManagePendingRequestsProps {
   requests: TeamJoinRequestRow[];
@@ -90,20 +91,14 @@ function RequestCard({
   return (
     <View className={`${isWide ? 'w-[280px]' : ''} rounded-lg bg-surface-high px-3 py-3`}>
       <View className="flex-row items-start gap-3">
-        <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-surface-variant">
-          {request.profiles?.avatar_url ? (
-            <Image
-              source={{
-                uri: request.profiles.avatar_url.startsWith('http')
-                  ? request.profiles.avatar_url
-                  : getSupabaseStorageUrl('avatars', request.profiles.avatar_url),
-              }}
-              className="h-full w-full"
-            />
-          ) : (
-            <AppIcon family="material-community" name="account" size={18} color="#BCCBB9" />
-          )}
-        </View>
+        <Avatar
+          uri={resolveAvatarUrl(request.profiles?.avatar_url)}
+          size={40}
+          profileId={request.profile_id}
+          name={request.profiles?.full_name ?? request.profiles?.username ?? undefined}
+          backgroundClassName="bg-surface-variant"
+          expandable
+        />
         <View className="flex-1">
           <Text className="font-uiBold text-sm text-neutral-on-surface">
             {request.profiles?.full_name ?? request.profiles?.username ?? 'Jugador'}

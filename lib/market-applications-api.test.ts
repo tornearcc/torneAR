@@ -257,7 +257,7 @@ describe('fetchMyMarketApplications (M4)', () => {
     market_team_posts: {
       is_active: true,
       position_wanted: 'ARQUERO',
-      teams: { name: 'Los Pibes', zone: 'CABA', shield_url: 't/shield.png' },
+      teams: { id: 'team-pibes', name: 'Los Pibes', zone: 'CABA', shield_url: 't/shield.png' },
     },
   };
 
@@ -270,7 +270,7 @@ describe('fetchMyMarketApplications (M4)', () => {
     market_player_posts: {
       is_active: false,
       position: 'DELANTERO',
-      profiles: { full_name: 'Juan', avatar_url: 'p/juan.jpg' },
+      profiles: { id: 'profile-juan', full_name: 'Juan', avatar_url: 'p/juan.jpg' },
     },
   };
 
@@ -308,6 +308,7 @@ describe('fetchMyMarketApplications (M4)', () => {
       postId: 'post-1',
       postIsActive: true,
       targetName: 'Los Pibes',
+      targetId: 'team-pibes',
       targetImageUrl: 'https://cdn.test/shields/t/shield.png',
       targetSubtitle: 'Busca arquero',
       appliedWithTeamName: null,
@@ -330,6 +331,7 @@ describe('fetchMyMarketApplications (M4)', () => {
       postId: 'post-2',
       postIsActive: false,
       targetName: 'Juan',
+      targetId: 'profile-juan',
       targetImageUrl: 'https://cdn.test/avatars/p/juan.jpg',
       targetSubtitle: 'DELANTERO',
       appliedWithTeamName: 'Mi Equipo',
@@ -363,6 +365,7 @@ describe('fetchMyMarketApplications (M4)', () => {
     const [entry] = await fetchMyMarketApplications();
 
     expect(entry.targetName).toBe('Equipo');
+    expect(entry.targetId).toBeNull();
     expect(entry.targetImageUrl).toBeNull();
     expect(entry.postIsActive).toBe(false);
   });

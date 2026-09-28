@@ -11,8 +11,11 @@ import {
   fetchRankingWithFilters, searchRivalTeams, fetchPlayerLeaderboard,
   fetchActiveSeason, fetchActiveTeamRankingInfo,
 } from '@/lib/ranking-data';
-import { fetchActiveZoneNames } from '@/lib/zones-data';
 import { Logger } from '@/lib/logger';
+import {
+  paramToNullable, parseCategoryParam, parseFormatParam, buildRankingFullParams,
+  type RankingFullKind,
+} from '@/lib/ranking-params';
 import type { RankingFiltersState, RankingMode, LeaderboardStat, RankingTeamEntry, RivalTeamEntry, PlayerLeaderboardEntry } from '@/components/ranking/types';
 
 import { RankingFilterModal } from '@/components/ranking/RankingFilterModal';
@@ -21,46 +24,11 @@ import { RankingRowSkeleton } from '@/components/ranking/RankingRowSkeleton';
 import { RivalSearchBar } from '@/components/ranking/RivalSearchBar';
 import { RivalTeamCard } from '@/components/ranking/RivalTeamCard';
 import { PlayerLeaderboard } from '@/components/ranking/PlayerLeaderboard';
+import { RankingContextChips, buildRankingChips } from '@/components/ranking/RankingContextChips';
 
 // Ventana de espera antes de pegarle a la BD mientras el usuario tipea. Un nombre
 // de 12 caracteres pasaba de 12 requests a 1.
 const SEARCH_DEBOUNCE_MS = 300;
-
-// Helper para parsear la categoría para el texto
-const getCategoryLabel = (cat: string | null) => {
-  if (!cat) return 'Todas las categorías';
-  return cat.charAt(0) + cat.slice(1).toLowerCase();
-};
-
-// ── Contexto entrante por navegación (Home → "Ver la tabla completa") ─────────
-// Los params se validan contra los valores conocidos en vez de castearse: van
-// derecho como argumento enum de `get_team_ranking`, y un valor basura (deep
-// link a mano, param viejo) haría fallar la RPC y dejaría la pantalla en error.
-// Lo que no reconocemos vale null = "sin filtro".
-
-const TEAM_CATEGORIES = ['HOMBRES', 'MUJERES', 'MIXTO'] as const;
-const TEAM_FORMATS = [
-  'FUTBOL_5', 'FUTBOL_6', 'FUTBOL_7', 'FUTBOL_8', 'FUTBOL_9', 'FUTBOL_11',
-] as const;
-
-type RouteParam = string | string[] | undefined;
-
-/** Un param vacío es "sin filtro", no un filtro por string vacío. */
-function paramToNullable(value: RouteParam): string | null {
-  const raw = Array.isArray(value) ? value[0] : value;
-  const trimmed = raw?.trim();
-  return trimmed ? trimmed : null;
-}
-
-function parseCategoryParam(value: RouteParam): RankingFiltersState['category'] {
-  const raw = paramToNullable(value);
-  return TEAM_CATEGORIES.find((category) => category === raw) ?? null;
-}
-
-function parseFormatParam(value: RouteParam): RankingFiltersState['format'] {
-  const raw = paramToNullable(value);
-  return TEAM_FORMATS.find((format) => format === raw) ?? null;
-}
 
 export default function RankingScreen() {
   const { profile } = useAuth();
@@ -87,13 +55,16 @@ export default function RankingScreen() {
   const [activeSeason, setActiveSeason] = useState<{ id: string; name: string } | null>(null);
 
   // NUEVO: Estado para guardar las zonas de la BD
-  const [availableZones, setAvailableZones] = useState<string[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RivalTeamEntry[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
   const [leaderboardStat, setLeaderboardStat] = useState<LeaderboardStat>('goals');
+  // Categoría propia de la tabla de jugadores: arranca en "Todas" y no sigue a
+  // la de equipos (que se hereda del equipo activo). Zona y formato sí son los
+  // de los filtros generales.
+  const [leaderboardCategory, setLeaderboardCategory] = useState<RankingFiltersState['category']>(null);
   const [leaderboardEntries, setLeaderboardEntries] = useState<PlayerLeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
@@ -170,14 +141,13 @@ export default function RankingScreen() {
     void (async () => {
       try {
         setLoading(true);
-        const [season, zones] = await Promise.all([
-          fetchActiveSeason(),
-          fetchActiveZoneNames(),
-        ]);
+        // El catálogo de zonas ya no se pide acá: el sheet de filtros lo carga
+        // por su cuenta (cacheado por sesión en `fetchZoneCatalog`) y así el
+        // ranking no espera una query que sólo se usa al abrir los filtros.
+        const season = await fetchActiveSeason();
         if (cancelled) return;
 
         setActiveSeason(season);
-        setAvailableZones(zones);
 
         let elo: number | null = null;
         let defaults: RankingFiltersState = { zone: null, category: null, format: null, rivalesIdeales: false };
@@ -187,7 +157,28 @@ export default function RankingScreen() {
           if (cancelled) return;
           if (team) {
             elo = team.eloRating;
-            defaults = { zone: team.zone, category: team.category, format: team.format, rivalesIdeales: false };
+            /*
+             * Sólo la CATEGORÍA se hereda del equipo activo. `zone` y `format`
+             * arrancan en null = Global.
+             *
+             * Antes se precargaban los tres y el resultado era una tabla vacía
+             * para casi todo el mundo: con el volumen del MVP, la intersección
+             * "mi zona × mi formato × mi categoría" suele tener uno o dos
+             * equipos —o ninguno—, y el usuario leía eso como "el ranking no
+             * funciona", no como "todavía no hay equipos acá". Un ranking
+             * global con equipos adentro comunica mucho mejor que uno perfecto
+             * y vacío, y el usuario puede angostar solo desde el modal.
+             *
+             * La categoría SÍ se retiene porque no es un recorte de volumen
+             * sino de pertinencia: a un equipo de MUJERES no le sirve un
+             * ranking encabezado por equipos de HOMBRES, por más lleno que
+             * esté. Es el único filtro donde ver de más es peor que ver de
+             * menos.
+             *
+             * `elo` se sigue resolviendo igual (arriba): "rivales ideales" lo
+             * necesita y ese filtro no cambia.
+             */
+            defaults = { zone: null, category: team.category, format: null, rivalesIdeales: false };
           } else {
             // Hay equipo activo seleccionado pero no se resolvió su info: el
             // ranking arranca con filtros vacíos y parece "mal ordenado".
@@ -281,9 +272,12 @@ export default function RankingScreen() {
       try {
         setLeaderboardLoading(true);
         const activeTeamName = useTeamStore.getState().myTeams.find(t => t.id === activeTeamId)?.name ?? null;
+        // Zona y formato de los filtros generales + la categoría de esta
+        // sección: los mismos que recibe la tabla completa, así el top de acá
+        // es su principio exacto.
         const players = await fetchPlayerLeaderboard(
           leaderboardStat,
-          filters.zone,
+          { zone: filters.zone, category: leaderboardCategory, format: filters.format },
           activeSeason?.id ?? null,
           {
             profileId: profile.id,
@@ -300,6 +294,8 @@ export default function RankingScreen() {
           scope: 'tabs.ranking.loadLeaderboard',
           leaderboardStat,
           zone: filters.zone,
+          category: leaderboardCategory,
+          format: filters.format,
           error,
         });
         if (!cancelled) showAlert('Error', error?.message || 'Error al cargar jugadores.');
@@ -309,7 +305,7 @@ export default function RankingScreen() {
     })();
 
     return () => { cancelled = true; };
-  }, [bootstrapped, profile, activeTeamId, filters.zone, leaderboardStat, activeSeason?.id, refreshToken, showAlert]);
+  }, [bootstrapped, profile, activeTeamId, filters.zone, filters.format, leaderboardCategory, leaderboardStat, activeSeason?.id, refreshToken, showAlert]);
 
   // ── 4) Refresco al volver a la pantalla ──────────────────────────────────────
   // La callback tiene deps vacias a proposito: useFocusEffect se re-ejecuta cuando
@@ -393,17 +389,21 @@ export default function RankingScreen() {
     setLeaderboardStat(stat);
   }
 
+  // La tabla completa recibe los filtros por params y los re-valida al leerlos.
+  // La de jugadores hereda la categoría de su sección, no la de equipos.
+  function openFullTable(kind: RankingFullKind) {
+    const tableFilters = kind === 'players' ? { ...filters, category: leaderboardCategory } : filters;
+    router.push({
+      pathname: '/ranking-full',
+      params: buildRankingFullParams({ kind, filters: tableFilters, stat: leaderboardStat }),
+    });
+  }
+
   // Saber si hay filtros activos para prender el icono
   const hasActiveFilters = Boolean(filters.zone || filters.category || filters.format || filters.rivalesIdeales);
 
   // Chips de contexto activo
-  const contextChips = [
-    activeSeason?.name ? { label: activeSeason.name, accent: false } : null,
-    filters.zone ? { label: filters.zone, accent: true } : { label: 'Global', accent: false },
-    filters.format ? { label: filters.format.replace('FUTBOL_', 'F'), accent: true } : null,
-    filters.category ? { label: getCategoryLabel(filters.category), accent: true } : null,
-    filters.rivalesIdeales ? { label: '🎯 Ideales', accent: true } : null,
-  ].filter(Boolean) as { label: string; accent: boolean }[];
+  const contextChips = buildRankingChips(filters, activeSeason?.name ?? null);
 
 
   return (
@@ -456,18 +456,7 @@ export default function RankingScreen() {
           </View>
 
           {/* Chips de contexto */}
-          <View className="mt-2.5 flex-row flex-wrap gap-1.5 px-0.5">
-            {contextChips.map((chip) => (
-              <View
-                key={chip.label}
-                className={`rounded-full px-2.5 py-1 ${chip.accent ? 'bg-brand-primary/15' : 'bg-surface-high'}`}
-              >
-                <Text className={`font-uiBold text-[10px] ${chip.accent ? 'text-brand-primary' : 'text-neutral-on-surface-variant'}`}>
-                  {chip.label}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <RankingContextChips chips={contextChips} />
         </View>
 
         {/* MODO RANKING */}
@@ -482,8 +471,17 @@ export default function RankingScreen() {
                   onTeamPress={(id: string) => router.push({ pathname: '/team-stats', params: { teamId: id, viewerTeamId: activeTeamId || '' } })}
                   hasActiveFilters={hasActiveFilters}
                   onClearFilters={() => handleApplyFilters({ zone: null, category: null, format: null, rivalesIdeales: false })}
+                  onSeeAll={() => openFullTable('teams')}
                 />
-                <PlayerLeaderboard entries={leaderboardEntries} activeStat={leaderboardStat} onStatChange={handleStatChange} loading={leaderboardLoading} />
+                <PlayerLeaderboard
+                  entries={leaderboardEntries}
+                  activeStat={leaderboardStat}
+                  onStatChange={handleStatChange}
+                  activeCategory={leaderboardCategory}
+                  onCategoryChange={setLeaderboardCategory}
+                  loading={leaderboardLoading}
+                  onSeeAll={() => openFullTable('players')}
+                />
               </>
             )}
           </>
@@ -523,7 +521,6 @@ export default function RankingScreen() {
         onClose={() => setFilterModalVisible(false)}
         filters={filters}
         onApply={handleApplyFilters}
-        availableZones={availableZones}
       />
       {AlertComponent}
     </View>

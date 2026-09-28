@@ -10,7 +10,32 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -129,6 +154,27 @@ export type Database = {
         }
         Relationships: []
       }
+      apple_credentials: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           criteria_description: string | null
@@ -156,6 +202,27 @@ export type Database = {
           id?: string
           name?: string
           slug?: string
+        }
+        Relationships: []
+      }
+      banned_words: {
+        Row: {
+          created_at: string
+          match_condensed: boolean
+          note: string | null
+          word: string
+        }
+        Insert: {
+          created_at?: string
+          match_condensed?: boolean
+          note?: string | null
+          word: string
+        }
+        Update: {
+          created_at?: string
+          match_condensed?: boolean
+          note?: string | null
+          word?: string
         }
         Relationships: []
       }
@@ -299,33 +366,63 @@ export type Database = {
       }
       content_reports: {
         Row: {
+          content_snapshot: string | null
           created_at: string
           id: string
           reason: string
+          reported_avatar_path: string | null
           reported_entity_id: string
           reported_entity_type: Database["public"]["Enums"]["report_entity_type"]
+          reported_profile_id: string | null
           reporter_id: string
           status: Database["public"]["Enums"]["report_status"]
         }
         Insert: {
+          content_snapshot?: string | null
           created_at?: string
           id?: string
           reason: string
+          reported_avatar_path?: string | null
           reported_entity_id: string
           reported_entity_type: Database["public"]["Enums"]["report_entity_type"]
+          reported_profile_id?: string | null
           reporter_id: string
           status?: Database["public"]["Enums"]["report_status"]
         }
         Update: {
+          content_snapshot?: string | null
           created_at?: string
           id?: string
           reason?: string
+          reported_avatar_path?: string | null
           reported_entity_id?: string
           reported_entity_type?: Database["public"]["Enums"]["report_entity_type"]
+          reported_profile_id?: string | null
           reporter_id?: string
           status?: Database["public"]["Enums"]["report_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "content_reports_reported_profile_id_fkey"
+            columns: ["reported_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_reports_reported_profile_id_fkey"
+            columns: ["reported_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_reports_reported_profile_id_fkey"
+            columns: ["reported_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "content_reports_reporter_id_fkey"
             columns: ["reporter_id"]
@@ -533,6 +630,7 @@ export type Database = {
           format: Database["public"]["Enums"]["team_format"]
           max_squad_size: number
           min_players_to_start: number
+          mixed_min_per_gender: number
           players_on_field: number
           updated_at: string
         }
@@ -540,6 +638,7 @@ export type Database = {
           format: Database["public"]["Enums"]["team_format"]
           max_squad_size: number
           min_players_to_start: number
+          mixed_min_per_gender?: number
           players_on_field: number
           updated_at?: string
         }
@@ -547,6 +646,7 @@ export type Database = {
           format?: Database["public"]["Enums"]["team_format"]
           max_squad_size?: number
           min_players_to_start?: number
+          mixed_min_per_gender?: number
           players_on_field?: number
           updated_at?: string
         }
@@ -1787,6 +1887,185 @@ export type Database = {
           },
         ]
       }
+      review_prompts: {
+        Row: {
+          app_version: string
+          id: string
+          platform: string
+          profile_id: string
+          requested_at: string
+          trigger_name: string
+        }
+        Insert: {
+          app_version: string
+          id?: string
+          platform: string
+          profile_id: string
+          requested_at?: string
+          trigger_name: string
+        }
+        Update: {
+          app_version?: string
+          id?: string
+          platform?: string
+          profile_id?: string
+          requested_at?: string
+          trigger_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_prompts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_prompts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_prompts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      season_standings: {
+        Row: {
+          best_format: Database["public"]["Enums"]["team_format"] | null
+          captured_at: string
+          category: Database["public"]["Enums"]["team_category"]
+          draws: number
+          elo_rating: number
+          fair_play_score: number
+          goals_against: number
+          goals_for: number
+          in_ranking: boolean
+          is_active: boolean
+          losses: number
+          points: number
+          preferred_format: Database["public"]["Enums"]["team_format"]
+          rank_category: number | null
+          rank_zone: number | null
+          season_id: string
+          shield_url: string | null
+          team_id: string
+          team_name: string
+          wins: number
+          zone: string
+          zone_id: string | null
+        }
+        Insert: {
+          best_format?: Database["public"]["Enums"]["team_format"] | null
+          captured_at?: string
+          category: Database["public"]["Enums"]["team_category"]
+          draws: number
+          elo_rating: number
+          fair_play_score: number
+          goals_against: number
+          goals_for: number
+          in_ranking: boolean
+          is_active: boolean
+          losses: number
+          points: number
+          preferred_format: Database["public"]["Enums"]["team_format"]
+          rank_category?: number | null
+          rank_zone?: number | null
+          season_id: string
+          shield_url?: string | null
+          team_id: string
+          team_name: string
+          wins: number
+          zone: string
+          zone_id?: string | null
+        }
+        Update: {
+          best_format?: Database["public"]["Enums"]["team_format"] | null
+          captured_at?: string
+          category?: Database["public"]["Enums"]["team_category"]
+          draws?: number
+          elo_rating?: number
+          fair_play_score?: number
+          goals_against?: number
+          goals_for?: number
+          in_ranking?: boolean
+          is_active?: boolean
+          losses?: number
+          points?: number
+          preferred_format?: Database["public"]["Enums"]["team_format"]
+          rank_category?: number | null
+          rank_zone?: number | null
+          season_id?: string
+          shield_url?: string | null
+          team_id?: string
+          team_name?: string
+          wins?: number
+          zone?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_standings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      season_standings_formats: {
+        Row: {
+          draws: number
+          elo_score: number
+          format: Database["public"]["Enums"]["team_format"]
+          losses: number
+          points: number
+          rank_category: number | null
+          rank_zone: number | null
+          season_id: string
+          team_id: string
+          wins: number
+        }
+        Insert: {
+          draws: number
+          elo_score: number
+          format: Database["public"]["Enums"]["team_format"]
+          losses: number
+          points: number
+          rank_category?: number | null
+          rank_zone?: number | null
+          season_id: string
+          team_id: string
+          wins: number
+        }
+        Update: {
+          draws?: number
+          elo_score?: number
+          format?: Database["public"]["Enums"]["team_format"]
+          losses?: number
+          points?: number
+          rank_category?: number | null
+          rank_zone?: number | null
+          season_id?: string
+          team_id?: string
+          wins?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_standings_formats_season_id_team_id_fkey"
+            columns: ["season_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "season_standings"
+            referencedColumns: ["season_id", "team_id"]
+          },
+        ]
+      }
       seasons: {
         Row: {
           created_at: string
@@ -2229,11 +2508,76 @@ export type Database = {
         }
         Relationships: []
       }
+      user_blocks: {
+        Row: {
+          blocked_profile_id: string
+          blocker_profile_id: string
+          created_at: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_profile_id: string
+          blocker_profile_id: string
+          created_at?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_profile_id?: string
+          blocker_profile_id?: string
+          created_at?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_blocks_blocked_profile_id_fkey"
+            columns: ["blocked_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocked_profile_id_fkey"
+            columns: ["blocked_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocked_profile_id_fkey"
+            columns: ["blocked_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_profile_id_fkey"
+            columns: ["blocker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_profile_id_fkey"
+            columns: ["blocker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_profile_id_fkey"
+            columns: ["blocker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           address: string | null
           created_at: string
           formats: Database["public"]["Enums"]["team_format"][]
+          google_cid: string | null
           id: string
           is_active: boolean
           lat: number
@@ -2247,6 +2591,7 @@ export type Database = {
           address?: string | null
           created_at?: string
           formats?: Database["public"]["Enums"]["team_format"][]
+          google_cid?: string | null
           id?: string
           is_active?: boolean
           lat: number
@@ -2260,6 +2605,7 @@ export type Database = {
           address?: string | null
           created_at?: string
           formats?: Database["public"]["Enums"]["team_format"][]
+          google_cid?: string | null
           id?: string
           is_active?: boolean
           lat?: number
@@ -2467,7 +2813,7 @@ export type Database = {
           created_at?: string | null
           favorite_team?: string | null
           full_name?: string | null
-          gender?: string | null
+          gender?: never
           id?: string | null
           preferred_position?:
             | Database["public"]["Enums"]["player_position"]
@@ -2482,7 +2828,7 @@ export type Database = {
           created_at?: string | null
           favorite_team?: string | null
           full_name?: string | null
-          gender?: string | null
+          gender?: never
           id?: string | null
           preferred_position?:
             | Database["public"]["Enums"]["player_position"]
@@ -2561,6 +2907,10 @@ export type Database = {
         Args: { p_account_id: string }
         Returns: undefined
       }
+      admin_get_profile_gender: {
+        Args: { p_profile_id: string }
+        Returns: string
+      }
       admin_get_suspension_status: {
         Args: { p_profile_ids: string[] }
         Returns: {
@@ -2568,6 +2918,10 @@ export type Database = {
           is_suspended: boolean
           profile_id: string
         }[]
+      }
+      admin_remove_reported_content: {
+        Args: { p_report_id: string }
+        Returns: undefined
       }
       admin_resolve_dispute: {
         Args: {
@@ -2580,6 +2934,10 @@ export type Database = {
       admin_set_admin_flag: {
         Args: { p_is_admin: boolean; p_profile_id: string }
         Returns: undefined
+      }
+      admin_set_profile_gender: {
+        Args: { p_gender: string; p_profile_id: string; p_reason: string }
+        Returns: Json
       }
       admin_suspend_user: {
         Args: { p_profile_id: string; p_reason?: string }
@@ -2595,6 +2953,28 @@ export type Database = {
           p_match: Database["public"]["Tables"]["matches"]["Row"]
         }
         Returns: undefined
+      }
+      assert_mixed_roster: {
+        Args: {
+          p_format: Database["public"]["Enums"]["team_format"]
+          p_own: boolean
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      assert_ranking_same_category: {
+        Args: { p_own_team_id: string; p_rival_team_id: string }
+        Returns: undefined
+      }
+      avatar_file_in_open_report: { Args: { p_path: string }; Returns: boolean }
+      avatar_object_path: { Args: { p_stored: string }; Returns: string }
+      block_user: {
+        Args: { p_blocked_profile_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      blocks_exist_between: {
+        Args: { p_a: string; p_b: string }
+        Returns: boolean
       }
       calculate_elo_delta: {
         Args: { loser_elo: number; winner_elo: number }
@@ -2613,6 +2993,10 @@ export type Database = {
           p_team_id: string
         }
         Returns: Json
+      }
+      claim_review_prompt: {
+        Args: { p_app_version: string; p_platform: string; p_trigger: string }
+        Returns: boolean
       }
       claim_wo: {
         Args: {
@@ -2638,6 +3022,7 @@ export type Database = {
         Args: { p_match_id: string; p_proposal_id: string }
         Returns: undefined
       }
+      contains_banned_word: { Args: { p_text: string }; Returns: boolean }
       content_weekly_highlights: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -2762,6 +3147,16 @@ export type Database = {
           played_7d: number
         }[]
       }
+      dashboard_share_summary: {
+        Args: never
+        Returns: {
+          content_type: string
+          destination: string
+          share_count: number
+          sharer_count: number
+          window_days: number
+        }[]
+      }
       dashboard_social_timeseries: {
         Args: { p_from?: string; p_platform: string; p_to?: string }
         Returns: {
@@ -2815,6 +3210,7 @@ export type Database = {
         Returns: number
       }
       enqueue_match_reminders: { Args: never; Returns: undefined }
+      enqueue_moderation_alerts: { Args: never; Returns: undefined }
       enqueue_season_expiry_reminder: { Args: never; Returns: undefined }
       ensure_team_ranking_row: {
         Args: {
@@ -2853,6 +3249,14 @@ export type Database = {
           team_name: string
         }[]
       }
+      get_instagram_token: {
+        Args: { p_account_id: string }
+        Returns: {
+          access_token: string
+          ig_user_id: string
+          token_expires_at: string
+        }[]
+      }
       get_join_request_applicant_push_token: {
         Args: { p_request_id: string }
         Returns: string
@@ -2886,6 +3290,13 @@ export type Database = {
           goals_count: number
           player_id: string
         }[]
+      }
+      get_mixed_composition_status: {
+        Args: {
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_team_id: string
+        }
+        Returns: Json
       }
       get_my_matches: {
         Args: { p_team_id: string }
@@ -2997,7 +3408,15 @@ export type Database = {
       get_player_career: { Args: { p_profile_id: string }; Returns: Json }
       get_player_global_stats: { Args: { p_profile_id: string }; Returns: Json }
       get_player_leaderboard: {
-        Args: { p_season_id?: string; p_stat: string; p_zone?: string }
+        Args: {
+          p_category?: Database["public"]["Enums"]["team_category"]
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_limit?: number
+          p_offset?: number
+          p_season_id?: string
+          p_stat: string
+          p_zone?: string
+        }
         Returns: {
           avatar_url: string
           full_name: string
@@ -3086,6 +3505,7 @@ export type Database = {
         Args: { p_new_captain_profile_id: string; p_team_id: string }
         Returns: Json
       }
+      has_block_with: { Args: { p_other: string }; Returns: boolean }
       is_ranking_match_allowed: {
         Args: { p_season_id: string; p_team_a_id: string; p_team_b_id: string }
         Returns: boolean
@@ -3095,6 +3515,17 @@ export type Database = {
         Returns: Json
       }
       leave_team_as_member: { Args: { p_team_id: string }; Returns: Json }
+      list_my_blocks: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          created_at: string
+          full_name: string
+          profile_id: string
+          reason: string
+          username: string
+        }[]
+      }
       log_checkin_distance: {
         Args: {
           p_distance_m: number
@@ -3105,6 +3536,10 @@ export type Database = {
           p_team_id: string
           p_venue_id: string
         }
+        Returns: undefined
+      }
+      mark_instagram_sync: {
+        Args: { p_account_id: string; p_error?: string }
         Returns: undefined
       }
       match_guest_code_expires_at: {
@@ -3120,10 +3555,30 @@ export type Database = {
         }
         Returns: string
       }
+      mixed_composition_applies: {
+        Args: { p_team_id: string }
+        Returns: boolean
+      }
+      mixed_composition_eval: {
+        Args: {
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_profile_ids: string[]
+        }
+        Returns: Json
+      }
+      mixed_composition_missing_text: {
+        Args: { p_eval: Json }
+        Returns: string
+      }
+      normalize_for_filter: { Args: { p_text: string }; Returns: string }
       recalculate_team_fps: { Args: { p_team_id: string }; Returns: undefined }
       remove_team_member: {
         Args: { p_profile_id: string; p_team_id: string }
         Returns: Json
+      }
+      request_avatar_file_deletion: {
+        Args: { p_context?: Json; p_paths: string[] }
+        Returns: number
       }
       request_match_cancellation: {
         Args: {
@@ -3141,6 +3596,20 @@ export type Database = {
       }
       respond_to_cancellation_request: {
         Args: { p_accept: boolean; p_request_id: string }
+        Returns: string
+      }
+      save_own_profile: {
+        Args: {
+          p_date_of_birth: string
+          p_expo_push_token?: string
+          p_favorite_team?: string
+          p_full_name: string
+          p_gender: string
+          p_preferred_position: Database["public"]["Enums"]["player_position"]
+          p_strong_foot: string
+          p_username: string
+          p_zone: string
+        }
         Returns: string
       }
       search_teams: {
@@ -3176,6 +3645,21 @@ export type Database = {
         }
         Returns: Json
       }
+      service_snapshot_upsert: {
+        Args: {
+          p_account_id: string
+          p_captured_at: string
+          p_engagements?: number
+          p_followers?: number
+          p_following?: number
+          p_posts?: number
+          p_profile_views?: number
+          p_raw?: Json
+          p_reach?: number
+          p_views?: number
+        }
+        Returns: undefined
+      }
       set_referral: {
         Args: {
           p_referred_by_username: string
@@ -3200,6 +3684,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      storage_avatars_object_url: { Args: never; Returns: string }
+      submit_content_report: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: Database["public"]["Enums"]["report_entity_type"]
+          p_reason: string
+        }
+        Returns: string
+      }
       submit_dispute_vote: {
         Args: { p_match_id: string; p_voted_team_id: string }
         Returns: undefined
@@ -3215,6 +3708,22 @@ export type Database = {
         Returns: Json
       }
       sweep_disputed_matches: { Args: never; Returns: Json }
+      sweep_orphan_avatars: {
+        Args: { p_dry_run?: boolean; p_limit?: number }
+        Returns: {
+          bytes: number
+          objeto: string
+          subido_at: string
+        }[]
+      }
+      sweep_orphan_wo_evidences: {
+        Args: { p_dry_run?: boolean; p_limit?: number }
+        Returns: {
+          objeto: string
+          request_id: number
+          subido_at: string
+        }[]
+      }
       sweep_stale_matches: { Args: never; Returns: Json }
       transfer_captaincy_and_leave: {
         Args: { p_team_id: string; p_to_profile_id: string }
@@ -3227,6 +3736,18 @@ export type Database = {
       transition_season: {
         Args: { p_ends_at: string; p_new_name: string; p_starts_at: string }
         Returns: string
+      }
+      unblock_user: {
+        Args: { p_blocked_profile_id: string }
+        Returns: undefined
+      }
+      update_instagram_token: {
+        Args: {
+          p_access_token: string
+          p_account_id: string
+          p_expires_in_seconds: number
+        }
+        Returns: undefined
       }
       verify_instagram_sync_secret: {
         Args: { p_candidate: string }
@@ -3279,6 +3800,7 @@ export type Database = {
         | "WO_RECHAZADO"
         | "WO_AUTOMATICO"
         | "DISPUTA_RESUELTA"
+        | "DENUNCIA_NUEVA"
       player_position:
         | "CUALQUIERA"
         | "ARQUERO"
@@ -3286,7 +3808,13 @@ export type Database = {
         | "MEDIOCAMPISTA"
         | "DELANTERO"
       proposal_status: "PENDIENTE" | "ACEPTADA" | "RECHAZADA"
-      report_entity_type: "USER" | "MATCH"
+      report_entity_type:
+        | "USER"
+        | "MATCH"
+        | "MESSAGE"
+        | "MARKET_TEAM_POST"
+        | "MARKET_PLAYER_POST"
+        | "TEAM"
       report_status: "PENDING" | "REVIEWED" | "DISMISSED" | "ACTIONED"
       result_status: "PENDIENTE" | "CARGADO" | "CONFIRMADO" | "EN_DISPUTA"
       stint_leave_reason:
@@ -3319,12 +3847,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3348,11 +3876,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3373,11 +3901,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3398,11 +3926,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3415,11 +3943,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3429,6 +3957,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       challenge_status: ["ENVIADA", "ACEPTADA", "RECHAZADA", "CANCELADA"],
@@ -3473,6 +4004,7 @@ export const Constants = {
         "WO_RECHAZADO",
         "WO_AUTOMATICO",
         "DISPUTA_RESUELTA",
+        "DENUNCIA_NUEVA",
       ],
       player_position: [
         "CUALQUIERA",
@@ -3482,7 +4014,14 @@ export const Constants = {
         "DELANTERO",
       ],
       proposal_status: ["PENDIENTE", "ACEPTADA", "RECHAZADA"],
-      report_entity_type: ["USER", "MATCH"],
+      report_entity_type: [
+        "USER",
+        "MATCH",
+        "MESSAGE",
+        "MARKET_TEAM_POST",
+        "MARKET_PLAYER_POST",
+        "TEAM",
+      ],
       report_status: ["PENDING", "REVIEWED", "DISMISSED", "ACTIONED"],
       result_status: ["PENDIENTE", "CARGADO", "CONFIRMADO", "EN_DISPUTA"],
       stint_leave_reason: [

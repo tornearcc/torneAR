@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { Logger } from '@/lib/logger';
+import { getMixedCompositionErrorMessage } from '@/lib/mixed-composition';
 import type { MatchResultFormData, CancellationFormData, WoClaimFormData } from '@/components/matches/types';
 import type { Database } from '@/types/supabase';
 
@@ -134,6 +135,9 @@ export const PROPOSAL_ERROR_CODES = [
   // diccionario del check-in y `handleAcceptProposal` no lo consulta — así que
   // acá caía igual en el genérico de Supabase.
   'VENUE_REQUIRED',
+  // F3 (20260925160000): composición de los equipos MIXTO con el formato
+  // acordado, detrás de app_settings.mixed_composition_enforced.
+  'MIXED_COMPOSITION',
 ] as const;
 
 export type ProposalErrorCode = (typeof PROPOSAL_ERROR_CODES)[number];
@@ -155,6 +159,9 @@ const PROPOSAL_ERROR_MESSAGES: Record<ProposalErrorCode, string> = {
   TEAM_SCHEDULE_CONFLICT: 'Ese horario choca con otro partido confirmado.',
   VENUE_REQUIRED:
     'Los partidos de Ranking exigen tener una cancha asignada. Volvé a proponer eligiendo zona y complejo del catálogo.',
+  // Sólo si el servidor no manda detalle: el detalle nombra al equipo y, si es
+  // el propio, cuántos faltan de cada género (ver getMixedCompositionErrorMessage).
+  MIXED_COMPOSITION: 'Uno de los equipos no cumple la composición mínima de un equipo mixto.',
 };
 
 /** Mensaje presentable para un error de confirmación de propuesta. */
@@ -168,6 +175,11 @@ export function getProposalErrorMessage(error: unknown): string {
 
   if ((PROPOSAL_ERROR_CODES as readonly string[]).includes(code)) {
     const detail = rest.join(':').trim();
+    if (code === 'MIXED_COMPOSITION') {
+      return detail
+        ? getMixedCompositionErrorMessage(message)
+        : PROPOSAL_ERROR_MESSAGES.MIXED_COMPOSITION;
+    }
     // SQUAD_TOO_SMALL trae el nombre del equipo y el mínimo en el detalle;
     // TEAM_SCHEDULE_CONFLICT, el nombre del equipo ya comprometido.
     if ((code === 'SQUAD_TOO_SMALL' || code === 'TEAM_SCHEDULE_CONFLICT') && detail) {
@@ -224,6 +236,24 @@ export interface CheckinTeamResult {
   /** Este check-in fue el que completó el quórum. */
   justSealed: boolean;
   matchStatus: string;
+  /**
+   * F3: en un equipo MIXTO con la regla activa, los presentes cumplen la
+   * composición. `true` cuando la regla no aplica (y con un servidor anterior
+   * a 20260925160000, que no manda la clave).
+   */
+  compositionOk: boolean;
+  /** Cuántos faltan de cada género entre los presentes; `null` si la regla no aplica. */
+  compositionMissing: { male: number; female: number; total: number } | null;
+}
+
+function parseCompositionMissing(raw: unknown): CheckinTeamResult['compositionMissing'] {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  return {
+    male: Number(r.male ?? 0),
+    female: Number(r.female ?? 0),
+    total: Number(r.total ?? 0),
+  };
 }
 
 export async function doCheckin(
@@ -248,6 +278,8 @@ export async function doCheckin(
     teamSealed: raw.teamSealed === true,
     justSealed: raw.justSealed === true,
     matchStatus: String(raw.matchStatus ?? ''),
+    compositionOk: raw.compositionOk !== false,
+    compositionMissing: parseCompositionMissing(raw.compositionMissing),
   };
 }
 

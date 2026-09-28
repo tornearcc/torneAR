@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { AppDateTimePicker } from '@/components/ui/AppDateTimePicker';
 import { useDistanceResolver } from '@/hooks/useDistanceResolver';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
+import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
+import type { ZoneOption } from '@/components/ui/ZoneSelect';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getProposalErrorMessage } from '@/lib/match-actions';
 import type { MatchProposalFormData } from '@/components/matches/types';
@@ -66,9 +67,14 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   // desactivaba la validación geoespacial sin ningún aviso.
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
-  const [venues, setVenues] = useState<VenueEntry[]>([]);
+  const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState<VenueEntry | null>(null);
-  const [loadingVenues, setLoadingVenues] = useState(false);
+  // Canchas de la última zona resuelta. Guardar la zona junto al resultado deja
+  // derivar `venues` y `loadingVenues` en el render, sin encenderlos a mano al
+  // arrancar cada carga (eso sería un setState síncrono dentro del efecto).
+  const [venuesByZone, setVenuesByZone] = useState<{ zoneId: string; venues: VenueEntry[] } | null>(
+    null,
+  );
   const [zonesLoaded, setZonesLoaded] = useState(false);
   /** A14: `venueId` → metros. Vacío si no hay ubicación disponible. */
   /*
@@ -104,27 +110,61 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   }, [visible, zonesLoaded]);
 
 
+  const venues = venuesByZone?.zoneId === selectedZoneId ? venuesByZone.venues : [];
+  const loadingVenues = Boolean(selectedZoneId) && venuesByZone?.zoneId !== selectedZoneId;
+
+  // Cambiar de zona invalida la cancha elegida. Se ajusta durante el render y no
+  // en un efecto para que no exista un frame con una cancha de la zona anterior
+  // todavía seleccionada.
+  const [venueZoneId, setVenueZoneId] = useState(selectedZoneId);
+  if (selectedZoneId !== venueZoneId) {
+    setVenueZoneId(selectedZoneId);
+    setSelectedVenue(null);
+  }
+
   // Load venues when zone changes
   useEffect(() => {
-    if (!selectedZoneId) {
-      setVenues([]);
-      setSelectedVenue(null);
-      return;
-    }
-    setLoadingVenues(true);
-    setSelectedVenue(null);
+    if (!selectedZoneId) return;
+
+    // El flag descarta la respuesta de una zona que ya no es la elegida: sin
+    // esto una respuesta lenta pisaría la caché con la zona vieja y la lista
+    // quedaría cargando para siempre.
+    let cancelled = false;
     fetchVenuesByZone(selectedZoneId)
-      .then(setVenues)
+      .then((list) => {
+        if (!cancelled) setVenuesByZone({ zoneId: selectedZoneId, venues: list });
+      })
       .catch((err: unknown) => {
         Logger.warn('No se pudieron cargar las canchas de la zona; el selector queda vacío', {
           scope: 'ProposalModal.fetchVenues',
           zoneId: selectedZoneId,
           error: err,
         });
-        setVenues([]);
-      })
-      .finally(() => setLoadingVenues(false));
+        if (!cancelled) setVenuesByZone({ zoneId: selectedZoneId, venues: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedZoneId]);
+
+  // D13 (bis): reloj contra el que se compara la fecha propuesta. Leer
+  // `Date.now()` durante el render es impuro y, además, un sheet abierto y
+  // quieto no vuelve a renderizar solo: el aviso de «la fecha ya pasó» podía
+  // no aparecer nunca. El tick corre sólo mientras el modal está visible.
+  //
+  // Sin resincronización al abrir: el primer tick llega a los 5 s, así que
+  // recién reabierto el reloj puede estar hasta 5 s atrasado. Es irrelevante
+  // acá —el default de la fecha es dentro de 2 h y el picker tiene
+  // granularidad de minutos— y el rechazo real lo hace el servidor con
+  // `scheduled_at <= now()`; este aviso es sólo para no mandar el submit a
+  // ciegas.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!visible) return;
+    const intervalId = setInterval(() => setNowTs(Date.now()), 5_000);
+    return () => clearInterval(intervalId);
+  }, [visible]);
 
   function handleClose() {
     // Reset state
@@ -197,6 +237,21 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
 
   const selectedZoneName = zones.find((z) => z.id === selectedZoneId)?.name ?? null;
 
+  /*
+   * Acá el `value` es el uuid y no el nombre: lo que se guarda en la propuesta
+   * es `venues.zone_id`. El subtítulo con la cantidad de complejos evita el
+   * callejón de elegir una zona y encontrarla vacía.
+   */
+  const zoneOptions = useMemo<ZoneOption[]>(
+    () =>
+      zones.map((z) => ({
+        value: z.id,
+        name: z.name,
+        subtitle: `${z.venueCount} ${z.venueCount === 1 ? 'complejo' : 'complejos'}`,
+      })),
+    [zones],
+  );
+
   // Un partido de RANKING mueve ELO y se valida con geofence al hacer check-in:
   // sin `venue_id` no hay coordenadas contra las cuales medir, así que la cancha
   // oficial es obligatoria. En AMISTOSO queda opcional, pero si se define tiene
@@ -206,7 +261,7 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
   // `minimumDate` del picker sólo acota la fecha al abrirlo — no impide dejar
   // el sheet abierto hasta que la hora elegida quede atrás.
   const blockReason: string | null =
-    scheduledDate.getTime() <= Date.now()
+    scheduledDate.getTime() <= nowTs
       ? 'La fecha y hora propuestas ya pasaron: elegí un horario futuro.'
       : matchType === 'RANKING' && !selectedVenue
         ? zonesLoaded && zones.length === 0
@@ -218,11 +273,30 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
     <SafeAreaBottomSheet
       visible={visible}
       onClose={handleClose}
-      maxHeight="90%"
+      maxHeight="80%"
+      /* Los campos de Seña y Costo total viven abajo del todo del sheet y en
+         iOS el teclado los tapaba. La prop sólo aplica en iOS —Android
+         redimensiona la ventana solo—, pero esa decisión vive dentro de
+         SafeAreaBottomSheet, no acá. */
       avoidKeyboard
       /* Dentro del <Modal>: si se montara en la pantalla padre quedaría detrás
-         de esa ventana nativa y el error sería invisible. */
-      overlay={AlertComponent}
+         de esa ventana nativa y el error sería invisible. Mismo motivo para el
+         selector de zonas, que además evita anidar dos Modal nativos. */
+      overlay={
+        <>
+          {AlertComponent}
+          <ZoneSelectSheet
+            inline
+            visible={zonePickerOpen}
+            onClose={() => setZonePickerOpen(false)}
+            selectedValue={selectedZoneId}
+            onSelect={(zone) => setSelectedZoneId(zone.value)}
+            title="Zona del partido"
+            options={zoneOptions}
+            optionsLoading={!zonesLoaded}
+          />
+        </>
+      }
     >
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4">
@@ -255,22 +329,20 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
             {formatDateDisplay(scheduledDate)}
           </Text>
         </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={scheduledDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            minimumDate={new Date()}
-            onChange={(_e, d) => {
-              setShowDatePicker(false);
-              if (d) {
-                const merged = new Date(scheduledDate);
-                merged.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                setScheduledDate(merged);
-              }
-            }}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showDatePicker}
+          value={scheduledDate}
+          mode="date"
+          title="Fecha del partido"
+          minimumDate={new Date()}
+          onCancel={() => setShowDatePicker(false)}
+          onConfirm={(d) => {
+            setShowDatePicker(false);
+            const merged = new Date(scheduledDate);
+            merged.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+            setScheduledDate(merged);
+          }}
+        />
 
         {/* ── Time ── */}
         <Text className="font-ui mb-2 text-xs uppercase tracking-widest text-neutral-outline">
@@ -285,22 +357,19 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
             {formatTimeDisplay(scheduledDate)}
           </Text>
         </TouchableOpacity>
-        {showTimePicker && (
-          <DateTimePicker
-            value={scheduledDate}
-            mode="time"
-            is24Hour
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(_e, d) => {
-              setShowTimePicker(false);
-              if (d) {
-                const merged = new Date(scheduledDate);
-                merged.setHours(d.getHours(), d.getMinutes());
-                setScheduledDate(merged);
-              }
-            }}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showTimePicker}
+          value={scheduledDate}
+          mode="time"
+          title="Hora del partido"
+          onCancel={() => setShowTimePicker(false)}
+          onConfirm={(d) => {
+            setShowTimePicker(false);
+            const merged = new Date(scheduledDate);
+            merged.setHours(d.getHours(), d.getMinutes());
+            setScheduledDate(merged);
+          }}
+        />
 
         {/* ── Duration ── */}
         <Text className="font-ui mb-2 text-xs uppercase tracking-widest text-neutral-outline">
@@ -356,42 +425,22 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
         <Text className="font-ui mb-2 text-xs uppercase tracking-widest text-neutral-outline">
           Zona
         </Text>
-        {!zonesLoaded ? (
-          <ActivityIndicator color="#53E076" style={{ marginBottom: 16, alignSelf: 'flex-start' }} />
-        ) : zones.length === 0 ? (
+        {zonesLoaded && zones.length === 0 ? (
           <View className="mb-4 rounded-xl bg-surface-high px-4 py-3">
             <Text className="font-ui text-sm text-neutral-on-surface-variant">
               Todavía no hay zonas con complejos cargados.
             </Text>
           </View>
         ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="mb-4"
-            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-          >
-            {zones.map((z) => (
-              <TouchableOpacity
-                key={z.id}
-                onPress={() => setSelectedZoneId(z.id === selectedZoneId ? null : z.id)}
-                activeOpacity={0.8}
-                className={`rounded-xl px-4 py-2.5 ${
-                  selectedZoneId === z.id
-                    ? 'bg-brand-primary'
-                    : 'bg-surface-high'
-                }`}
-              >
-                <Text
-                  className={`font-uiBold text-sm ${
-                    selectedZoneId === z.id ? 'text-[#003914]' : 'text-neutral-on-surface-variant'
-                  }`}
-                >
-                  {z.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View className="mb-4">
+            <ZoneSelectTrigger
+              value={selectedZoneName}
+              placeholder="Elegí la zona"
+              loading={!zonesLoaded}
+              disabled={!zonesLoaded}
+              onPress={() => setZonePickerOpen(true)}
+            />
+          </View>
         )}
 
         {/* ── Venue (shown after zone is selected) ── */}

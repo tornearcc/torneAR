@@ -92,6 +92,29 @@ export default function SettingsScreen() {
           desalineaba esta pantalla del resto, que usa px-4. */}
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 60 }}>
 
+        {/* Settings Block: Privacidad y seguridad.
+            Va PRIMERO y no enterrado al final: es la pantalla que Apple pide
+            poder ver en el video de revisión (guideline 1.2, el bloqueo tiene
+            que ser reversible desde algún lado). */}
+        <View className="mb-6">
+          <Text className="font-display mb-4 px-1 text-sm uppercase tracking-wider text-neutral-on-surface-variant">
+            Privacidad y seguridad
+          </Text>
+          <View className="overflow-hidden rounded-xl bg-surface-low">
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => router.push('/blocked-users' as any)}
+              className="w-full flex-row items-center justify-between px-5 py-4"
+            >
+              <View className="flex-row items-center gap-4">
+                <AppIcon family="material-community" name="account-cancel-outline" size={18} color="#BCCBB9" />
+                <Text className="font-ui text-sm text-neutral-on-surface">Usuarios bloqueados</Text>
+              </View>
+              <AppIcon family="material-icons" name="chevron-right" size={18} color="#BCCBB9" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Settings Block: Legal */}
         <View className="mb-6">
           <Text className="font-display mb-4 px-1 text-sm uppercase tracking-wider text-neutral-on-surface-variant">

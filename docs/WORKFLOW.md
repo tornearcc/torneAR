@@ -1,74 +1,132 @@
 # Flujo de Trabajo — torneAR
 
-Este documento define el ciclo de desarrollo profesional del proyecto: ramas
-(Git Flow), validación automática (CI con GitHub Actions) y manejo de entornos
-de base de datos (Supabase Branching).
+Este documento define el ciclo de desarrollo del proyecto: ramas, validación
+automática (CI con GitHub Actions) y manejo de la base de datos (Supabase).
 
 ---
 
-## 1. Git Flow y Ramas
+## 1. Ramas
 
-Usamos un Git Flow simplificado con dos ramas de larga vida:
+> **Convención desde el 27/09/2026 (D-58), igual en los dos repos:** `develop`
+> es donde se trabaja y `main` es lo que está en producción.
+>
+> En este repo, `main` se puso al día ese día con el commit del último OTA de
+> producción (`c0c2bda`, 25/09). Del 20/08 al 27/09 `main` estuvo abandonada;
+> si ves referencias viejas a "`main` desactualizada", son de esa época.
+>
+> **Ningún merge dispara builds.** Los workflows de EAS (`eas-build.yml` y
+> `eas-build-preview.yml`) corren sólo a mano, desde la pestaña Actions.
 
-| Rama | Rol | Entorno | Deploy |
-|------|-----|---------|--------|
-| `main` | **Producción**. Siempre estable y liberable. | Prod | Supabase Prod + build de release |
-| `develop` | **Staging / Pruebas**. Integración de features antes de producción. | Staging | Supabase Staging |
-| `feature/<nombre>` | Trabajo de una feature puntual. | — | — |
-| `hotfix/<nombre>` | Arreglo urgente sobre producción. | — | — |
+| Rama | Rol | Qué sale de acá |
+|------|-----|-----------------|
+| `develop` | **Integración.** Donde se mergea todo el trabajo. | Builds de EAS (perfil `production`) y `eas update --channel production`, siempre publicados a mano desde local |
+| `main` | **Espejo de producción.** Se actualiza con un PR `develop → main` después de cada release. | Nada automático |
+| `feature/<nombre>` · `fix/<nombre>` · `chore/<nombre>` | Trabajo puntual. Sale de `develop`, vuelve a `develop`. | — |
+| `hotfix/<nombre>` | Arreglo urgente. Sale del commit de la build vigente y vuelve a `develop`. | — |
 
 **Reglas:**
 
-- `main` es **estrictamente producción**. Nunca se commitea directo; solo recibe
-  merges vía Pull Request desde `develop` (o desde un `hotfix/*`).
-- `develop` es la base de integración. Los features salen de `develop` y vuelven
-  a `develop`.
-- Cada feature vive en su propia rama `feature/<nombre-descriptivo>`.
+- Todo sale de `develop` y vuelve a `develop` por Pull Request.
+- **Después de cada release** (build nueva en las tiendas o `eas update` a
+  producción), abrir un PR `develop → main` y mergearlo con *merge commit*, no
+  con *squash*. Si lo publicado no fue la punta de `develop`, mergear el commit
+  publicado, no la punta. Así `main` siempre dice qué está en producción.
+- `main` no recibe trabajo directo: nada se mergea a `main` que no haya pasado
+  antes por `develop`.
+- **Un OTA empaqueta el JS del checkout local, no el de GitHub.** `eas update`
+  se corre parado en el commit que corresponde y sin cambios sin commitear. Si
+  el working tree tiene algo más, eso también viaja a los teléfonos.
+- **Antes de un OTA, confirmar el commit de la build vigente**, porque el update
+  tiene que partir de ahí:
+  ```bash
+  npx eas-cli build:list --platform ios --limit 1 --json   # → gitCommitHash
+  ```
+  Una rama de OTA sale de ese commit, no de la punta de `develop` si hubo merges
+  posteriores que no deberían llegar todavía a producción.
+- **OTA sólo JS.** `runtimeVersion` usa la política `appVersion`: una dependencia
+  nativa nueva o un cambio en `app.json` (`version`, permisos, plugins) no puede
+  salir por `eas update`; necesita build nueva y App Review.
+- **Antes de CADA `eas update`, correr el chequeo de fingerprint:**
+  ```bash
+  node scripts/check-native-fingerprint.mjs    # iOS
+  # --platform android cuando la app esté publicada en Play
+  ```
+  Compara el fingerprint nativo del checkout contra el del build de producción
+  que tiene el mismo runtime (= `version` de `app.json`). Si difiere, el OTA
+  llegaría a binarios sin ese código nativo y la app no arrancaría: hay que
+  subir `version` y sacar un build, no publicar el update. CI corre lo mismo en
+  cada PR (`native-fingerprint`), pero el OTA se publica a mano desde local y
+  una rama de hotfix puede no pasar por un PR: **este paso es el que protege de
+  verdad.**
+- ⚠️ **Tocar los `scripts` de `package.json` cambia el fingerprint** —`android` e
+  `ios` contienen `expo run:*`, así que `@expo/fingerprint` incluye esa sección
+  entera. Agregar un script de npm deja el check en rojo aunque no haya cambiado
+  una línea de código nativo. Por eso el chequeo se invoca como archivo y no
+  como `npm run`. Si aparece un rojo así, el propio script lista la fuente que
+  difiere y la salida correcta es no tocar esa sección, no subir `version`.
+
+#### Los dos chequeos comparan cosas distintas, a propósito
+
+| | Contra qué compara | Dónde corre |
+|---|---|---|
+| **Local** (`node scripts/check-native-fingerprint.mjs`) | El **build publicado** con el mismo runtime | A mano, antes de cada `eas update` |
+| **CI** (job `native-fingerprint`) | La **base del PR**, calculando los dos lados en el mismo runner | Automático, en cada PR |
+
+**Por qué CI no compara contra el build publicado.** `eas build` sube el
+*working copy* local, no el checkout de GitHub. En la máquina de release
+(Windows, `core.autocrlf=true`) los archivos de texto versionados viven con
+**CRLF**, y el fingerprint hashea contenido: `.gitignore`, `eas.json` y
+`plugins/withInstagramQueries.js` dan hashes distintos en un runner de Linux,
+que los ve con LF, **aunque no haya cambiado una sola línea**. Verificado el
+15/09/2026: convirtiendo esos tres archivos a LF, la máquina local reproduce
+exactamente el hash que calculó CI. Un job así daría rojo siempre.
+
+**Por qué no se arregla con `.gitattributes`.** Normalizar a LF cambiaría los
+bytes locales, y entonces el chequeo **local** —el que de verdad protege los
+OTA— dejaría de coincidir con el build publicado. Sería cambiar un rojo inútil
+por uno peligroso. Cuando salga un build desde un árbol ya normalizado, se puede
+reconsiderar.
+
+Cada chequeo usa **un solo método de cálculo en las dos puntas** de su
+comparación: el local, `eas-cli` con `--environment production` (el verificado
+para reproducir el hash de un build); el de CI, el `@expo/fingerprint` que fija
+`package-lock.json`. Mezclar los métodos entre las dos puntas es lo que produce
+falsos rojos.
+- **Variables de entorno del OTA:** publicar con `--environment production`, y
+  verificar que el `.env` local no pise nada (`EXPO_PUBLIC_*` se incrustan en el
+  bundle al publicar).
 
 ### Crear y trabajar una feature
 
 ```bash
-# Partimos siempre desde develop actualizado
 git checkout develop
 git pull origin develop
-
-# Nueva rama de feature
 git checkout -b feature/caja-del-equipo
 
 # ... trabajás, commiteás ...
-git add .
-git commit -m "feat(caja): estructura inicial de tesorería"
-
-# Subimos la rama y abrimos PR hacia develop
 git push -u origin feature/caja-del-equipo
 ```
 
-Luego se abre un **Pull Request `feature/... → develop`** en GitHub. Al aprobarse
-y pasar CI, se mergea a `develop` (recomendado: *squash merge* para mantener el
-historial limpio).
+Luego se abre un **Pull Request `feature/... → develop`**. Al pasar CI, se
+mergea a `develop`.
 
-### Promover a Producción
+### Publicar a producción
 
-Cuando `develop` está estable y probado en Staging:
-
-```bash
-# PR de develop hacia main
-# (se hace desde la UI de GitHub: base = main, compare = develop)
-```
-
-El PR `develop → main` corre CI de nuevo. Al mergear, `main` queda listo para el
-deploy de producción (aplicar migraciones a Supabase Prod + build de release).
-
-### Hotfix urgente
-
-```bash
-git checkout main
-git pull origin main
-git checkout -b hotfix/fix-crash-login
-# ... arreglo + commit ...
-git push -u origin hotfix/fix-crash-login
-# PR hacia main. Después, re-mergear main -> develop para no perder el fix.
-```
+- **Build nueva (binario):** desde `develop`, `eas build --profile production`,
+  y submit. Anotar el `gitCommitHash` de la build en el PR o en el release.
+  Alternativa sin máquina local: pestaña Actions → *EAS Build (Production)* →
+  *Run workflow* (sólo Android).
+- **OTA:** desde la rama que parte del commit de la build vigente,
+  `eas update --channel production --environment production --platform ios --rollout-percentage 10`,
+  24 h mirando `app_logs` de nivel `error`, y recién después al 100%.
+- **Después de publicar:** PR `develop → main` con el commit publicado (ver
+  Reglas). El merge no dispara ningún build.
+- Para saber qué commit está en producción:
+  ```bash
+  npx eas-cli build:list --platform ios --limit 1 --json   # → gitCommitHash de la build
+  npx eas-cli update:list --branch production --limit 1 --json   # → group del último OTA
+  npx eas-cli update:view <group> --json                   # → gitCommitHash del OTA
+  ```
 
 ---
 
@@ -80,6 +138,19 @@ Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 - Pull Requests hacia `main` y `develop`.
 - Push directo a `main` y `develop`.
 
+**No se dispara si el cambio toca sólo documentación** (`docs/`, `README.md`,
+`CLAUDE.md`): `paths-ignore` en `ci.yml`. Un PR que mezcla documentación con
+cualquier otro archivo corre entero.
+
+Los dos workflows de EAS (`eas-build.yml`, `eas-build-preview.yml`) **no** se
+disparan con pushes ni PRs: sólo con *Run workflow* desde la pestaña Actions
+(desde el 27/09/2026).
+
+> ⚠️ **Choca con la branch protection de abajo.** Si se marca un check de CI
+> como obligatorio, un PR de sólo documentación queda esperando un check que
+> nunca corre. Antes de activarla, pasar el filtro de `paths-ignore` (workflow)
+> a un filtro por job con `if:`: GitHub cuenta los jobs salteados como aprobados.
+
 **Qué valida (en orden; si algo falla, el check queda rojo):**
 1. `npm ci` — instalación reproducible desde `package-lock.json`.
 2. `npx tsc --noEmit` — chequeo de tipos TypeScript (modo estricto).
@@ -89,7 +160,8 @@ Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 ### Branch protection (configurar en GitHub una vez)
 
 Para que un PR **no se pueda mergear si CI falla**, activar en
-**Settings → Branches → Branch protection rules** para `main` y `develop`:
+**Settings → Branches → Branch protection rules** para `develop` (la rama viva)
+y `main`:
 
 - ✅ *Require a pull request before merging*.
 - ✅ *Require status checks to pass before merging* → seleccionar el check
@@ -105,17 +177,16 @@ Para que un PR **no se pueda mergear si CI falla**, activar en
 
 **Decisión operativa:** por estar en el **plan gratuito** de Supabase (sin
 Branching nativo) y por decisión de proyecto, **NO usamos un proyecto de Staging
-separado**. Tanto `main` como `develop` apuntan al **mismo y único proyecto de
-Supabase: `yusfykqimalghmmhlfdn` (`tornear-db`) — el de Producción.**
+separado**. Todas las ramas apuntan al **mismo y único proyecto de Supabase:
+`yusfykqimalghmmhlfdn` (`tornear-db`) — el de Producción.**
 
 | Entorno | Proyecto Supabase | Rama git |
 |---------|-------------------|----------|
-| **Producción** | `yusfykqimalghmmhlfdn` (`tornear-db`) | `main` **y** `develop` (comparten DB) |
+| **Producción** | `yusfykqimalghmmhlfdn` (`tornear-db`) | todas (comparten DB) |
 
-> ⚠️ **`develop` NO tiene una base de datos aislada.** Cualquier migración,
-> RPC, trigger, edge function, seed o test con escritura que se ejecute "desde
-> develop" impacta **directamente los datos reales de producción**. No existe
-> una red de contención a nivel de base de datos entre `develop` y `main`.
+> ⚠️ **Ninguna rama tiene una base de datos aislada.** Cualquier migración,
+> RPC, trigger, edge function, seed o test con escritura impacta
+> **directamente los datos reales de producción**.
 
 El aislamiento de entornos queda entonces **solo a nivel de código** (ramas + CI).
 La base es compartida, así que el cuidado con los datos es **manual y disciplinado**.
@@ -156,10 +227,9 @@ Como no hay Staging, estas reglas son la única protección de los datos reales:
    Los catálogos `badges` y `format_rules` no están en ningún seed: los siembran
    sus propias migraciones, así que viajan con `db push`.
 
-5. **`.env` apunta al mismo proyecto en ambas ramas.** No hay credenciales de
+5. **`.env` apunta al mismo proyecto en todas las ramas.** No hay credenciales de
    Staging; `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_KEY` son las de
-   producción tanto trabajando en `develop` como en `main`. Tenelo presente: la
-   app en modo dev lee/escribe datos reales.
+   producción. Tenelo presente: la app en modo dev lee/escribe datos reales.
 
 6. **Ventana de bajo tráfico para cambios sensibles.** Al aplicar migraciones o
    probar flujos con escritura, preferí horarios de poco uso y avisá al equipo.
@@ -178,6 +248,11 @@ supabase functions deploy
 Las migraciones (`supabase/migrations/`) y edge functions (`supabase/functions/`)
 siguen siendo la **única fuente de verdad**; nunca se modifica el schema a mano
 por fuera de una migración versionada.
+
+> Las RPCs `dashboard_*` que usa la web también se versionan **acá**, no en
+> `torneAR-web`. Si una migración se aplica con `apply_migration` del MCP de
+> Supabase, el servidor le asigna su propio `version`: renombrar el archivo
+> local a ese `version` o `db push` intentará aplicarla de nuevo.
 
 ### Secretos
 
@@ -201,12 +276,15 @@ aislamiento de datos por entorno. Hasta entonces, rige la disciplina de arriba.
 3. Si hay cambios de schema → nueva migración en `supabase/migrations/`, validada
    **en local** (`supabase start` + `supabase db reset`). ⚠️ Recordá: no hay
    Staging; aplicar al proyecto compartido = aplicar a Producción.
-4. Commit + `git push -u origin feature/<nombre>` + PR hacia `develop`.
+4. Commit + `git push -u origin feature/<nombre>` + PR hacia **`develop`**.
 5. CI verde + review → merge.
 
-**Release a producción (base compartida):**
-1. PR `develop → main`.
-2. CI verde + review → merge.
-3. `supabase link --project-ref yusfykqimalghmmhlfdn && supabase db push && supabase functions deploy`
-   (impacta la base real — hacerlo con cuidado, en ventana de bajo tráfico).
-4. Build de release (EAS).
+**Release a producción (hoy):**
+1. Migraciones: `supabase db push` (impacta la base real — con cuidado, en
+   ventana de bajo tráfico). Van **antes** del binario o del OTA que las usa.
+2. Binario: `eas build --profile production` desde `develop` + submit.
+3. OTA: `npm run ota:check` (obligatorio) y después
+   `eas update --channel production --environment production --platform ios --rollout-percentage 10`
+   desde el commit de la build vigente, 24 h de observación, luego 100%.
+4. PR `develop → main` con el commit publicado, mergeado con *merge commit*
+   (ver §1). No dispara builds.

@@ -1,13 +1,11 @@
 name: EAS Build (Preview APK)
 
-# Compila un .apk de testing interno (perfil preview) en cada Pull Request
-# hacia main. NO toca la versión de producción ni sube a las tiendas:
-# distribution=internal + buildType=apk (ver eas.json).
+# Compila un .apk de testing interno (perfil preview). Sólo a mano, desde la
+# pestaña Actions: el PR develop → main que actualiza main después de cada
+# release (D-58) no tiene que gastar un build. NO toca la versión de producción
+# ni sube a las tiendas: distribution=internal + buildType=apk (ver eas.json).
 # Requiere el secret EXPO_TOKEN en Settings → Secrets → Actions del repo.
 on:
-  pull_request:
-    branches: [main]
-  # Permite disparar el build manualmente desde la pestaña Actions.
   workflow_dispatch:
 
 # Un preview build por PR: si se pushea de nuevo, cancelamos el anterior

@@ -21,7 +21,9 @@ export function useMatchRealtime(matchId: string | undefined, onChange: () => vo
   // La callback suele ser una función nueva en cada render del padre. Guardarla
   // en una ref evita desuscribir y volver a suscribir el canal continuamente.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!matchId) return;

@@ -108,7 +108,7 @@ export function MatchCard({
       <View className="flex-row items-center">
         {/* Team A */}
         <View className="flex-1 items-center gap-1.5">
-          <TeamShield shieldUrl={entry.teamA.shieldUrl} size={48} isMyTeam={isMyTeamA} />
+          <TeamShield shieldUrl={entry.teamA.shieldUrl} size={48} isMyTeam={isMyTeamA} teamId={entry.teamA.id} viewerTitle={entry.teamA.name} expandable />
           <Text
             className="font-uiBold text-[12px] text-neutral-on-surface"
             numberOfLines={1}
@@ -126,7 +126,7 @@ export function MatchCard({
 
         {/* Team B */}
         <View className="flex-1 items-center gap-1.5">
-          <TeamShield shieldUrl={entry.teamB.shieldUrl} size={48} isMyTeam={isMyTeamB} />
+          <TeamShield shieldUrl={entry.teamB.shieldUrl} size={48} isMyTeam={isMyTeamB} teamId={entry.teamB.id} viewerTitle={entry.teamB.name} expandable />
           <Text
             className="font-uiBold text-[12px] text-neutral-on-surface"
             numberOfLines={1}

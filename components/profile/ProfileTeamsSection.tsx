@@ -1,4 +1,5 @@
 import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { TeamItem } from './types';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
 import { AppIcon } from '@/components/ui/AppIcon';
@@ -95,13 +96,19 @@ export function ProfileTeamsSection({ teams, onCreateTeam, onJoinTeam, onOpenReq
                       caracteres). minWidth 0 es para el target web (react-native-web
                       usa flexbox CSS real, donde min-width:auto impide encoger). */}
                   <View className="flex-1 flex-row items-center gap-4" style={{ minWidth: 0 }}>
-                    <View className="h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-variant">
-                      {getShieldImageUrl(team) ? (
-                        <Image source={{ uri: getShieldImageUrl(team) }} className="h-8 w-8" resizeMode="contain" />
-                      ) : (
-                        <AppIcon family="material-community" name="shield-outline" size={18} color="#BCCBB9" />
-                      )}
-                    </View>
+                    <ExpandablePhoto
+                      uri={getShieldImageUrl(team) || null}
+                      subject={{ kind: 'shield', teamId: team.id }}
+                      title={team.name}
+                    >
+                      <View className="h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-variant">
+                        {getShieldImageUrl(team) ? (
+                          <Image source={{ uri: getShieldImageUrl(team) }} className="h-8 w-8" resizeMode="contain" />
+                        ) : (
+                          <AppIcon family="material-community" name="shield-outline" size={18} color="#BCCBB9" />
+                        )}
+                      </View>
+                    </ExpandablePhoto>
 
                     <View className="flex-1" style={{ minWidth: 0 }}>
                       <Text

@@ -234,6 +234,11 @@ export interface CheckinViewData {
     myTeamCheckinAt: string | null;
     rules: FormatRulesEntry;
     roster: CheckinRosterPlayer[];
+    /**
+     * F3: mínimo por género entre los titulares si el equipo es MIXTO y la
+     * regla ya se exige; `null` si no aplica (o si no se pudo leer).
+     */
+    mixedMinPerGender: number | null;
 }
 
 // Resumen que devuelve la RPC submit_team_checkin.

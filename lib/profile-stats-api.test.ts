@@ -150,6 +150,7 @@ describe('fetchProfileStatsViewData — historial de partidos', () => {
 
     expect(data.recentMatches[0].rivalName).toBe('Rival FC');
     expect(data.recentMatches[0].rivalShieldUrl).toBe('https://cdn.test/rival.png');
+    expect(data.recentMatches[0].rivalTeamId).toBe(RIVAL_TEAM);
   });
 
   it('toma el escudo del equipo A cuando el jugador juega en el B', async () => {
@@ -161,6 +162,7 @@ describe('fetchProfileStatsViewData — historial de partidos', () => {
 
     expect(data.recentMatches[0].rivalName).toBe('Mi Equipo');
     expect(data.recentMatches[0].rivalShieldUrl).toBe('https://cdn.test/mine.png');
+    expect(data.recentMatches[0].rivalTeamId).toBe(MY_TEAM);
   });
 
   it('deja el escudo en null si el rival no cargo ninguno', async () => {

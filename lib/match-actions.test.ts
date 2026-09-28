@@ -168,6 +168,30 @@ describe('doCheckin', () => {
       teamSealed: true,
       justSealed: true,
       matchStatus: 'EN_VIVO',
+      // Servidor sin las claves de F3 (o equipo no MIXTO): nada que reclamar.
+      compositionOk: true,
+      compositionMissing: null,
+    });
+  });
+
+  it('F3: con el quórum alcanzado pero sin la composición mixta, informa cuántos faltan', async () => {
+    supabaseRpcMock.mockResolvedValueOnce({
+      data: {
+        checkedInPlayers: 4,
+        minPlayers: 4,
+        teamSealed: false,
+        justSealed: false,
+        matchStatus: 'CONFIRMADO',
+        compositionOk: false,
+        compositionMissing: { male: 1, female: 0, total: 1 },
+      },
+      error: null,
+    });
+
+    await expect(doCheckin('m1', 'teamA')).resolves.toMatchObject({
+      teamSealed: false,
+      compositionOk: false,
+      compositionMissing: { male: 1, female: 0, total: 1 },
     });
   });
 
@@ -417,6 +441,15 @@ describe('getProposalErrorMessage', () => {
     expect(getProposalErrorMessage({ message: 'INVALID_MATCH_STATUS: estado CANCELADO' })).toContain(
       'ya no está pendiente',
     );
+  });
+
+  it('F3: la composición mixta conserva el detalle del servidor', () => {
+    expect(
+      getProposalErrorMessage({
+        message: 'MIXED_COMPOSITION: Los Pibes no cumple la composición mínima de un equipo mixto',
+      }),
+    ).toBe('Los Pibes no cumple la composición mínima de un equipo mixto.');
+    expect(getProposalErrorMessage({ message: 'MIXED_COMPOSITION:' })).toContain('composición mínima');
   });
 
   it('deja pasar los mensajes en castellano que la RPC ya devolvía', () => {

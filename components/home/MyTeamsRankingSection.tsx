@@ -30,6 +30,9 @@ function TeamRankingCard({ team, onPress }: TeamCardProps) {
         shieldUrl={team.shieldUrl}
         size={50}
         isMyTeam
+        teamId={team.id}
+        viewerTitle={team.name}
+        expandable
       />
 
       {/* Team information */}

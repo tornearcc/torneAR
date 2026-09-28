@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
-import { sendChallenge, fetchSquadReadiness, type SquadReadiness } from '@/lib/challenge-actions';
+import {
+  sendChallenge,
+  fetchSquadReadiness,
+  getChallengeErrorMessage,
+  isChallengeRuleRejection,
+  type SquadReadiness,
+} from '@/lib/challenge-actions';
 import { Logger } from '@/lib/logger';
 
 const FORMAT_SHORT: Record<string, string> = {
@@ -55,16 +61,29 @@ export function ChallengeButton({
       });
       showAlert('¡Enviado!', `El desafío fue enviado correctamente al rival.${extra}`, onSuccess);
     } catch (error: unknown) {
-      Logger.error('No se pudo enviar el desafío', {
+      const detail = {
         scope: 'ChallengeButton.handleConfirm',
         challengerTeamId,
         opponentTeamId,
         matchType,
         error,
-      });
-      const message =
-        (error as { message?: string }).message ?? 'No se pudo enviar el desafío.';
-      showAlert('Error', message);
+      };
+
+      // Chocar contra una regla (cooldown, partido de ranking sin resolver,
+      // tope por temporada) no es un incidente: es el servidor haciendo su
+      // trabajo. Va como `info` para que el panel de errores siga midiendo
+      // sólo lo que de verdad se rompe — y de paso queda medible cuántas veces
+      // se topa la gente con cada regla.
+      if (isChallengeRuleRejection(error)) {
+        Logger.info('Desafío rechazado por una regla de negocio', detail);
+      } else {
+        Logger.error('No se pudo enviar el desafío', detail);
+      }
+
+      // El traductor del DAL: los rechazos con código (RANKING_MATCH_ACTIVE,
+      // TEAM_INACTIVE…) salen con texto propio y el resto conserva el mensaje
+      // de la RPC, que ya está escrito para el usuario.
+      showAlert('Error', getChallengeErrorMessage(error, 'No se pudo enviar el desafío.'));
     } finally {
       setLoading(false);
     }

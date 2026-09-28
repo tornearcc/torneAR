@@ -1,8 +1,7 @@
 import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInRight } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { Image } from 'expo-image';
-import { AppIcon } from '@/components/ui/AppIcon';
+import { Avatar } from '@/components/ui/Avatar';
 import type { PlayerLeaderboardEntry } from './types';
 
 interface Props {
@@ -10,9 +9,11 @@ interface Props {
     statLabel: string;
     isPercent?: boolean;
     index?: number;
+    /** Entrada escalonada; apagada en la tabla completa (ver RankingTeamRow). */
+    animated?: boolean;
 }
 
-export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, index = 0 }: Props) {
+export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, index = 0, animated = true }: Props) {
     const isTop3 = entry.rankPosition <= 3;
     const colors = ['#FABD32', '#C0C0C0', '#CD7F32'] as const;
     const posColor = isTop3 ? colors[entry.rankPosition - 1] : '#869585';
@@ -23,7 +24,7 @@ export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, inde
     ].filter(Boolean).join(' · ');
 
     return (
-        <Animated.View entering={FadeInRight.delay(index * 50).springify()} style={{ marginBottom: 6 }}>
+        <Animated.View entering={animated ? FadeInRight.delay(index * 50).springify() : undefined} style={{ marginBottom: 6 }}>
         <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => router.push({ pathname: '/profile-stats', params: { profileId: entry.profileId } })}
@@ -33,13 +34,10 @@ export function PlayerLeaderboardRow({ entry, statLabel, isPercent = false, inde
                 {entry.rankPosition}
             </Text>
 
-            {entry.avatarUrl ? (
-                <Image source={{ uri: entry.avatarUrl }} style={{ width: 30, height: 30, borderRadius: 15, marginRight: 10 }} contentFit="cover" />
-            ) : (
-                <View className="mr-2.5 h-[30px] w-[30px] items-center justify-center rounded-full bg-surface-high">
-                    <AppIcon family="material-community" name="account" size={16} color="#869585" />
-                </View>
-            )}
+            {/* La foto abre el visor; el resto de la fila, el perfil. */}
+            <View className="mr-2.5">
+                <Avatar uri={entry.avatarUrl} size={30} profileId={entry.profileId} name={entry.fullName} expandable />
+            </View>
 
             <View className="flex-1">
                 <Text className={`font-uiBold text-xs ${entry.isMyPlayer ? 'text-brand-primary' : 'text-neutral-on-surface'}`} numberOfLines={1}>

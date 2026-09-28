@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Animated } from 'react-native';
 import { TeamShield } from '@/components/ui/TeamShield';
 import { LiveTimer } from '@/components/matches/LiveTimer';
@@ -45,7 +45,10 @@ function VenueBadge({ isHome }: { isHome: boolean }) {
 }
 
 function LiveBadge() {
-  const pulse = useRef(new Animated.Value(1)).current;
+  // `useState` con inicializador lazy en vez de `useRef(new Animated.Value(1)).current`:
+  // da el mismo valor estable sin leer una ref durante el render (y sin construir
+  // un Animated.Value nuevo que se descarta en cada render).
+  const [pulse] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -184,7 +187,7 @@ export function MatchDetailHero({ match, myTeamId }: Props) {
       <View className="flex-row items-center justify-center gap-6">
         {/* My team — local si mi equipo es teamA (localía absoluta) */}
         <View className="flex-1 items-center gap-2">
-          <TeamShield shieldUrl={myTeam.shieldUrl} size={72} isMyTeam />
+          <TeamShield shieldUrl={myTeam.shieldUrl} size={72} isMyTeam teamId={myTeam.id} viewerTitle={myTeam.name} expandable />
           <VenueBadge isHome={isMyTeamA} />
           <Text
             className="font-uiBold text-center text-sm text-neutral-on-surface"
@@ -200,7 +203,7 @@ export function MatchDetailHero({ match, myTeamId }: Props) {
 
         {/* Opponent team — la localía inversa a la mía */}
         <View className="flex-1 items-center gap-2">
-          <TeamShield shieldUrl={opponentTeam.shieldUrl} size={72} />
+          <TeamShield shieldUrl={opponentTeam.shieldUrl} size={72} teamId={opponentTeam.id} viewerTitle={opponentTeam.name} expandable />
           <VenueBadge isHome={!isMyTeamA} />
           <Text
             className="font-uiBold text-center text-sm text-neutral-on-surface"

@@ -1,0 +1,117 @@
+-- ============================================================
+-- 450-admin-remove-reported-avatar — rama USER de la remoción (pgTAP)
+-- ============================================================
+-- Cubre la rama USER que agrega 20260924140000 a
+-- `public.admin_remove_reported_content`: una foto de perfil denunciada se
+-- puede quitar sin suspender la cuenta.
+--
+-- Aserciones:
+--   U-1      Un no-admin no puede quitar la foto (la foto sigue).
+--   U-2/U-3  El admin la quita: avatar_url queda NULL y el resto del perfil
+--            no se toca.
+--   U-4      La denuncia queda PENDING: el archivo sigue en el bucket y la
+--            marca ACTIONED el dashboard después de borrarlo.
+--   U-5      La auditoría registra la acción y el path quitado, que es lo que
+--            el dashboard necesita para borrar el archivo del bucket.
+--   U-6      Sobre un perfil que ya no tiene foto se rechaza, y la denuncia
+--            NO se marca ACTIONED (no se hizo nada).
+--   U-7/U-8  Reintento: si la foto de esa denuncia ya se quitó, se rechaza con
+--            AVATAR_ALREADY_REMOVED y NO se toca una foto nueva que la persona
+--            haya subido en el medio.
+--   U-9      Existen las policies de Storage para que un admin lea y borre
+--            avatares con su propia sesión.
+-- ============================================================
+
+begin;
+select plan(11);
+
+-- ── Setup como postgres ─────────────────────────────────────────────────────
+-- Admin: P4 (auth aaaaaaaa-…-0004). Denunciado con foto: P1. Sin foto: P7.
+update profiles set is_admin = true where id = '33333333-3333-3333-3333-000000000004';
+update profiles set avatar_url = 'aaaaaaaa-0000-0000-0000-000000000001/avatar-denunciado.jpg'
+where id = '33333333-3333-3333-3333-000000000001';
+update profiles set avatar_url = null
+where id = '33333333-3333-3333-3333-000000000007';
+
+insert into content_reports (id, reporter_id, reported_entity_type, reported_entity_id, reason) values
+  ('e5e5e5e5-0000-0000-0000-00000000dd01', '33333333-3333-3333-3333-000000000004', 'USER',
+   '33333333-3333-3333-3333-000000000001', 'Foto de perfil inapropiada'),
+  ('e5e5e5e5-0000-0000-0000-00000000dd02', '33333333-3333-3333-3333-000000000004', 'USER',
+   '33333333-3333-3333-3333-000000000007', 'Foto de perfil inapropiada');
+
+-- ── U-1. No-admin ───────────────────────────────────────────────────────────
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}', true);
+select throws_matching(
+  $$ select admin_remove_reported_content('e5e5e5e5-0000-0000-0000-00000000dd01') $$,
+  'NOT_AUTHORIZED',
+  'U-1: un no-admin no puede quitar una foto denunciada');
+
+-- ── Como admin ──────────────────────────────────────────────────────────────
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000004"}', true);
+
+select lives_ok(
+  $$ select admin_remove_reported_content('e5e5e5e5-0000-0000-0000-00000000dd01') $$,
+  'U-2: el admin quita la foto denunciada');
+
+select results_eq(
+  $$ select avatar_url is null, full_name is not null, username is not null
+       from profiles where id = '33333333-3333-3333-3333-000000000001' $$,
+  $$ values (true, true, true) $$,
+  'U-3: avatar_url queda NULL y el resto del perfil sigue igual');
+
+select is(
+  (select status::text from content_reports where id = 'e5e5e5e5-0000-0000-0000-00000000dd01'),
+  'PENDING',
+  'U-4: la denuncia queda PENDING hasta que el dashboard borre el archivo');
+
+select results_eq(
+  $$ select details->>'action', details->>'removed_avatar_path'
+       from app_logs
+      where message = 'admin.remove_reported_content'
+        and details->>'report_id' = 'e5e5e5e5-0000-0000-0000-00000000dd01' $$,
+  $$ values ('avatar_removed', 'aaaaaaaa-0000-0000-0000-000000000001/avatar-denunciado.jpg') $$,
+  'U-5: la auditoría guarda la acción y el path a borrar del bucket');
+
+select throws_matching(
+  $$ select admin_remove_reported_content('e5e5e5e5-0000-0000-0000-00000000dd02') $$,
+  'NO_CONTENT_TO_REMOVE',
+  'U-6: sobre un perfil sin foto se rechaza');
+
+select is(
+  (select status::text from content_reports where id = 'e5e5e5e5-0000-0000-0000-00000000dd02'),
+  'PENDING',
+  'U-6: y la denuncia no se marca ACTIONED');
+
+-- ── U-7/U-8. Reintento con una foto nueva en el medio ──────────────────────
+-- La persona sube otra foto después de que se quitó la denunciada.
+update profiles set avatar_url = 'aaaaaaaa-0000-0000-0000-000000000001/avatar-nueva.jpg'
+where id = '33333333-3333-3333-3333-000000000001';
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000004"}', true);
+
+select throws_matching(
+  $$ select admin_remove_reported_content('e5e5e5e5-0000-0000-0000-00000000dd01') $$,
+  'AVATAR_ALREADY_REMOVED',
+  'U-7: el reintento sobre la misma denuncia se rechaza');
+
+select is(
+  (select avatar_url from profiles where id = '33333333-3333-3333-3333-000000000001'),
+  'aaaaaaaa-0000-0000-0000-000000000001/avatar-nueva.jpg',
+  'U-8: y la foto nueva, que nadie denunció, queda intacta');
+
+-- ── U-9. Policies de Storage para el admin ─────────────────────────────────
+select is(
+  (select string_agg(policyname::text || ':' || cmd, ',' order by policyname::text collate "C")
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname in ('Admins leen los avatares', 'Admins borran avatares')),
+  'Admins borran avatares:DELETE,Admins leen los avatares:SELECT',
+  'U-9: un admin puede leer y borrar objetos del bucket avatars');
+
+select ok(
+  (select bool_and(qual like '%is_admin = true%') from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname in ('Admins leen los avatares', 'Admins borran avatares')),
+  'U-9: y las dos exigen is_admin');
+
+select * from finish();
+rollback;

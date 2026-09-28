@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 
@@ -50,18 +49,17 @@ import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 export function useKeyboardAwareBottomInset(gap = 8): number {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight();
-  const [restingInset, setRestingInset] = useState(insets.bottom);
-
-  // Sólo se actualiza con el teclado cerrado (ver "el inset de reposo se congela").
-  useEffect(() => {
-    if (keyboardHeight === 0 && insets.bottom !== restingInset) {
-      setRestingInset(insets.bottom);
-    }
-  }, [insets.bottom, keyboardHeight, restingInset]);
 
   // Reposo: la altura real de la gesture bar (o de los botones) más el aire.
+  //
+  // El valor de reposo se lee directo de `insets.bottom` en vez de copiarse a
+  // un estado desde un efecto. La copia no aportaba nada: sólo se leía en esta
+  // rama —con el teclado abierto el retorno de abajo ni la mira— y el efecto la
+  // igualaba a `insets.bottom` apenas `keyboardHeight` volvía a 0, así que
+  // nunca hubo un frame pintado en el que difirieran. Lo único que agregaba era
+  // un render extra por cada cambio del inset.
   if (keyboardHeight === 0) {
-    return restingInset + gap;
+    return insets.bottom + gap;
   }
 
   // Teclado abierto: el inset de reposo ya no corresponde — el teclado tapa la

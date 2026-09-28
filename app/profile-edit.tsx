@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useForm, Controller, useWatch, type DefaultValues } from 'react-hook-form';
@@ -8,6 +8,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/context/AuthContext';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
+import { Avatar } from '@/components/ui/Avatar';
+import { useAvatarUpload } from '@/hooks/useAvatarUpload';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { PitchSelector } from '@/components/ui/PitchSelector';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
@@ -15,7 +18,7 @@ import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { updateProfile } from '@/lib/profile-edit-data';
 import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
-import { ZonePickerDialog } from '@/components/ui/ZonePickerDialog';
+import { ZoneSelectField } from '@/components/ui/ZoneSelect';
 import { OptionPickerDialog } from '@/components/ui/OptionPickerDialog';
 import { ProfileFormFields } from '@/components/profile/ProfileFormFields';
 import { FAVORITE_TEAM_OPTIONS } from '@/lib/favorite-teams';
@@ -62,10 +65,19 @@ export default function ProfileEditScreen() {
   const { profile, refreshProfile } = useAuth();
 
   const [loading, setLoading] = useState(false);
-  const [showZonePicker, setShowZonePicker] = useState(false);
   const [showFavoriteTeamPicker, setShowFavoriteTeamPicker] = useState(false);
 
   const { showAlert, AlertComponent } = useCustomAlert();
+
+  // La foto se sube al elegirla, aparte del formulario: igual que en la
+  // pestaña Perfil, no espera al "Guardar". `refreshProfile` (adentro del
+  // hook) actualiza `profile.avatar_url` y con eso la vista previa.
+  const { uploading: uploadingAvatar, pickAndUpload: pickAvatar } = useAvatarUpload({
+    profileId: profile?.id ?? '',
+    authUserId: profile?.auth_user_id ?? '',
+    showAlert,
+    scope: 'ProfileEdit',
+  });
 
   const {
     control,
@@ -180,6 +192,36 @@ export default function ProfileEditScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View className="gap-4">
+            {/* FOTO DE PERFIL */}
+            {profile ? (
+              <View className="flex-row items-center gap-4">
+                <Avatar
+                  uri={resolveAvatarUrl(profile.avatar_url)}
+                  size={72}
+                  profileId={profile.id}
+                  name={profile.full_name}
+                  expandable
+                  onChangePhoto={() => void pickAvatar()}
+                />
+                <TouchableOpacity
+                  onPress={() => void pickAvatar()}
+                  disabled={uploadingAvatar}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  className="flex-row items-center gap-2 rounded-xl bg-surface-high px-4 py-3"
+                >
+                  {uploadingAvatar ? (
+                    <ActivityIndicator size="small" color="#53E076" />
+                  ) : (
+                    <AppIcon family="material-community" name="camera-outline" size={18} color="#53E076" />
+                  )}
+                  <Text className="font-uiBold text-sm text-neutral-on-surface">
+                    {profile.avatar_url ? 'Cambiar foto' : 'Agregar foto'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {/* FULL NAME */}
             <View>
               <Text className="font-display text-xs uppercase tracking-wider mb-2 text-neutral-on-surface-variant">Nombre y Apellido</Text>
@@ -236,24 +278,15 @@ export default function ProfileEditScreen() {
             </View>
 
             {/* ZONE */}
-            <View>
-              <Text className="font-display text-xs uppercase tracking-wider mb-2 text-neutral-on-surface-variant">Zona de Juego Principal</Text>
-              <TouchableOpacity
-                onPress={() => setShowZonePicker(true)}
-                activeOpacity={0.8}
-                className={`w-full rounded-xl px-4 py-4 flex-row justify-between items-center border ${errors.zone ? 'border-red-500' : 'border-neutral-outline-variant/15'} bg-surface-low`}
-              >
-                <Text
-                  className={`flex-1 ${selectedZone ? 'text-neutral-on-surface' : 'text-surface-bright'}`}
-                  style={{ minWidth: 0 }}
-                  numberOfLines={1}
-                >
-                  {selectedZone || 'Selecciona una zona'}
-                </Text>
-                <AppIcon family="material-icons" name="keyboard-arrow-down" size={22} color="#BCCBB9" />
-              </TouchableOpacity>
-              {errors.zone && <Text className="text-red-500 text-xs mt-1">{errors.zone.message}</Text>}
-            </View>
+            <ZoneSelectField
+              label="Zona de Juego Principal"
+              value={selectedZone || null}
+              onChange={(zone) => setValue('zone', zone ?? '', { shouldValidate: true })}
+              error={errors.zone?.message}
+              /* La zona actual del perfil arriba de todo: en "editar" el caso más
+                 común es abrir, mirar lo que hay y cerrar sin cambiar nada. */
+              suggestedValue={profile?.zone ?? null}
+            />
 
             {/* DATOS PERSONALES — mismo bloque que exige el onboarding (bug 2) */}
             <ProfileFormFields
@@ -261,6 +294,8 @@ export default function ProfileEditScreen() {
               errors={errors}
               setValue={setValue}
               onOpenFavoriteTeamPicker={() => setShowFavoriteTeamPicker(true)}
+              // F3: un perfil viejo sin género lo elige acá; con género, queda fijo.
+              genderLocked={Boolean(profile?.gender)}
             />
 
             {/* POSITION */}
@@ -302,13 +337,6 @@ export default function ProfileEditScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <ZonePickerDialog
-        visible={showZonePicker}
-        onClose={() => setShowZonePicker(false)}
-        selectedZone={selectedZone}
-        onSelect={(val) => setValue('zone', val, { shouldValidate: true })}
-      />
 
       <OptionPickerDialog
         visible={showFavoriteTeamPicker}

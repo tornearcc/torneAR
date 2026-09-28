@@ -50,6 +50,8 @@ export type RecentMatchResult = {
   rivalName: string;
   /** Escudo del rival, ya resuelto a URL absoluta. `null` si el club no cargo uno. */
   rivalShieldUrl: string | null;
+  /** team.id del rival: lo usa el visor de fotos para "Denunciar" el escudo. */
+  rivalTeamId: string;
   goalsFor: number | null;
   goalsAgainst: number | null;
   result: 'V' | 'E' | 'D' | null;

@@ -33,7 +33,9 @@ export function useTeamMatchesRealtime(teamId: string | undefined, onChange: () 
   // La callback suele ser una función nueva en cada render del padre. Guardarla
   // en una ref evita desuscribir y volver a suscribir los canales de continuo.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!teamId) return;

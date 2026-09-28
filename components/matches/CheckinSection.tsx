@@ -11,6 +11,11 @@ interface Props {
   myProfileId?: string | null;
   /** format_rules.min_players_to_start del formato acordado (D9). */
   minPlayers?: number | null;
+  /**
+   * F3: mínimo por género si mi equipo es MIXTO y la regla ya se exige; `null`
+   * si no aplica. El sello además pide esa composición entre los presentes.
+   */
+  mixedMinPerGender?: number | null;
 }
 
 /**
@@ -77,7 +82,14 @@ function isWithin2Hours(scheduledAt: string | null): boolean {
   return diff <= 2 * 60 * 60 * 1000 && diff > -60 * 60 * 1000;
 }
 
-export function CheckinSection({ match, onCheckin, onOpenSquadList, myProfileId, minPlayers }: Props) {
+export function CheckinSection({
+  match,
+  onCheckin,
+  onOpenSquadList,
+  myProfileId,
+  minPlayers,
+  mixedMinPerGender,
+}: Props) {
   const { teamA, teamB, myTeamId, checkinTeamAAt, checkinTeamBAt, scheduledAt, participants } = match;
 
   const isMyTeamA = teamA.id === myTeamId;
@@ -154,9 +166,14 @@ export function CheckinSection({ match, onCheckin, onOpenSquadList, myProfileId,
               presentó al equipo, y cuánta gente falta para que lo haga. */}
           {!teamSealed && (
             <Text className="font-ui mt-1 text-center text-xs text-neutral-on-surface-variant">
-              {minPlayers
-                ? `Faltan ${missing} compañero(s) para dar por presentado al equipo (${myTeamArrived}/${minPlayers}).`
-                : 'Falta que lleguen más compañeros para dar por presentado al equipo.'}
+              {minPlayers && missing === 0 && mixedMinPerGender
+                ? // F3: el quórum está, lo que falta es la composición. El
+                  // cliente no sabe el género de los presentes: enuncia la regla
+                  // (el alert del check-in dice cuántos faltan).
+                  `Ya son ${myTeamArrived}, pero para presentar a un equipo mixto entre los presentes tiene que haber al menos ${mixedMinPerGender} de género masculino y ${mixedMinPerGender} de género femenino.`
+                : minPlayers
+                  ? `Faltan ${missing} compañero(s) para dar por presentado al equipo (${myTeamArrived}/${minPlayers}).`
+                  : 'Falta que lleguen más compañeros para dar por presentado al equipo.'}
             </Text>
           )}
           {onOpenSquadList && (

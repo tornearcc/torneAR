@@ -3,20 +3,24 @@
     "owner": "tornear-org",
     "name": "TorneAR",
     "slug": "tornear",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tornear",
     "userInterfaceStyle": "dark",
     "primaryColor": "#53E076",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.agussala2003.tornear",
-      "associatedDomains": ["applinks:tornear.app"],
+      "associatedDomains": [
+        "applinks:tornear.vercel.app"
+      ],
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "TorneAR necesita tu ubicación para verificar que estás en la cancha al hacer check-in.",
-        "LSApplicationQueriesSchemes": ["instagram"]
+        "NSLocationWhenInUseUsageDescription": "TorneAR usa tu ubicación para dos cosas: cuando tocás «Hacer check-in» antes de un partido, para confirmar que estás a menos de 150 metros del complejo donde se juega; y, si ya diste el permiso, para mostrarte a qué distancia te queda cada cancha en el Mercado. Nunca accedemos a tu ubicación en segundo plano.",
+        "LSApplicationQueriesSchemes": [
+          "instagram"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,11 +35,14 @@
           "data": [
             {
               "scheme": "https",
-              "host": "tornear.app",
+              "host": "tornear.vercel.app",
               "pathPrefix": "/i/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "adaptiveIcon": {
@@ -43,7 +50,6 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.agussala2003.tornear"
     },
@@ -53,10 +59,30 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.146915112095-3faoduk94as605it024ih7m2nbuhqr7t"
+        }
+      ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "TorneAR necesita tu ubicación para verificar que estás en la cancha al hacer check-in."
+          "locationWhenInUsePermission": "TorneAR usa tu ubicación para dos cosas: cuando tocás «Hacer check-in» antes de un partido, para confirmar que estás a menos de 150 metros del complejo donde se juega; y, si ya diste el permiso, para mostrarte a qué distancia te queda cada cancha en el Mercado. Nunca accedemos a tu ubicación en segundo plano.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": "TorneAR no accede a los datos de movimiento ni de actividad física de tu dispositivo. Esta descripción es obligatoria porque hay componentes incluidos en la app que declaran esa capacidad del sistema, pero la aplicación nunca la solicita: el check-in en la cancha se verifica únicamente con tu ubicación.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TorneAR abre tu galería solo cuando vos tocás para elegir una foto: por ejemplo, para poner tu foto de perfil, subir el escudo de tu equipo, o adjuntar la captura que respalda un reclamo de walkover de un partido. No accedemos a tus fotos en ningún otro momento.",
+          "cameraPermission": "TorneAR abre la cámara solo cuando vos elegís sacar una foto en el momento: por ejemplo, para adjuntar la evidencia que respalda un reclamo de walkover de un partido.",
+          "microphonePermission": false
         }
       ],
       [

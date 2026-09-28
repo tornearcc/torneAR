@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState } from 'react';
 import LottieView from 'lottie-react-native';
 import { View, Text } from 'react-native';
 
@@ -6,10 +6,8 @@ import { View, Text } from 'react-native';
  * Frases de vestuario que acompañan a la carga.
  *
  * Fuera del componente y no adentro: un array declarado en el cuerpo se
- * reconstruye en cada render y, con la selección dentro de un `useMemo` que
- * dependiera de él, la frase cambiaría sola mientras la pantalla sigue
- * cargando. Acá la identidad es estable y el `useMemo` de abajo elige una sola
- * vez por montaje.
+ * reconstruye en cada render. Acá la identidad es estable y el estado de abajo
+ * elige una sola frase por montaje.
  */
 const LOADER_PHRASES = [
   '¿Potrero quién te conoce?',
@@ -30,11 +28,11 @@ type GlobalLoaderProps = {
 };
 
 export function GlobalLoader({ label = 'Cargando...', showPhrase = true }: GlobalLoaderProps) {
-  // Deps vacías: una frase por montaje. Con el array en deps cambiaría en cada
-  // render y el texto parpadearía durante toda la carga.
-  const phrase = useMemo(
+  // `useState` con inicializador lazy: una frase por montaje. Sortearla en el
+  // cuerpo del render la cambiaría en cada render y el texto parpadearía
+  // durante toda la carga; el inicializador corre una sola vez.
+  const [phrase] = useState(
     () => LOADER_PHRASES[Math.floor(Math.random() * LOADER_PHRASES.length)],
-    [],
   );
 
   return (

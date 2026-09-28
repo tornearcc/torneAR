@@ -28,6 +28,8 @@ export function RivalTeamCard({ entry, onPress, canChallenge }: Props) {
                     size={46}
                     isMyTeam={entry.isMyTeam}
                     name={entry.teamName}
+                    teamId={entry.teamId}
+                    expandable
                 />
 
                 <View className="flex-1">

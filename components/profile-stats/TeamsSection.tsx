@@ -1,5 +1,6 @@
 import { Image, Text, View } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
 import { getTeamRoleLabel } from '@/lib/team-options';
 import type { TeamEntry } from './types';
@@ -38,13 +39,15 @@ export function TeamsSection({ teams }: TeamsSectionProps) {
                 key={team.id}
                 className="flex-row items-center gap-4 rounded-xl bg-surface-low p-3"
               >
-                <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface-variant">
-                  {shieldUrl ? (
-                    <Image source={{ uri: shieldUrl }} className="h-8 w-8" resizeMode="contain" />
-                  ) : (
-                    <AppIcon family="material-community" name="shield-outline" size={18} color="#BCCBB9" />
-                  )}
-                </View>
+                <ExpandablePhoto uri={shieldUrl || null} subject={{ kind: 'shield', teamId: team.id }} title={team.name}>
+                  <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface-variant">
+                    {shieldUrl ? (
+                      <Image source={{ uri: shieldUrl }} className="h-8 w-8" resizeMode="contain" />
+                    ) : (
+                      <AppIcon family="material-community" name="shield-outline" size={18} color="#BCCBB9" />
+                    )}
+                  </View>
+                </ExpandablePhoto>
                 <View className="flex-1">
                   <Text className="font-display text-xl text-neutral-on-surface">{team.name}</Text>
                   <View className="mt-1.5 flex-row items-center gap-2">

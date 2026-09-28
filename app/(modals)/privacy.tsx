@@ -33,10 +33,15 @@ export default function PrivacyScreen() {
           {PRIVACY_INTRO}
         </Text>
 
-        {PRIVACY_SECTIONS.map((section, index) => (
+        {/* La numeración viene DENTRO de `section.title` ("1. Identidad de los
+            Responsables y Contacto"), no de un `index + 1` acá: es parte del
+            texto legal —las cláusulas se citan por número— y tiene que
+            coincidir con la web (/legal/privacidad), que renderiza el título
+            tal cual. Mismo criterio que la pantalla de Términos. */}
+        {PRIVACY_SECTIONS.map((section) => (
           <View key={section.title} className="mb-6">
             <Text className="font-display mb-2 text-lg uppercase tracking-wider text-brand-primary">
-              {index + 1}. {section.title}
+              {section.title}
             </Text>
             {section.paragraphs.map((paragraph) => (
               <Text

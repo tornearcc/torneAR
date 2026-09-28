@@ -1,6 +1,8 @@
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
+import { resolveShieldUrl } from '@/lib/supabase-storage';
 import { getTeamCategoryLabel, getTeamFormatLabel } from '@/lib/team-options';
 import type { TeamStatsHeader } from './types';
 
@@ -9,30 +11,30 @@ type TeamHeaderProps = {
 };
 
 export function TeamHeader({ header }: TeamHeaderProps) {
-  const shieldUrl = header.shieldUrl
-    ? header.shieldUrl.startsWith('http')
-      ? header.shieldUrl
-      : getSupabaseStorageUrl('shields', header.shieldUrl)
-    : null;
+  const shieldUrl = resolveShieldUrl(header.shieldUrl);
 
   return (
     <View className="items-center pb-2 pt-4">
-      <View
-        className="border-4 border-brand-primary-container bg-surface-lowest p-1"
-        style={{ height: 100, width: 100, borderRadius: 16 }}
-      >
-        {shieldUrl ? (
-          <Image
-            source={{ uri: shieldUrl }}
-            className="h-full w-full rounded-xl"
-            resizeMode="cover"
-          />
-        ) : (
-          <View className="h-full w-full items-center justify-center rounded-xl bg-surface-high">
-            <AppIcon family="material-community" name="shield-outline" size={32} color="#BCCBB9" />
-          </View>
-        )}
-      </View>
+      {/* Cuadrado redondeado y no el círculo de TeamShield: el escudo se ve
+          entero en la cabecera. Por eso se envuelve en vez de reemplazarse. */}
+      <ExpandablePhoto uri={shieldUrl} subject={{ kind: 'shield', teamId: header.id }} title={header.name}>
+        <View
+          className="border-4 border-brand-primary-container bg-surface-lowest p-1"
+          style={{ height: 100, width: 100, borderRadius: 16 }}
+        >
+          {shieldUrl ? (
+            <Image
+              source={{ uri: shieldUrl }}
+              style={{ width: '100%', height: '100%', borderRadius: 12 }}
+              contentFit="cover"
+            />
+          ) : (
+            <View className="h-full w-full items-center justify-center rounded-xl bg-surface-high">
+              <AppIcon family="material-community" name="shield-outline" size={32} color="#BCCBB9" />
+            </View>
+          )}
+        </View>
+      </ExpandablePhoto>
 
       <Text className="font-displayBlack mt-4 text-2xl tracking-tight text-neutral-on-surface">
         {header.name}

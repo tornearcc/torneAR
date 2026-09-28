@@ -2,11 +2,12 @@ import { useCallback, useState } from 'react';
 import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
+import { ExpandablePhoto } from '@/components/ui/image-viewer/ExpandablePhoto';
 import { useTeamStore } from '@/stores/teamStore';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
-import { fetchChallengesInbox, acceptChallengeWithNotification, updateChallengeStatus, cancelChallenge } from '@/lib/challenge-actions';
+import { fetchChallengesInbox, acceptChallengeWithNotification, updateChallengeStatus, cancelChallenge, getChallengeErrorMessage, isChallengeRuleRejection } from '@/lib/challenge-actions';
 import type { ChallengeInboxEntry } from '@/components/ranking/types';
 import { Logger } from '@/lib/logger';
 
@@ -68,15 +69,29 @@ export default function ChallengesInboxScreen() {
                 'El desafío fue aceptado. Ya tienen un partido en estado Pendiente.',
                 () => router.push({ pathname: '/match-detail' as never, params: { matchId } }),
             );
-        } catch (error: any) {
-            Logger.error('No se pudo aceptar el desafío', {
+        } catch (error: unknown) {
+            const detail = {
                 scope: 'challenge-inbox.handleAccept',
                 challengeId: c.challengeId,
                 opponentTeamId: c.opponentTeamId,
                 activeTeamId,
                 error,
-            });
-            showAlert('Error', error.message || 'No se pudo aceptar el desafío.');
+            };
+
+            // Mismo criterio que ChallengeButton: una regla de negocio se
+            // registra como `info`, no como incidente. Acá el caso típico es un
+            // desafío que quedó viejo — el rival ya no está disponible, o el par
+            // estrenó otro partido de ranking mientras tanto.
+            if (isChallengeRuleRejection(error)) {
+                Logger.info('Aceptación rechazada por una regla de negocio', detail);
+            } else {
+                Logger.error('No se pudo aceptar el desafío', detail);
+            }
+
+            // `accept_challenge` también rechaza con RANKING_MATCH_ACTIVE: entre
+            // que se mandó el desafío y que el rival lo acepta pueden pasar
+            // días, y en el medio el par puede haber estrenado otro partido.
+            showAlert('Error', getChallengeErrorMessage(error, 'No se pudo aceptar el desafío.'));
         } finally {
             setActionLoading(null);
         }
@@ -192,7 +207,13 @@ export default function ChallengesInboxScreen() {
                         <View key={c.challengeId} className={`mb-3 rounded-[16px] p-4 ${c.direction === 'RECIBIDO' && c.status === 'ENVIADA' ? 'border border-brand-primary/20 bg-[#1b201b]' : 'bg-surface-container'}`}>
                             <View className="mb-3 flex-row items-center gap-3">
                                 {c.opponentShieldUrl ? (
-                                    <Image source={{ uri: c.opponentShieldUrl }} style={{ width: 42, height: 42, borderRadius: 21 }} contentFit="cover" />
+                                    <ExpandablePhoto
+                                        uri={c.opponentShieldUrl}
+                                        subject={{ kind: 'shield', teamId: c.opponentTeamId }}
+                                        title={c.opponentTeamName}
+                                    >
+                                        <Image source={{ uri: c.opponentShieldUrl }} style={{ width: 42, height: 42, borderRadius: 21 }} contentFit="cover" />
+                                    </ExpandablePhoto>
                                 ) : (
                                     <View className="h-[42px] w-[42px] items-center justify-center rounded-full bg-surface-high">
                                         <AppIcon family="material-community" name="shield" size={20} color="#869585" />

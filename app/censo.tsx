@@ -24,37 +24,43 @@ import { Logger } from '@/lib/logger';
 export default function CensoScreen() {
   const { profile } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
+  const profileId = profile?.id;
 
   const [data, setData] = useState<CensusViewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Cadena de promesas y no `async`/`await`: llamada desde un efecto, todo lo
+  // que un `async` hace antes de suspenderse cuenta como setState síncrono
+  // dentro del efecto. En los callbacks de `.then`/`.catch`/`.finally` no, que
+  // es donde vive acá cada actualización de estado.
+  //
+  // Tampoco recibe ya un modo: el `setRefreshing(true)` del pull-to-refresh
+  // vive en su propio handler, que es un evento y es donde corresponde.
   const loadCensus = useCallback(
-    async (mode: 'initial' | 'refresh') => {
-      try {
-        if (mode === 'refresh') setRefreshing(true);
-        const viewData = await fetchFavoriteTeamCensus();
-        setData(viewData);
-      } catch (error) {
-        Logger.error('No se pudo cargar el censo de cuadros favoritos', {
-          scope: 'censo.loadCensus',
-          profileId: profile?.id,
-          error,
-        });
-        showAlert(
-          'Error al cargar el censo',
-          getGenericSupabaseErrorMessage(error, 'No se pudo cargar el censo.'),
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [profile?.id, showAlert],
+    () =>
+      fetchFavoriteTeamCensus()
+        .then(setData)
+        .catch((error: unknown) => {
+          Logger.error('No se pudo cargar el censo de cuadros favoritos', {
+            scope: 'censo.loadCensus',
+            profileId,
+            error,
+          });
+          showAlert(
+            'Error al cargar el censo',
+            getGenericSupabaseErrorMessage(error, 'No se pudo cargar el censo.'),
+          );
+        })
+        .finally(() => {
+          setLoading(false);
+          setRefreshing(false);
+        }),
+    [profileId, showAlert],
   );
 
   useEffect(() => {
-    void loadCensus('initial');
+    void loadCensus();
   }, [loadCensus]);
 
   if (loading) return <GlobalLoader label="Contando hinchas..." />;
@@ -78,7 +84,10 @@ export default function CensoScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void loadCensus('refresh')}
+            onRefresh={() => {
+              setRefreshing(true);
+              void loadCensus();
+            }}
             tintColor="#53E076"
             colors={['#53E076']}
           />

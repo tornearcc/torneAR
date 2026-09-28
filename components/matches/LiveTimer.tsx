@@ -13,7 +13,7 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 export function LiveTimer({ startedAt, className }: Props) {
-  const [elapsed, setElapsed] = useState(
+  const [elapsed, setElapsed] = useState(() =>
     Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)),
   );
 

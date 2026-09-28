@@ -186,9 +186,6 @@ function mapResult(raw: RawResult): MatchResultEntry {
   };
 }
 
-// Rows returned by a direct select on match_dispute_votes (not in generated types yet)
-type DisputeVoteRow = { voted_team_id: string; profile_id: string };
-
 export async function fetchDisputeState(
   matchId: string,
   profileId: string,
@@ -200,7 +197,7 @@ export async function fetchDisputeState(
   // es de lectura pública para usuarios autenticados (teams_select_all).
   const [votesRes, teamsRes] = await Promise.all([
     supabase
-      .from('match_dispute_votes' as Parameters<typeof supabase.from>[0])
+      .from('match_dispute_votes')
       .select('voted_team_id, profile_id')
       .eq('match_id', matchId),
     supabase.from('teams').select('id, fair_play_score').in('id', [teamAId, teamBId]),
@@ -208,7 +205,7 @@ export async function fetchDisputeState(
   if (votesRes.error) throw votesRes.error;
   if (teamsRes.error) throw teamsRes.error;
 
-  const rows = (votesRes.data ?? []) as unknown as DisputeVoteRow[];
+  const rows = votesRes.data ?? [];
   const myRow = rows.find((r) => r.profile_id === profileId);
 
   const fairPlayById = new Map(

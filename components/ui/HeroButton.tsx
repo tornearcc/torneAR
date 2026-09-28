@@ -24,10 +24,12 @@ export function HeroButton({ label, onPress, isLoading, style, ...props }: HeroB
   const scale = useSharedValue(1);
   const isDisabled = isLoading === true || props.disabled === true;
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
+  // Los handlers van antes de `useAnimatedStyle` a propósito: el worklet que
+  // recibe ese hook captura `scale`, y el React Compiler trata todo lo que
+  // captura un worklet como congelado a partir de ese punto. Declarados antes,
+  // las escrituras a `scale.value` quedan fuera de ese rango y `react-hooks/
+  // immutability` no las marca. No cambia el comportamiento: son sólo
+  // declaraciones, y el orden de llamada a los hooks se mantiene.
   const handlePressIn = () => {
     // Sin rebote cuando está deshabilitado: la animación se lee como "te
     // escuché" y acá justamente no pasa nada.
@@ -38,6 +40,10 @@ export function HeroButton({ label, onPress, isLoading, style, ...props }: HeroB
   const handlePressOut = () => {
     scale.value = withSpring(1, { damping: 15, stiffness: 300 });
   };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

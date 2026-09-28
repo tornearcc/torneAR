@@ -5,11 +5,11 @@ import type { Href } from 'expo-router';
  * Rutas públicas alcanzables sin sesión. Cualquier otra ruta se considera
  * protegida y exige autenticación antes de navegar (ver `isProtectedDeepLink`).
  */
-const PUBLIC_DEEP_LINK_PATHS = new Set<string>(['login', 'forgot-password']);
+const PUBLIC_DEEP_LINK_PATHS = new Set<string>(['login', 'forgot-password', 'reset-password']);
 
 /**
  * Scheme propio de la app (ver `app.json`). Todo el gating de abajo trabaja
- * sobre este scheme — un Universal Link `https://tornear.app/...` se traduce
+ * sobre este scheme — un Universal Link `https://tornear.vercel.app/...` se traduce
  * primero a este formato (`normalizeUniversalLink`) antes de llegar a
  * cualquiera de los chequeos. Cualquier otro scheme ajeno, o una URL sin
  * scheme, se sigue descartando tal cual.
@@ -19,18 +19,18 @@ const APP_SCHEME = 'tornear';
 /**
  * Dominio asociado a Universal Links / App Links (Fase 6.1 — ver
  * `associatedDomains`/`intentFilters` en `app.json` y
- * `tornear.app/.well-known/*` en torneAR/dashboard). Si el SO interceptó
+ * `tornear.vercel.app/.well-known/*` en torneAR/dashboard). Si el SO interceptó
  * bien el link, la app recibe esta URL `https://` cruda en vez del
  * `tornear://` que se comparte (`lib/referral-link.ts`).
  */
-const UNIVERSAL_LINK_HOST = 'tornear.app';
+const UNIVERSAL_LINK_HOST = 'tornear.vercel.app';
 
 /**
  * Prefijo de path de los links de referido en la web
  * (`torneAR/dashboard/app/(public)/i/[username]`). Es el único patrón de
  * Universal Link que esta función sabe traducir — mantenerlo en sync con
  * `REFERRAL_LINK_BASE_URL` de `lib/referral-link.ts` si alguno cambia.
- * Cualquier otro path bajo `tornear.app` (ej. la landing en `/`) no tiene
+ * Cualquier otro path bajo `tornear.vercel.app` (ej. la landing en `/`) no tiene
  * pantalla equivalente dentro de la app y se sigue ignorando como
  * cualquier https ajeno.
  */
@@ -61,6 +61,19 @@ const UTM_PARAM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign'] as const;
 export const OAUTH_CALLBACK_PATH = 'auth/callback';
 
 /**
+ * Destino del link del mail de recuperación (`tornear://reset-password`).
+ *
+ * A diferencia de `OAUTH_CALLBACK_PATH`, este SÍ es una pantalla real
+ * (`app/reset-password.tsx`), pero tampoco se navega con `deepLinkToHref`: la
+ * URL trae la sesión de recuperación colgada del fragment
+ * (`#access_token=…&refresh_token=…&type=recovery`) y `Linking.parse` no lee
+ * fragments — navegar directo perdería los tokens y la pantalla se quedaría sin
+ * sesión con la cual llamar a `updateUser`. Por eso `resolveDeepLink` la marca
+ * como `recover` y el `_layout` primero canjea y después navega.
+ */
+export const PASSWORD_RECOVERY_PATH = 'reset-password';
+
+/**
  * Normaliza el path de una URL `tornear://...`. `Linking.parse` reparte el
  * primer segmento entre `hostname` y `path` según la cantidad de barras
  * (`tornear://match-detail` vs `tornear:///match-detail`), así que los unimos
@@ -75,11 +88,11 @@ function extractPath(parsed: Linking.ParsedURL): string {
 }
 
 /**
- * Traduce un Universal Link de referido (`https://tornear.app/i/<username>`)
+ * Traduce un Universal Link de referido (`https://tornear.vercel.app/i/<username>`)
  * al `tornear://login?ref=<username>` que el resto de este módulo ya sabe
  * resolver — mismo destino final que si el link hubiera llegado con el
  * scheme propio desde el vamos. Cualquier otra URL, incluido cualquier otro
- * path bajo `tornear.app`, se devuelve sin tocar.
+ * path bajo `tornear.vercel.app`, se devuelve sin tocar.
  *
  * Se llama al principio de `isOAuthCallback`, `deepLinkToHref` e
  * `isProtectedDeepLink` — las tres, no solo una — para que el gating de
@@ -103,9 +116,9 @@ function normalizeUniversalLink(url: string): string {
   // OJO: acá NO se usa `extractPath()`. Esa función combina hostname+path
   // porque en un `tornear://...` el host ES el primer segmento de la ruta
   // (`tornear://match-detail` → hostname: 'match-detail'). Para un
-  // `https://`, `parsed.hostname` ya es el dominio real (`tornear.app`,
+  // `https://`, `parsed.hostname` ya es el dominio real (`tornear.vercel.app`,
   // recién validado arriba) y NO forma parte de la ruta — combinarlo
-  // armaría `tornear.app/i/juan` en vez de `i/juan`.
+  // armaría `tornear.vercel.app/i/juan` en vez de `i/juan`.
   const path = (parsed.path ?? '').replace(/^\/+/, '').replace(/\/+$/, '');
   if (!path.startsWith(REFERRAL_UNIVERSAL_LINK_PREFIX)) {
     return url;
@@ -146,6 +159,22 @@ export function isOAuthCallback(url: string): boolean {
 }
 
 /**
+ * Reconoce el link de recuperación de contraseña. Compara sobre la URL sin
+ * query ni fragment, por el mismo motivo que `isOAuthCallback`: Supabase cuelga
+ * ahí los tokens (implicit), el `code` (PKCE) o el error si el link venció.
+ */
+export function isPasswordRecoveryLink(url: string): boolean {
+  const withoutParams = normalizeUniversalLink(url).split('#')[0].split('?')[0];
+  const parsed = Linking.parse(withoutParams);
+
+  if (parsed.scheme !== APP_SCHEME) {
+    return false;
+  }
+
+  return extractPath(parsed) === PASSWORD_RECOVERY_PATH;
+}
+
+/**
  * Convierte una URL de deep link en un `Href` navegable por expo-router,
  * preservando los query params. Devuelve `null` si la URL no apunta a
  * ninguna ruta concreta (ej. `tornear://` a secas), o si el scheme/host no
@@ -172,9 +201,10 @@ export function deepLinkToHref(url: string): Href | null {
 }
 
 /**
- * Indica si la URL apunta a una ruta protegida (todo lo que no sea `login`
- * ni `forgot-password`). Se usa para decidir si guardamos el link como
- * pendiente cuando el usuario todavía no está autenticado.
+ * Indica si la URL apunta a una ruta protegida (todo lo que no esté en
+ * `PUBLIC_DEEP_LINK_PATHS`: `login`, `forgot-password` y `reset-password`). Se
+ * usa para decidir si guardamos el link como pendiente cuando el usuario
+ * todavía no está autenticado.
  */
 export function isProtectedDeepLink(url: string): boolean {
   const parsed = Linking.parse(normalizeUniversalLink(url));
@@ -189,6 +219,8 @@ export function isProtectedDeepLink(url: string): boolean {
  *  - `defer`    → ruta protegida y sin sesión: guardar como pendiente y que el
  *                 guard de `_layout` la consuma tras el login (Auth Gating).
  *  - `navigate` → ruta pública, o protegida con sesión activa: navegar ya.
+ *  - `recover`  → link del mail de recuperación: hay que canjear la sesión de
+ *                 la URL ANTES de navegar (ver `PASSWORD_RECOVERY_PATH`).
  *
  * No produce efectos: el llamante aplica el store/router según el resultado,
  * de modo que la misma decisión sirve dentro y fuera de React.
@@ -196,7 +228,8 @@ export function isProtectedDeepLink(url: string): boolean {
 export type DeepLinkAction =
   | { kind: 'ignore' }
   | { kind: 'defer'; url: string }
-  | { kind: 'navigate'; href: Href };
+  | { kind: 'navigate'; href: Href }
+  | { kind: 'recover'; url: string };
 
 export function resolveDeepLink(url: string, isAuthenticated: boolean): DeepLinkAction {
   // El callback de OAuth ya lo consume signInWithGoogle(): acá sólo llega el
@@ -204,6 +237,19 @@ export function resolveDeepLink(url: string, isAuthenticated: boolean): DeepLink
   // ruta inexistente, y diferirlo dejaría un deep link pendiente envenenado.
   if (isOAuthCallback(url)) {
     return { kind: 'ignore' };
+  }
+
+  /*
+   * Antes que `deepLinkToHref`, y antes que el gating de sesión.
+   *
+   * Es la única URL entrante que trae credenciales adentro: si cayera en la
+   * rama genérica, `deepLinkToHref` armaría un `/reset-password` pelado —el
+   * fragment con los tokens no sobrevive a `Linking.parse`— y el usuario
+   * llegaría a la pantalla sin sesión de recuperación, o sea sin poder cambiar
+   * nada. Tampoco puede diferirse: el link tiene un solo uso y vence.
+   */
+  if (isPasswordRecoveryLink(url)) {
+    return { kind: 'recover', url };
   }
 
   const href = deepLinkToHref(url);
@@ -219,9 +265,11 @@ export function resolveDeepLink(url: string, isAuthenticated: boolean): DeepLink
 }
 
 /** Forma mínima de un `NotificationResponse` de expo-notifications, tipada
- *  estructuralmente para no arrastrar el módulo nativo a esta capa pura. */
+ *  estructuralmente para no arrastrar el módulo nativo a esta capa pura.
+ *  `data` es opcional porque así lo declara `NotificationContent` en
+ *  expo-notifications: una push sin payload de datos no trae la propiedad. */
 export interface NotificationResponseLike {
-  notification: { request: { content: { data: unknown } } };
+  notification: { request: { content: { data?: unknown } } };
 }
 
 /**

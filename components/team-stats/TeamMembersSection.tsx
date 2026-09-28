@@ -1,7 +1,7 @@
-import { Image, Text, View } from 'react-native';
-import { AppIcon } from '@/components/ui/AppIcon';
+import { Text, View } from 'react-native';
 import { formatAge } from '@/lib/age';
-import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
+import { Avatar } from '@/components/ui/Avatar';
+import { resolveAvatarUrl } from '@/lib/supabase-storage';
 import { getTeamRoleLabel } from '@/lib/team-options';
 import type { TeamMemberStat } from './types';
 
@@ -41,9 +41,7 @@ export function TeamMembersSection({ members }: TeamMembersSectionProps) {
       ) : (
         <View className="gap-2">
           {members.map((member) => {
-            const avatarUrl = member.avatarUrl
-              ? getSupabaseStorageUrl('avatars', member.avatarUrl)
-              : null;
+            const avatarUrl = resolveAvatarUrl(member.avatarUrl);
             // `null` cuando el jugador no cargo la fecha: no se muestra nada en
             // vez de un "0 años" o un guion, que se leerian como un dato real.
             const age = formatAge(member.age);
@@ -52,18 +50,14 @@ export function TeamMembersSection({ members }: TeamMembersSectionProps) {
                 key={member.profileId}
                 className="flex-row items-center gap-3 rounded-xl bg-surface-low px-3 py-3"
               >
-                {/* Avatar */}
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-variant">
-                  {avatarUrl ? (
-                    <Image
-                      source={{ uri: avatarUrl }}
-                      className="h-10 w-10 rounded-full"
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <AppIcon family="material-community" name="account" size={20} color="#BCCBB9" />
-                  )}
-                </View>
+                <Avatar
+                  uri={avatarUrl}
+                  size={40}
+                  profileId={member.profileId}
+                  name={member.fullName}
+                  backgroundClassName="bg-surface-variant"
+                  expandable
+                />
 
                 {/* Name + role */}
                 <View className="flex-1">
