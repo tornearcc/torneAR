@@ -11,7 +11,7 @@ import {
 import { AppIcon } from '@/components/ui/AppIcon';
 import { applyDateMask, fromDateToDisplay, fromDisplayToDate } from '@/lib/date-mask';
 import { maxSignupBirthDate, MINIMUM_SIGNUP_AGE } from '@/lib/age';
-import type { UserProfileFormData } from '@/lib/schemas/userSchema';
+import { liveBirthDateError, type UserProfileFormData } from '@/lib/schemas/userSchema';
 import { GENDER_LOCKED_MESSAGE } from '@/lib/mixed-composition';
 
 const GENDER_OPTIONS: { value: UserProfileFormData['gender']; label: string }[] = [
@@ -78,6 +78,9 @@ export function ProfileFormFields({
   const selectedFavoriteTeam = useWatch({ control, name: 'favoriteTeam' });
   const selectedBirthDate = useWatch({ control, name: 'dateOfBirth' });
 
+  // Ver `liveBirthDateError`: el error aparece con la fecha completa, sin blur.
+  const birthDateError = errors.dateOfBirth?.message ?? liveBirthDateError(selectedBirthDate);
+
   const [showBirthPicker, setShowBirthPicker] = React.useState(false);
 
   /*
@@ -116,7 +119,7 @@ export function ProfileFormFields({
               <View className="flex-row items-center gap-2">
                 <TextInput
                   className={`flex-1 rounded-xl border px-4 py-4 text-neutral-on-surface ${
-                    errors.dateOfBirth ? 'border-red-500' : 'border-neutral-outline-variant/15'
+                    birthDateError ? 'border-red-500' : 'border-neutral-outline-variant/15'
                   } bg-surface-low`}
                   placeholder="DD/MM/AAAA"
                   placeholderTextColor="#3A3939"
@@ -132,7 +135,7 @@ export function ProfileFormFields({
                   accessibilityRole="button"
                   accessibilityLabel="Elegir fecha de nacimiento en el calendario"
                   className={`h-[54px] w-[54px] items-center justify-center rounded-xl border bg-surface-low ${
-                    errors.dateOfBirth ? 'border-red-500' : 'border-neutral-outline-variant/15'
+                    birthDateError ? 'border-red-500' : 'border-neutral-outline-variant/15'
                   }`}
                 >
                   <AppIcon family="material-community" name="calendar" size={22} color="#BCCBB9" />
@@ -156,8 +159,8 @@ export function ProfileFormFields({
             </>
           )}
         />
-        {errors.dateOfBirth ? (
-          <Text className="text-red-500 text-xs mt-1">{errors.dateOfBirth.message}</Text>
+        {birthDateError ? (
+          <Text className="text-red-500 text-xs mt-1">{birthDateError}</Text>
         ) : (
           <Text className="font-ui mt-1 text-xs text-neutral-outline">
             Tenés que ser mayor de {MINIMUM_SIGNUP_AGE} años para usar torneAR.

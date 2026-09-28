@@ -35,6 +35,9 @@ export default function ProfileScreen() {
 
   // Abandonar equipo (ConfirmDialog custom, no Alert nativo).
   const [teamToLeave, setTeamToLeave] = useState<TeamItem | null>(null);
+  // Cerrar sesión pide confirmación: con un solo toque era fácil salir sin
+  // querer (reporte #7761 de PrimeTestLab, S-02).
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
 
   const { showAlert, AlertComponent } = useCustomAlert();
@@ -108,7 +111,7 @@ export default function ProfileScreen() {
         scope: 'tabs.profile.handleSignOut',
         error,
       });
-      showAlert('Error al cerrar sesion', getAuthErrorMessage(error, 'login'));
+      showAlert('Error al cerrar sesión', getAuthErrorMessage(error, 'login'));
     } finally {
       setIsSigningOut(false);
     }
@@ -188,7 +191,7 @@ export default function ProfileScreen() {
         <ProfileSocialSection
           onError={(message) => showAlert('No pudimos abrir la red', message)}
         />
-        <ProfileSettingsSection isSigningOut={isSigningOut} onSignOut={handleSignOut} />
+        <ProfileSettingsSection isSigningOut={isSigningOut} onSignOut={() => setConfirmSignOut(true)} />
       </ScrollView>
 
       <ConfirmDialog
@@ -203,9 +206,23 @@ export default function ProfileScreen() {
         onCancel={() => setTeamToLeave(null)}
       />
 
+      <ConfirmDialog
+        visible={confirmSignOut}
+        title="Cerrar sesión"
+        message="¿Querés cerrar sesión en este dispositivo?"
+        confirmLabel="Cerrar sesión"
+        cancelLabel="Cancelar"
+        confirmTone="danger"
+        onConfirm={() => {
+          setConfirmSignOut(false);
+          void handleSignOut();
+        }}
+        onCancel={() => setConfirmSignOut(false)}
+      />
+
       {AlertComponent}
 
-      {isSigningOut && <GlobalLoader label="Cerrando sesion" />}
+      {isSigningOut && <GlobalLoader label="Cerrando sesión" />}
     </View>
   );
 }

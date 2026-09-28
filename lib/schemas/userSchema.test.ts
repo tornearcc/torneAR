@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { userProfileSchema } from '@/lib/schemas/userSchema';
+import { liveBirthDateError, liveUsernameError, userProfileSchema } from '@/lib/schemas/userSchema';
 
 const dateField = userProfileSchema.shape.dateOfBirth;
 
@@ -110,5 +110,46 @@ describe('userProfileSchema.dateOfBirth — edad mínima', () => {
         'La fecha de nacimiento no puede ser futura',
       );
     }
+  });
+});
+
+describe('liveUsernameError (reporte #7761, M-03)', () => {
+  it('no reta con el campo vacío', () => {
+    expect(liveUsernameError('')).toBeUndefined();
+    expect(liveUsernameError(undefined)).toBeUndefined();
+  });
+
+  it('marca espacios y símbolos en cuanto aparecen', () => {
+    expect(liveUsernameError('ana reddy!!')).toBe(
+      'Solo minúsculas, números y guiones bajos (_) sin espacios',
+    );
+    expect(liveUsernameError('a!')).toBe('Solo minúsculas, números y guiones bajos (_) sin espacios');
+  });
+
+  it('no reta por largo mientras hay menos de 3 letras válidas', () => {
+    expect(liveUsernameError('ab')).toBeUndefined();
+  });
+
+  it('acepta un usuario válido', () => {
+    expect(liveUsernameError('ana_reddy')).toBeUndefined();
+  });
+});
+
+describe('liveBirthDateError (reporte #7761, S-03)', () => {
+  it('no reta mientras la fecha está incompleta', () => {
+    expect(liveBirthDateError(undefined)).toBeUndefined();
+    expect(liveBirthDateError('18/12/19')).toBeUndefined();
+  });
+
+  it('explica una fecha futura', () => {
+    expect(liveBirthDateError(dateOffsetByDays(1))).toBe('La fecha de nacimiento no puede ser futura');
+  });
+
+  it('explica la edad mínima', () => {
+    expect(liveBirthDateError(birthDateForAge(17))).toMatch(/mayor de 18/);
+  });
+
+  it('no muestra nada con una fecha válida', () => {
+    expect(liveBirthDateError('18/12/1997')).toBeUndefined();
   });
 });

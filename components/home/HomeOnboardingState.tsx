@@ -60,16 +60,19 @@ export function HomeOnboardingState({
         el Mercado.
       </Text>
 
-      {/* Primary CTAs */}
+      {/* Primary CTAs. `flexShrink` + `textAlign` en los textos: si la etiqueta no
+          entra en una línea (pantalla angosta o letra grande en Android), baja a
+          una segunda línea centrada en vez de perder la última palabra
+          ("Unirse con", "Buscar Equipo en el": reporte #7761, M-02). */}
       <View className="mt-8 w-full gap-3">
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={onCreateTeam}
-          className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary py-4"
+          className="flex-row items-center justify-center gap-2 rounded-2xl px-4 bg-brand-primary py-4"
         >
           <AppIcon family="material-community" name="shield-plus" size={20} color="#0E0E0E" />
           <Text
-            style={{ includeFontPadding: false }}
+            style={{ includeFontPadding: false, flexShrink: 1, textAlign: 'center' }}
             className="font-uiBold text-base text-surface-lowest pr-1"
           >
             Crear un Equipo Nuevo{" "}
@@ -79,11 +82,11 @@ export function HomeOnboardingState({
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={onJoinTeam}
-          className="flex-row items-center justify-center gap-2 rounded-2xl border border-brand-primary py-4"
+          className="flex-row items-center justify-center gap-2 rounded-2xl px-4 border border-brand-primary py-4"
         >
           <AppIcon family="material-community" name="key-variant" size={20} color="#53E076" />
           <Text
-            style={{ includeFontPadding: false }}
+            style={{ includeFontPadding: false, flexShrink: 1, textAlign: 'center' }}
             className="font-uiBold text-base text-brand-primary pr-1"
           >
             Unirse con Código{" "}
@@ -93,11 +96,11 @@ export function HomeOnboardingState({
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={onGoToMarket}
-          className="flex-row items-center justify-center gap-2 rounded-2xl bg-surface-container py-4"
+          className="flex-row items-center justify-center gap-2 rounded-2xl px-4 bg-surface-container py-4"
         >
           <AppIcon family="material-community" name="store-search" size={20} color="#BCCBB9" />
           <Text
-            style={{ includeFontPadding: false }}
+            style={{ includeFontPadding: false, flexShrink: 1, textAlign: 'center' }}
             className="font-uiBold text-base text-neutral-on-surface-variant pr-1"
           >
             Buscar Equipo en el Mercado{" "}

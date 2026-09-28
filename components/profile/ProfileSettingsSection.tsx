@@ -72,7 +72,7 @@ export function ProfileSettingsSection({ isSigningOut, onSignOut }: ProfileSetti
         >
           <View className="flex-row items-center gap-4">
             <AppIcon family="material-community" name="logout" size={18} color="#FFB4AB" />
-            <Text className="font-uiBold text-sm text-danger-error">Cerrar Sesion</Text>
+            <Text className="font-uiBold text-sm text-danger-error">Cerrar Sesión</Text>
           </View>
           {isSigningOut && <ActivityIndicator color="#FFB4AB" size="small" />}
         </TouchableOpacity>

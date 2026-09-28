@@ -26,7 +26,7 @@ export default function TeamJoinScreen() {
 
   const handleFindTeam = async () => {
     if (normalizedCode.length < 6) {
-      showAlert('Codigo invalido', 'Revisa el codigo de invitacion e intenta nuevamente.');
+      showAlert('Código inválido', 'Revisá el código de invitación e intentá nuevamente.');
       return;
     }
 
@@ -50,7 +50,7 @@ export default function TeamJoinScreen() {
         scope: 'team-join.handleFindTeam',
         error,
       });
-      showAlert('Error al buscar equipo', getGenericSupabaseErrorMessage(error, 'No se pudo validar el codigo de invitacion.'));
+      showAlert('Error al buscar equipo', getGenericSupabaseErrorMessage(error, 'No se pudo validar el código de invitación.'));
     } finally {
       setSearching(false);
     }
@@ -115,13 +115,13 @@ export default function TeamJoinScreen() {
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
       <SecondaryHeader
         title="Unirse a equipo"
-        subtitle="Ingresa el codigo de invitacion para sumarte a un plantel."
+        subtitle="Ingresá el código de invitación para sumarte a un plantel."
       />
 
       <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 36 }}>
         <View className="gap-4">
           <View>
-            <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Codigo de invitacion</Text>
+            <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Código de invitación</Text>
             <TextInput
               value={inviteCode}
               onChangeText={(value) => setInviteCode(value.toUpperCase())}
