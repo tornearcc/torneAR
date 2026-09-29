@@ -14,11 +14,13 @@
 --   A-11      una cuenta ya dada de baja se rechaza.
 --   A-12..A-13 la función interna no se puede llamar desde la API, la de
 --             admin sí (como authenticated).
+--   A-14      cada archivo se pide borrar UNA vez: el trigger de cambio de
+--             foto no repite el pedido durante la baja (20260929200000).
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
 
 begin;
-select plan(13);
+select plan(14);
 
 -- ── Setup (postgres) ────────────────────────────────────────────────────────
 update profiles set is_admin = true where id = '33333333-3333-3333-3333-000000000004';
@@ -32,6 +34,11 @@ insert into storage.buckets (id, name, public) values ('avatars', 'avatars', tru
 insert into storage.objects (bucket_id, name) values
   ('avatars', 'aaaaaaaa-0000-0000-0000-000000000007/avatar-a.jpg'),
   ('avatars', 'aaaaaaaa-0000-0000-0000-000000000007/vieja.jpg');
+
+-- Con foto de perfil puesta, la baja la pone en NULL y dispara el trigger de
+-- cambio de foto: sin el arreglo de 20260929200000 se pedía borrar dos veces.
+update profiles set avatar_url = 'aaaaaaaa-0000-0000-0000-000000000007/avatar-a.jpg'
+ where id = '33333333-3333-3333-3333-000000000007';
 
 -- ── A-1..A-4. Permisos y guardas ────────────────────────────────────────────
 select tests.authenticate_as_profile('aaaaaaaa-0000-0000-0000-000000000001');
@@ -123,6 +130,13 @@ select ok(
   has_function_privilege('authenticated', 'public.admin_delete_account(uuid, text)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.admin_delete_account(uuid, text)', 'EXECUTE'),
   'A-13: admin_delete_account queda para authenticated (chequea is_admin adentro)');
+
+select is(
+  (select count(*)::int from net.http_request_queue
+    where method = 'DELETE'
+      and url like public.storage_avatars_object_url() || 'aaaaaaaa-0000-0000-0000-000000000007/%'),
+  2,
+  'A-14: cada archivo de la persona se pide borrar una sola vez');
 
 select * from finish();
 rollback;
