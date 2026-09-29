@@ -1,7 +1,8 @@
 /**
  * Términos y Condiciones de uso de torneAR — **Versión Final 12**.
  *
- * Transcripción de `docs/legales/Terminos_y_Condiciones_TorneAR_Version_11_LISTA_PARA_PUBLICAR.pdf`.
+ * Transcripción de `docs/legales/Terminos_y_Condiciones_TorneAR_Version_12.pdf` (antes, de la
+ * Version_11_LISTA_PARA_PUBLICAR, que no tenía la cláusula 10).
  * El texto legal NO se reescribe ni se resume: se transcribe. Si hay que
  * cambiar una cláusula, se cambia primero el documento legal y después acá.
  *
@@ -18,9 +19,9 @@
  *
  * Invierte el orden que pide el encabezado de arriba (primero el documento
  * legal, después el código) porque el plazo de la revisión no daba para
- * esperar el PDF. ⚠️ PENDIENTE: regenerar el PDF de docs/legales como
- * Version_12 con esta cláusula incorporada, para que la transcripción vuelva a
- * tener un original al que corresponder. Las secciones 10 a 32 de la versión 11
+ * esperar el PDF. El 29/09/2026 se generó `Version_12.pdf` desde este texto,
+ * con los domicilios de la cláusula 2 restituidos, así que la transcripción
+ * vuelve a tener un original. Las secciones 10 a 32 de la versión 11
  * pasaron a ser 11 a 33; ningún párrafo se referencia por número, así que la
  * renumeración no rompe remisiones internas.
  *
@@ -37,7 +38,8 @@
  *    consentido" con tachado (marca de edición), calificando a "contenido/
  *    material sexual". Se transcribe con el tachado YA APLICADO —es decir, sin
  *    esas palabras—, lo que deja la prohibición de contenido sexual como
- *    absoluta y no acotada a lo ilícito o no consentido.
+ *    absoluta y no acotada a lo ilícito o no consentido. El PDF v12 ya trae el
+ *    tachado aplicado: respecto de la v12, el único desvío es el 1.
  *
  * ── Cómo se versiona ─────────────────────────────────────────────────────────
  * `TERMS_LAST_UPDATED` no es decorativo: alimenta `LEGAL_VERSIONS.terms`
