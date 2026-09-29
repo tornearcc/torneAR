@@ -652,6 +652,27 @@ export type Database = {
         }
         Relationships: []
       }
+      link_clicks: {
+        Row: {
+          channel: string
+          created_at: string
+          id: number
+          platform: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          id?: never
+          platform: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: never
+          platform?: string
+        }
+        Relationships: []
+      }
       market_player_post_applications: {
         Row: {
           applicant_profile_id: string
@@ -3216,6 +3237,16 @@ export type Database = {
           teams: number
         }[]
       }
+      dashboard_link_clicks: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          android: number
+          channel: string
+          clicks: number
+          ios: number
+          otro: number
+        }[]
+      }
       dashboard_logs_timeseries: {
         Args: { p_from?: string; p_to?: string }
         Returns: {
@@ -3680,6 +3711,10 @@ export type Database = {
           p_team_id: string
           p_venue_id: string
         }
+        Returns: undefined
+      }
+      log_link_click: {
+        Args: { p_channel: string; p_platform: string }
         Returns: undefined
       }
       mark_instagram_sync: {
