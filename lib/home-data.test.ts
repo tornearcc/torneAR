@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPendingActions } from './home-data';
+import { buildPendingActions, fetchSoloCaptainTeam } from './home-data';
+import { supabase } from '@/lib/supabase';
+import { createQueryBuilder } from '@/lib/test-utils/supabase-mock';
 
 // home-data importa el cliente real sólo para `fetchHomeViewData`; lo que se
 // prueba acá es la parte pura (D12), pero el import se resuelve igual.
@@ -76,5 +78,45 @@ describe('buildPendingActions (D12)', () => {
 
   it('deja el matchId en null cuando la señal no apunta a un partido', () => {
     expect(buildPendingActions([{ type: 'TEAM_REQUEST', count: 1 }])[0].matchId).toBeNull();
+  });
+});
+
+describe('fetchSoloCaptainTeam (Tanda 7)', () => {
+  const from = vi.mocked(supabase.from);
+
+  function mockTables(members: { team_id: string }[], team: unknown, teamError: unknown = null) {
+    from.mockImplementation(((table: string) =>
+      table === 'team_members'
+        ? createQueryBuilder({ data: members, error: null })
+        : createQueryBuilder({ data: team, error: teamError })) as never);
+  }
+
+  it('sin equipos que gestione, ni consulta', async () => {
+    from.mockClear();
+    expect(await fetchSoloCaptainTeam('p1', [])).toBeNull();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('devuelve el primer equipo que gestiona con un solo integrante', async () => {
+    mockTables(
+      [{ team_id: 't1' }, { team_id: 't1' }, { team_id: 't2' }],
+      { id: 't2', name: 'Furbol', invite_code: 'AB12CD34', is_active: true },
+    );
+    expect(await fetchSoloCaptainTeam('p1', ['t1', 't2'])).toEqual({ id: 't2', name: 'Furbol', inviteCode: 'AB12CD34' });
+  });
+
+  it('con compañeros en todos sus equipos, null', async () => {
+    mockTables([{ team_id: 't1' }, { team_id: 't1' }], null);
+    expect(await fetchSoloCaptainTeam('p1', ['t1'])).toBeNull();
+  });
+
+  it('un equipo dado de baja no muestra la tarjeta', async () => {
+    mockTables([{ team_id: 't1' }], { id: 't1', name: 'Viejo', invite_code: 'AB12CD34', is_active: false });
+    expect(await fetchSoloCaptainTeam('p1', ['t1'])).toBeNull();
+  });
+
+  it('un error no frena la Home: null', async () => {
+    mockTables([{ team_id: 't1' }], null, { message: 'boom' });
+    expect(await fetchSoloCaptainTeam('p1', ['t1'])).toBeNull();
   });
 });
