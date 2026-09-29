@@ -727,6 +727,7 @@ abandono o expulsión.
 | Marcar mi propia llegada (check-in) | ✅ | ✅ | ✅ | ✅ |
 | Presentar la lista de convocados | ✅ | ✅ | ✅ | ❌ |
 | Cargar el resultado | ✅ | ✅ | ✅ | ❌ |
+| Escribir en el chat del partido | ✅ | ✅ | ✅ | ❌ |
 | Corregir un resultado que cargó otro | ✅ | ✅ | ❌ | ❌ |
 | Votar en una disputa | ✅* | ✅* | ✅* | ✅* |
 | Cerrar la votación de una disputa | ❌ | ❌ | ❌ | ❌ |
@@ -746,8 +747,8 @@ y es a propósito: mientras existió ese permiso, el primero en usarlo se llevab
 el partido (ver 4.6).
 
 **Por qué el DT tiene ese recorte exacto:** se le dieron los permisos del **día del
-partido** (presentar la lista, cargar el resultado) y **ninguno de gestión del
-club**. El corte no es de confianza, es de naturaleza del acto: proponer o
+partido** (presentar la lista, cargar el resultado, escribir en el chat del
+partido) y **ninguno de gestión del club**. El corte no es de confianza, es de naturaleza del acto: proponer o
 confirmar un partido compromete al club frente a otro club (fecha, cancha, seña) y
 eso es de la conducción; reclamar o resolver un walkover cierra un resultado.
 
@@ -770,17 +771,16 @@ Hay **un solo chat por partido**, garantizado por la base de datos.
 | | Quién |
 |---|---|
 | **Puede leer** | Todos los miembros de **los dos equipos**, sin importar el rol |
-| **Puede escribir** | Sólo **capitán y subcapitán**, de cualquiera de los dos equipos |
+| **Puede escribir** | **Capitán, subcapitán y director técnico**, de cualquiera de los dos equipos |
 
 **Dos consecuencias que conviene tener claras:**
 
 1. **No es un canal privado de tu equipo.** El rival lee absolutamente todo lo
    que se escribe ahí. Es un canal de coordinación entre clubes, no un vestuario.
-2. **El director técnico y los jugadores leen pero no escriben.** El DT recibió
-   permisos del día del partido (presentar la lista, cargar el resultado), pero
-   las tablas de comunicación quedaron fuera de ese cambio. Hoy, en el chat del
-   partido, un DT tiene el mismo acceso que un jugador: ve la conversación
-   completa y no puede responder.
+2. **Los jugadores leen pero no escriben.** Ven la conversación completa y, en
+   lugar del campo para escribir, un aviso que les dice quién escribe. El
+   director técnico escribe desde el 29/09/2026: antes tenía los permisos del día
+   del partido pero no el del chat, y era una inconsistencia.
 
 **Los invitados no entran.** Un jugador que se sumó con el código único del
 partido no es miembro del equipo, así que no ve el chat.
@@ -876,11 +876,6 @@ puntos abiertos conocidos al día de hoy:
 3. **El historial de evolución del Elo no distingue formatos** todavía.
 4. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
    limitación de cobertura, no de diseño, y se resuelve sumando canchas.
-5. **El director técnico no puede escribir en el chat del partido.** Recibió los
-   permisos operativos del día del partido, pero las políticas de mensajería
-   quedaron fuera de ese cambio y siguen admitiendo sólo a capitán y subcapitán.
-   Es una inconsistencia con el resto de sus atribuciones, no una decisión
-   tomada.
 
 ---
 
