@@ -18,6 +18,20 @@
 
 
 -- ============================================================
+-- PUSHES: que el stack local y el CI no llamen a producción
+-- ============================================================
+-- La migración 20260711032948 guarda en Vault la URL de push-dispatch de
+-- PRODUCCIÓN (con un secreto de mentira). Sin esto, cada notificación que
+-- insertan el seed o los tests sale por pg_net hacia producción: el 28-29/09
+-- fueron ~12.000 llamadas rechazadas (401) en 24 h desde el CI y desde local.
+-- Puerto 9 (discard): la conexión falla enseguida, igual que en el test 520.
+-- Va antes de cualquier INSERT en notifications.
+select vault.update_secret(id, 'http://127.0.0.1:9/push-dispatch')
+  from vault.secrets
+ where name = 'push_dispatch_url';
+
+
+-- ============================================================
 -- BLOQUE 0: CONTRATO DE TESTS PGTAP (NO TOCAR)
 -- ============================================================
 -- Mismos UUIDs que el seed histórico: las suites de supabase/tests/ los
