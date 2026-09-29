@@ -469,12 +469,24 @@ Si el barrido todavía no corrió, podés reclamarlo vos. Requisitos:
 - El reclamo lo **revisa un administrador** de torneAR. Los dos equipos son
   notificados del veredicto, con las notas del admin si las hubo.
 
+**El equipo acusado da su versión.** Apenas se reclama, todo el equipo acusado
+recibe un aviso y tiene **24 horas** ← ajustable para responder desde el partido:
+un texto (hasta 500 caracteres) y, si quiere, una foto. Responde el capitán, el
+subcapitán o alguien del equipo que haya hecho check-in, y se manda **una sola
+vez**. El equipo que reclamó recibe un aviso cuando llega la respuesta.
+
+El administrador ve las dos versiones y, además, **qué equipo hizo check-in y a
+qué hora**, que es el dato objetivo. Mientras el acusado está en plazo y no
+respondió, el reclamo **no se puede aprobar**: aprobarlo antes le quitaría su
+derecho a contestar. Rechazarlo sí se puede en cualquier momento. Si el plazo
+vence sin respuesta, el administrador resuelve con lo que hay. **No hay
+aprobación automática.**
+
+Sigue habiendo **un solo reclamo por partido**: si los dos equipos quieren
+reclamar, el segundo responde al reclamo del primero.
+
 Si el admin **rechaza** el reclamo y el partido estaba `CONFIRMADO`, el partido se
 **cancela**: se cierra el ciclo y se liberan los jugadores convocados.
-
-> **Limitación conocida:** hoy existe **un solo reclamo por partido**. El primero
-> en reclamar define la versión que lee el administrador; no hay contra-reclamo.
-> Está identificado y pendiente de resolver.
 
 ### 4.6 Cuando los dos cargan resultados distintos
 
@@ -734,12 +746,13 @@ abandono o expulsión.
 | Enviar o aceptar un desafío | ✅ | ✅ | ❌ | ❌ |
 | Proponer / confirmar / cancelar un partido | ✅ | ✅ | ❌ | ❌ |
 | Reclamar un walkover | ✅ | ✅ | ❌ | ✅** |
+| Responder un reclamo de walkover en contra | ✅ | ✅ | ❌ | ✅** |
 | Publicar en el Mercado por el equipo | ✅ | ✅ | ❌ | ❌ |
 | Aceptar postulantes del Mercado | ✅ | ✅ | ❌ | ❌ |
 | Administrar miembros y roles | ✅ | ✅ | ❌ | ❌ |
 
 \* Sólo quienes hicieron check-in en ese partido.
-\** Un jugador puede reclamar el walkover si él mismo hizo check-in.
+\** Un jugador puede reclamar el walkover, o responder uno en contra, si él mismo hizo check-in.
 
 **Nadie cierra la votación de una disputa** — ni siquiera un capitán. La cierra
 el sistema a las 24 horas. Es la única fila de esta tabla donde no hay ningún ✅,
@@ -851,6 +864,7 @@ creer que no te postulaste.
 | Jugadores compartidos que bloquean un ranking | 2 o más | No |
 | Aviso por diferencia de Elo (no bloquea) | > 400 | No |
 | Gracia antes del walkover automático | 4 h | ✅ Sí |
+| Plazo para responder un reclamo de walkover | 24 h | ✅ Sí |
 | Cancelación de un pendiente sin coordinar | 14 días | ✅ Sí |
 | Cierre de un partido en vivo sin resultado | 24 h | ✅ Sí |
 | Duración de la votación de una disputa | **24 h** | ✅ Sí |
@@ -868,13 +882,11 @@ creer que no te postulaste.
 Este documento no sirve de nada si sólo cuenta lo que funciona bien. Estos son los
 puntos abiertos conocidos al día de hoy:
 
-1. **No hay contra-reclamo de walkover.** Existe un solo reclamo por partido: el
-   primero en reclamar define la versión que ve el administrador.
-2. **El «Rivales Ideales» y el gráfico de evolución del Elo todavía usan el Elo
+1. **El «Rivales Ideales» y el gráfico de evolución del Elo todavía usan el Elo
    global**, no el del formato. Puede haber diferencias con la tabla de ranking
    hasta que se complete la migración.
-3. **El historial de evolución del Elo no distingue formatos** todavía.
-4. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
+2. **El historial de evolución del Elo no distingue formatos** todavía.
+3. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
    limitación de cobertura, no de diseño, y se resuelve sumando canchas.
 
 ---

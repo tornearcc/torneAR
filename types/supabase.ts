@@ -2724,6 +2724,11 @@ export type Database = {
           reason: string | null
           resolved_at: string | null
           resolved_by: string | null
+          responded_at: string | null
+          responded_by: string | null
+          response_deadline: string | null
+          response_photo_url: string | null
+          response_text: string | null
           scorers: Json
           status: Database["public"]["Enums"]["wo_status"]
         }
@@ -2739,6 +2744,11 @@ export type Database = {
           reason?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          response_deadline?: string | null
+          response_photo_url?: string | null
+          response_text?: string | null
           scorers?: Json
           status?: Database["public"]["Enums"]["wo_status"]
         }
@@ -2754,6 +2764,11 @@ export type Database = {
           reason?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          response_deadline?: string | null
+          response_photo_url?: string | null
+          response_text?: string | null
           scorers?: Json
           status?: Database["public"]["Enums"]["wo_status"]
         }
@@ -2838,6 +2853,27 @@ export type Database = {
           {
             foreignKeyName: "wo_claims_resolved_by_fkey"
             columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "wo_claims_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_claims_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_claims_responded_by_fkey"
+            columns: ["responded_by"]
             isOneToOne: false
             referencedRelation: "v_player_stats"
             referencedColumns: ["profile_id"]
@@ -3479,15 +3515,24 @@ export type Database = {
         Args: never
         Returns: {
           claim_id: string
+          claiming_checkin_at: string
+          claiming_checkins: number
           claiming_team_id: string
           claiming_team_name: string
           created_at: string
           match_id: string
           mvp_id: string
           mvp_name: string
+          opponent_checkin_at: string
+          opponent_checkins: number
           opponent_team_name: string
           photo_url: string
           reason: string
+          responded_at: string
+          responded_by_name: string
+          response_deadline: string
+          response_photo_url: string
+          response_text: string
           scheduled_at: string
           scorers: Json
         }[]
@@ -3700,6 +3745,10 @@ export type Database = {
       respond_to_cancellation_request: {
         Args: { p_accept: boolean; p_request_id: string }
         Returns: string
+      }
+      respond_wo_claim: {
+        Args: { p_claim_id: string; p_photo_url?: string; p_text: string }
+        Returns: undefined
       }
       retry_pending_pushes: { Args: { p_limit?: number }; Returns: number }
       save_own_profile: {

@@ -25,11 +25,12 @@ import {
   requestCancellation,
   respondToCancellationRequest,
   claimWo,
+  respondToWoClaim,
   submitDisputeVote,
   ResultAlreadySubmittedError,
   getProposalErrorMessage,
 } from '@/lib/match-actions';
-import { canLoadResultFromDetail, isTeamMatchStaff } from '@/lib/match-permissions';
+import { canLoadResultFromDetail, isTeamMatchAdmin, isTeamMatchStaff } from '@/lib/match-permissions';
 import {
   formatGuestCodeExpiry,
   getGuestCodeExpiry,
@@ -51,6 +52,7 @@ import { ResultModal } from '@/components/matches/ResultModal';
 import { CancellationModal } from '@/components/matches/CancellationModal';
 import { CancellationRequestSection } from '@/components/matches/CancellationRequestSection';
 import { WoModal } from '@/components/matches/WoModal';
+import { WoResponseModal } from '@/components/matches/WoResponseModal';
 import { DisputeSection } from '@/components/matches/DisputeSection';
 import { ShareMatchButton } from '@/components/match-share/ShareMatchButton';
 import { ReportModal } from '@/components/reports/ReportModal';
@@ -84,6 +86,7 @@ export default function MatchDetailScreen() {
   const [showResultModal, setShowResultModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [showWoModal, setShowWoModal] = useState(false);
+  const [showWoResponseModal, setShowWoResponseModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
   // Se extrae el id antes de los callbacks: con `profile?.id` directo en el
@@ -709,7 +712,15 @@ export default function MatchDetailScreen() {
                 onReject={() => void handleRespondToCancellation(false)}
               />
             )}
-            {hasPendingWoClaim && <WoClaimPendingBanner match={match} myTeamId={myTeamId} />}
+            {hasPendingWoClaim && (
+              <WoClaimPendingBanner
+                match={match}
+                myTeamId={myTeamId}
+                canRespond={isTeamMatchAdmin(match.myRole)}
+                nowTs={loadedAtTs}
+                onRespond={() => setShowWoResponseModal(true)}
+              />
+            )}
             <ActionButtons
               onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
               onWo={myCheckinAt !== null && !match.woClaim ? () => setShowWoModal(true) : undefined}
@@ -751,7 +762,15 @@ export default function MatchDetailScreen() {
                 </Text>
               </View>
             ) : null}
-            {hasPendingWoClaim && <WoClaimPendingBanner match={match} myTeamId={myTeamId} />}
+            {hasPendingWoClaim && (
+              <WoClaimPendingBanner
+                match={match}
+                myTeamId={myTeamId}
+                canRespond={isTeamMatchAdmin(match.myRole)}
+                nowTs={loadedAtTs}
+                onRespond={() => setShowWoResponseModal(true)}
+              />
+            )}
             <ActionButtons
               onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
               onWo={match.woClaim ? undefined : () => setShowWoModal(true)}
@@ -950,6 +969,24 @@ export default function MatchDetailScreen() {
           showAlert('Reclamo enviado', 'Tu reclamo WO fue enviado a revisión.');
         }}
       />
+      {match.woClaim ? (
+        <WoResponseModal
+          visible={showWoResponseModal}
+          onClose={() => setShowWoResponseModal(false)}
+          claimingTeamName={opponentTeam.name}
+          onSubmit={async (data) => {
+            await respondToWoClaim(match.woClaim!.id, match.id, myTeamId, data);
+            Logger.info('Respuesta a un reclamo de WO enviada', {
+              scope: 'match-detail',
+              matchId: match.id,
+              teamId: myTeamId,
+              claimId: match.woClaim!.id,
+            });
+            await loadData();
+            showAlert('Versión enviada', 'Un administrador va a revisar las dos versiones y les avisa el veredicto.');
+          }}
+        />
+      ) : null}
       {profile?.id && (
         <ReportModal
           visible={showReportModal}
@@ -973,27 +1010,77 @@ export default function MatchDetailScreen() {
 function WoClaimPendingBanner({
   match,
   myTeamId,
+  canRespond,
+  nowTs,
+  onRespond,
 }: {
   match: MatchDetailViewData;
   myTeamId: string;
+  /** Capitán o subcapitán del equipo acusado (la base acepta también a quien hizo check-in). */
+  canRespond: boolean;
+  /** Hora de la última carga de la pantalla (render puro, sin Date.now()). */
+  nowTs: number;
+  onRespond: () => void;
 }) {
-  const isClaimer = match.woClaim?.claimingTeamId === myTeamId;
+  const claim = match.woClaim;
+  const isClaimer = claim?.claimingTeamId === myTeamId;
+  const deadline = claim?.responseDeadline ? new Date(claim.responseDeadline) : null;
+  const responded = claim?.respondedAt != null;
+  const windowOpen = deadline !== null && !responded && deadline.getTime() > nowTs;
+  const deadlineLabel = deadline ? formatWoDeadline(deadline) : null;
+
+  // D-61: el acusado tiene un plazo para dar su versión. Los reclamos
+  // anteriores a 20260929140000 no tienen plazo y conservan el texto original.
+  let title: string;
+  let body: string;
+  if (isClaimer) {
+    title = 'Tu reclamo de WO está en revisión';
+    body = responded
+      ? 'El rival dio su versión. Un administrador va a revisar las dos y te avisamos el veredicto.'
+      : windowOpen
+        ? `El rival tiene hasta el ${deadlineLabel} para dar su versión. Después un administrador revisa la evidencia y te avisamos el veredicto.`
+        : 'Un administrador va a revisar la evidencia. Te avisamos cuando haya veredicto.';
+  } else {
+    title = 'El rival reclamó un WO';
+    body = responded
+      ? 'Tu equipo ya dio su versión. Un administrador va a revisar las dos y les avisamos el veredicto.'
+      : windowOpen
+        ? `El rival pidió que se le dé el partido por no presentación. Tienen hasta el ${deadlineLabel} para dar su versión; después resuelve un administrador.`
+        : deadline !== null
+          ? 'Venció el plazo para dar su versión. Un administrador va a resolver con la evidencia que hay.'
+          : 'El rival pidió que se le dé el partido por no presentación. Un administrador va a revisar la evidencia y les avisamos el veredicto a los dos equipos.';
+  }
 
   return (
     <View className="mt-4 flex-row items-start gap-3 rounded-2xl border border-warning-tertiary/30 bg-warning-tertiary/10 p-4">
       <AppIcon family="material-community" name="gavel" size={18} color="#FABD32" />
       <View className="flex-1">
-        <Text className="font-uiBold text-sm text-warning-tertiary">
-          {isClaimer ? 'Tu reclamo de WO está en revisión' : 'El rival reclamó un WO'}
-        </Text>
-        <Text className="font-ui mt-1 text-xs leading-5 text-neutral-on-surface-variant">
-          {isClaimer
-            ? 'Un administrador va a revisar la evidencia. Te avisamos cuando haya veredicto.'
-            : 'El rival pidió que se le dé el partido por no presentación. Un administrador va a revisar la evidencia y les avisamos el veredicto a los dos equipos.'}
-        </Text>
+        <Text className="font-uiBold text-sm text-warning-tertiary">{title}</Text>
+        <Text className="font-ui mt-1 text-xs leading-5 text-neutral-on-surface-variant">{body}</Text>
+        {!isClaimer && windowOpen ? (
+          canRespond ? (
+            <TouchableOpacity
+              onPress={onRespond}
+              activeOpacity={0.8}
+              className="mt-3 self-start rounded-xl bg-warning-tertiary/80 px-4 py-2"
+            >
+              <Text className="font-uiBold text-sm text-surface-base">Dar nuestra versión</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text className="font-ui mt-2 text-xs leading-5 text-neutral-on-surface-variant">
+              La puede mandar el capitán o el subcapitán.
+            </Text>
+          )
+        ) : null}
       </View>
     </View>
   );
+}
+
+function formatWoDeadline(date: Date): string {
+  const day = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  const time = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} a las ${time}`;
 }
 
 // ─── Reusable action buttons row ─────────────────────────────────────────────

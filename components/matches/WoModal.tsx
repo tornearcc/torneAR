@@ -5,11 +5,11 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
+import { useEvidencePhoto } from '@/hooks/useEvidencePhoto';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { ScorerMvpPicker } from '@/components/matches/ScorerMvpPicker';
 import type { WoClaimFormData, WoClaimEntry, ScorerPickerPerson } from '@/components/matches/types';
@@ -55,13 +55,11 @@ const REASONS: { value: WoReason; label: string; description: string }[] = [
 export function WoModal({ visible, onClose, onSubmit, myParticipants }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [reason, setReason] = useState<WoReason>('NO_PRESENTACION');
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoMimeType, setPhotoMimeType] = useState('image/jpeg');
   const [scorers, setScorers] = useState<Record<string, number>>({});
   const [mvpId, setMvpId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { showAlert, AlertComponent } = useCustomAlert();
+  const { photoBase64, photoUri, photoMimeType, pickImage, takePhoto } = useEvidencePhoto(showAlert);
 
   function close() {
     setStep(1);
@@ -70,43 +68,6 @@ export function WoModal({ visible, onClose, onSubmit, myParticipants }: Props) {
 
   function setScorerGoals(profileId: string, goals: number) {
     setScorers((prev) => ({ ...prev, [profileId]: Math.max(0, goals) }));
-  }
-
-  async function handlePickImage() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      showAlert('Permiso requerido', 'Necesitamos acceso a tu galería para adjuntar evidencia.', undefined, 'warning');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.7,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPhotoBase64(result.assets[0].base64 ?? null);
-      setPhotoUri(result.assets[0].uri);
-      setPhotoMimeType(result.assets[0].mimeType ?? 'image/jpeg');
-    }
-  }
-
-  async function handleTakePhoto() {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      showAlert('Permiso requerido', 'Necesitamos acceso a tu cámara para tomar evidencia.', undefined, 'warning');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.7,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPhotoBase64(result.assets[0].base64 ?? null);
-      setPhotoUri(result.assets[0].uri);
-      setPhotoMimeType(result.assets[0].mimeType ?? 'image/jpeg');
-    }
   }
 
   function goToStep2() {
@@ -277,7 +238,7 @@ export function WoModal({ visible, onClose, onSubmit, myParticipants }: Props) {
             </View>
             <View className="mb-4 mt-2 flex-row gap-2">
               <TouchableOpacity
-                onPress={() => void handlePickImage()}
+                onPress={() => void pickImage()}
                 activeOpacity={0.8}
                 className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-high py-2.5"
               >
@@ -285,7 +246,7 @@ export function WoModal({ visible, onClose, onSubmit, myParticipants }: Props) {
                 <Text className="font-uiBold text-sm text-neutral-on-surface">Galería</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => void handleTakePhoto()}
+                onPress={() => void takePhoto()}
                 activeOpacity={0.8}
                 className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-surface-high py-2.5"
               >

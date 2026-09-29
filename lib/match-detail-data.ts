@@ -105,6 +105,9 @@ interface RawWoClaim {
   status: WoStatus;
   admin_notes: string | null;
   created_at: string;
+  response_deadline?: string | null;
+  response_text?: string | null;
+  responded_at?: string | null;
 }
 
 interface RawCancellationRequest {
@@ -389,6 +392,9 @@ export async function fetchMatchDetailViewData(
       status: wc.status,
       adminNotes: wc.admin_notes,
       createdAt: wc.created_at,
+      responseDeadline: wc.response_deadline ?? null,
+      responseText: wc.response_text ?? null,
+      respondedAt: wc.responded_at ?? null,
     };
   }
 

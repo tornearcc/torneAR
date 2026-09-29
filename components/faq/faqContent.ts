@@ -303,7 +303,17 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: '¿Puedo reclamar el walkover yo mismo, sin esperar?',
         answer:
-          'Sí, si el partido está confirmado o en vivo. Podés reclamarlo si sos capitán o subcapitán, o si vos mismo hiciste check-in. Tu equipo tiene que tener check-in registrado: sin eso no hay reclamo.\n\nPodés cargar hasta 3 goleadores sumando como máximo 3 goles, todos de tu propio plantel. El reclamo lo revisa un administrador de torneAR y los dos equipos reciben el veredicto.\n\nSi el admin rechaza el reclamo y el partido estaba confirmado, el partido se cancela: se cierra el ciclo y se liberan los convocados.',
+          'Sí, si el partido está confirmado o en vivo. Podés reclamarlo si sos capitán o subcapitán, o si vos mismo hiciste check-in. Tu equipo tiene que tener check-in registrado: sin eso no hay reclamo.\n\nPodés cargar hasta 3 goleadores sumando como máximo 3 goles, todos de tu propio plantel. El reclamo lo revisa un administrador de torneAR y los dos equipos reciben el veredicto. Antes, el equipo acusado tiene 24 horas para dar su versión.\n\nSi el admin rechaza el reclamo y el partido estaba confirmado, el partido se cancela: se cierra el ciclo y se liberan los convocados.',
+      },
+      {
+        question: 'Me reclamaron un walkover. ¿Puedo dar mi versión?',
+        answer:
+          'Sí. Apenas el rival reclama, a todo tu equipo le llega un aviso. Desde el partido, el capitán, el subcapitán o alguien del equipo que haya hecho check-in puede mandar la versión del equipo: un texto de hasta 500 caracteres y, si quieren, una foto. Se manda una sola vez y hay 24 horas.\n\nEl administrador ve las dos versiones y qué equipo hizo check-in y a qué hora. Mientras están en plazo y no respondieron, el reclamo no se puede aprobar. Si el plazo vence sin respuesta, el administrador resuelve con lo que hay: no hay aprobación automática.',
+        facts: [
+          { label: 'Plazo para responder', value: '24 horas' },
+          { label: 'Responde', value: 'Capitán, subcapitán o alguien con check-in' },
+          { label: 'Respuestas', value: 'Una por reclamo' },
+        ],
       },
       {
         question: 'Cargamos resultados distintos. ¿Quién gana?',
@@ -364,12 +374,12 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: '¿Qué puede hacer el Capitán o el Subcapitán?',
         answer:
-          'Todo lo que compromete al club:\n\n• Enviar y aceptar desafíos.\n• Proponer, confirmar y cancelar partidos.\n• Presentar la lista de convocados y cargar el resultado.\n• Corregir un resultado que cargó otra persona.\n• Reclamar un walkover (cerrar una disputa no puede nadie: cierra sola).\n• Publicar en el Mercado y aceptar postulantes.\n• Administrar miembros y roles del plantel.\n• Escribir en el chat del partido y en los chats del Mercado.',
+          'Todo lo que compromete al club:\n\n• Enviar y aceptar desafíos.\n• Proponer, confirmar y cancelar partidos.\n• Presentar la lista de convocados y cargar el resultado.\n• Corregir un resultado que cargó otra persona.\n• Reclamar un walkover, o responder uno en contra (cerrar una disputa no puede nadie: cierra sola).\n• Publicar en el Mercado y aceptar postulantes.\n• Administrar miembros y roles del plantel.\n• Escribir en el chat del partido y en los chats del Mercado.',
       },
       {
         question: '¿Qué puede hacer el Director Técnico?',
         answer:
-          'Tiene los permisos del día del partido y ninguno de gestión del club.\n\nPUEDE: marcar su llegada, presentar la lista de convocados y cargar el resultado. También votar en una disputa si hizo check-in.\n\nNO PUEDE: proponer, confirmar ni cancelar un partido; responder solicitudes de cancelación; reclamar o resolver un walkover; corregir un resultado que cargó otro; administrar miembros; ni aceptar postulantes del Mercado.\n\nEl corte no es de confianza, es de naturaleza del acto: proponer o confirmar un partido compromete al club frente a otro club —fecha, cancha, seña— y eso es de la conducción. Reclamar o resolver un walkover cierra un resultado.',
+          'Tiene los permisos del día del partido y ninguno de gestión del club.\n\nPUEDE: marcar su llegada, presentar la lista de convocados, cargar el resultado y escribir en el chat del partido. También votar en una disputa si hizo check-in.\n\nNO PUEDE: proponer, confirmar ni cancelar un partido; responder solicitudes de cancelación; reclamar o resolver un walkover; corregir un resultado que cargó otro; administrar miembros; ni aceptar postulantes del Mercado.\n\nEl corte no es de confianza, es de naturaleza del acto: proponer o confirmar un partido compromete al club frente a otro club —fecha, cancha, seña— y eso es de la conducción. Reclamar o resolver un walkover cierra un resultado.',
         facts: [
           { label: 'Presentar la lista', value: 'Sí' },
           { label: 'Cargar el resultado', value: 'Sí' },
@@ -380,7 +390,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: '¿Qué puede hacer un Jugador?',
         answer:
-          'Marcar su propia llegada al partido, votar en una disputa si hizo check-in, y reclamar un walkover si él mismo hizo check-in.\n\nNo puede presentar la lista, cargar el resultado, ni tocar nada de la gestión del club.',
+          'Marcar su propia llegada al partido, votar en una disputa si hizo check-in, y reclamar un walkover, o responder uno en contra, si él mismo hizo check-in.\n\nNo puede presentar la lista, cargar el resultado, ni tocar nada de la gestión del club.',
       },
       {
         question: '¿Quién puede votar en una disputa?',
@@ -410,17 +420,17 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: '¿Quién lee el chat del partido?',
         answer:
-          'Todos los miembros de los dos equipos, sin importar el rol. Escribir, en cambio, sólo pueden el capitán y el subcapitán de cada equipo.\n\nOjo con esto: NO es un canal privado de tu equipo. El rival lee absolutamente todo lo que se escribe ahí. Es un canal de coordinación entre clubes, no un vestuario.',
+          'Todos los miembros de los dos equipos, sin importar el rol. Escribir, en cambio, sólo pueden el capitán, el subcapitán y el DT de cada equipo; los jugadores ven un aviso en lugar del campo para escribir.\n\nOjo con esto: NO es un canal privado de tu equipo. El rival lee absolutamente todo lo que se escribe ahí. Es un canal de coordinación entre clubes, no un vestuario.',
         facts: [
           { label: 'Leen', value: 'Ambos planteles completos' },
-          { label: 'Escriben', value: 'Capitán y subcapitán' },
+          { label: 'Escriben', value: 'Capitán, subcapitán y DT' },
           { label: 'Invitados', value: 'No tienen acceso' },
         ],
       },
       {
-        question: 'Soy DT, ¿por qué no puedo escribir en el chat del partido?',
+        question: 'Soy DT, ¿puedo escribir en el chat del partido?',
         answer:
-          'Es una inconsistencia conocida, no una decisión. El DT recibió permisos operativos del día del partido —presentar la lista, cargar el resultado— pero las reglas de mensajería quedaron fuera de ese cambio y siguen admitiendo sólo a capitán y subcapitán.\n\nHoy, en el chat, un DT tiene el mismo acceso que un jugador: ve la conversación completa y no puede responder. Está anotado como pendiente.',
+          'Sí. El DT tiene los permisos del día del partido —presentar la lista, cargar el resultado— y desde el 29/09/2026 también escribe en el chat del partido. Antes no podía, y era una inconsistencia.\n\nLos chats del Mercado siguen siendo del capitán y el subcapitán: el DT no tiene permisos de Mercado.',
       },
       {
         question: '¿Cuándo se abre un chat del Mercado?',

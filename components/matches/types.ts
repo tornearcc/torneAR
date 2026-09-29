@@ -141,6 +141,11 @@ export interface WoClaimEntry {
     status: WoStatus;
     adminNotes: string | null;
     createdAt: string;
+    // D-61: plazo y versión del equipo acusado. responseDeadline es null en
+    // los reclamos anteriores a la migración 20260929140000.
+    responseDeadline: string | null;
+    responseText: string | null;
+    respondedAt: string | null;
 }
 
 export interface CancellationRequestEntry {
