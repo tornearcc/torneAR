@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { Logger } from '@/lib/logger';
 import { useKeyboardAwareBottomInset } from '@/hooks/useKeyboardAwareBottomInset';
 import { fetchMessages, sendMessage, markConversationAsRead } from '@/lib/chat-api';
+import { isTeamMatchStaff } from '@/lib/match-permissions';
 import type { MarketMessage } from '@/lib/chat-api';
 
 interface MatchChatHeader {
@@ -59,6 +60,11 @@ export default function MatchChatScreen() {
 
   // Derive effective myTeamId (from param or from match membership)
   const [myTeamId, setMyTeamId] = useState<string>(paramTeamId ?? '');
+  // En el chat del partido escriben capitán, subcapitán y DT (policy de INSERT
+  // de `messages`, migración 20260929130000). Antes todos veían el campo y al
+  // jugador el envío le fallaba para siempre. Si el rol no se pudo leer se
+  // muestra el campo igual: la base es la que decide.
+  const [canWrite, setCanWrite] = useState(true);
 
   useEffect(() => {
     if (!conversationId || !profile) return;
@@ -93,19 +99,17 @@ export default function MatchChatScreen() {
           team_b: { name: string };
         };
 
-        // 3. Determine myTeamId if not passed as param
-        let resolvedTeamId = paramTeamId ?? '';
-        if (!resolvedTeamId) {
-          const { data: membership } = await supabase
-            .from('team_members')
-            .select('team_id')
-            .in('team_id', [raw.team_a_id, raw.team_b_id])
-            .eq('profile_id', profile.id)
-            .limit(1)
-            .maybeSingle();
-          resolvedTeamId = (membership?.team_id as string) ?? raw.team_a_id;
-        }
+        // 3. Determine myTeamId if not passed as param, and my role in it
+        const { data: memberships, error: membershipErr } = await supabase
+          .from('team_members')
+          .select('team_id, role')
+          .in('team_id', [raw.team_a_id, raw.team_b_id])
+          .eq('profile_id', profile.id);
+        const myMembership =
+          memberships?.find((m) => m.team_id === paramTeamId) ?? memberships?.[0];
+        const resolvedTeamId = paramTeamId || myMembership?.team_id || raw.team_a_id;
         setMyTeamId(resolvedTeamId);
+        setCanWrite(membershipErr !== null || !myMembership || isTeamMatchStaff(myMembership.role));
 
         setHeader({
           teamAName: raw.team_a.name,
@@ -351,39 +355,51 @@ export default function MatchChatScreen() {
           {/* Input bar. El padding inferior sale del hook, que es el único dueño
               de ese espacio: aire sobre la gesture bar en reposo, y el alto del
               teclado cuando está abierto. */}
-          <View
-            className="flex-row items-center gap-2 border-t border-surface-high bg-surface-low px-4 pt-4"
-            style={{ paddingBottom: inputBottomInset }}
-          >
-            <TextInput
-              className="flex-1 rounded-full bg-surface-high px-4 py-3 font-ui text-sm text-neutral-on-surface"
-              placeholder="Escribí un mensaje..."
-              placeholderTextColor="#869585"
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              onPress={() => void handleSend()}
-              disabled={!inputText.trim() || isSending}
-              activeOpacity={0.8}
-              className={`h-11 w-11 items-center justify-center rounded-full ${
-                inputText.trim() && !isSending ? 'bg-brand-primary' : 'bg-surface-high'
-              }`}
+          {!canWrite ? (
+            <View
+              className="flex-row items-center gap-2 border-t border-surface-high bg-surface-low px-4 pt-4"
+              style={{ paddingBottom: inputBottomInset }}
             >
-              {isSending ? (
-                <ActivityIndicator size="small" color="#53E076" />
-              ) : (
-                <AppIcon
-                  family="material-community"
-                  name="send"
-                  size={20}
-                  color={inputText.trim() ? '#003914' : '#869585'}
-                />
-              )}
-            </TouchableOpacity>
-          </View>
+              <AppIcon family="material-community" name="eye-outline" size={18} color="#869585" />
+              <Text className="flex-1 font-ui text-xs text-neutral-on-surface-variant">
+                En el chat del partido escriben el capitán, el subcapitán y el DT de cada equipo. Vos podés leer todo.
+              </Text>
+            </View>
+          ) : (
+            <View
+              className="flex-row items-center gap-2 border-t border-surface-high bg-surface-low px-4 pt-4"
+              style={{ paddingBottom: inputBottomInset }}
+            >
+              <TextInput
+                className="flex-1 rounded-full bg-surface-high px-4 py-3 font-ui text-sm text-neutral-on-surface"
+                placeholder="Escribí un mensaje..."
+                placeholderTextColor="#869585"
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                onPress={() => void handleSend()}
+                disabled={!inputText.trim() || isSending}
+                activeOpacity={0.8}
+                className={`h-11 w-11 items-center justify-center rounded-full ${
+                  inputText.trim() && !isSending ? 'bg-brand-primary' : 'bg-surface-high'
+                }`}
+              >
+                {isSending ? (
+                  <ActivityIndicator size="small" color="#53E076" />
+                ) : (
+                  <AppIcon
+                    family="material-community"
+                    name="send"
+                    size={20}
+                    color={inputText.trim() ? '#003914' : '#869585'}
+                  />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
     </View>
