@@ -16,6 +16,13 @@ npm test             # Run Vitest once (tests live in lib/**/*.test.ts)
 npm run test:watch   # Run Vitest in watch mode
 ```
 
+Database tests (pgTAP, `supabase/tests/`; need Docker Desktop running):
+```bash
+npx supabase start      # local stack with every migration + supabase/seed_testing.sql
+npx supabase db reset   # re-apply migrations and seed after adding one
+npx supabase test db    # run every pgTAP suite
+```
+
 TypeScript type-checking (no emit):
 ```bash
 npx tsc --noEmit
@@ -28,13 +35,13 @@ Branching, CI/CD and Supabase environments are documented in
 - **Ramas (D-58, desde el 27/09/2026):** `develop` es donde se trabaja; `main` es el espejo de producción. Todo sale de `develop` y vuelve a `develop` por PR. Después de cada release (build o `eas update` a producción) se abre un PR `develop → main` con merge commit. Detalle en `docs/WORKFLOW.md` §1.
 - **Los builds de EAS nunca son automáticos:** `eas-build.yml` y `eas-build-preview.yml` corren sólo a mano desde la pestaña Actions. Mergear a `main` no compila nada.
 - **OTA (`eas update`):** empaqueta el checkout local. Partir del `gitCommitHash` de la build vigente (`eas build:list --platform ios --limit 1 --json`), sin cambios sin commitear, con `--environment production` y rollout inicial al 10%. Sólo JS: nada nativo ni cambios en `app.json`.
-- Los PRs hacia `main`/`develop` corren CI (`.github/workflows/ci.yml`): `tsc`, `eslint` y Vitest.
+- Los PRs hacia `main`/`develop` corren CI (`.github/workflows/ci.yml`): `tsc`, `eslint`, Vitest, los tests pgTAP sobre un stack efímero y la comparación del fingerprint nativo contra la base del PR.
 - ⚠️ Single-project (Free Tier): todas las ramas **comparten la base de Producción**. No hay Staging; validá cambios de schema en local (`supabase start`) antes de `db push`. Las migraciones de las RPCs `dashboard_*` de la web también viven acá. Detalle en `docs/WORKFLOW.md`.
 
 ## Architecture
 
 ### Tech Stack
-- **Expo 54 + React Native 0.81** with Expo Router (file-based routing)
+- **Expo 57 + React Native 0.86 (React 19.2)** with Expo Router (file-based routing)
 - **Supabase** — PostgreSQL, Auth, Storage, real-time subscriptions
 - **NativeWind 4** — Tailwind CSS for React Native (no `StyleSheet.create`)
 - **Zustand 5** — client state (active team selection)
@@ -61,7 +68,7 @@ Branching, CI/CD and Supabase environments are documented in
 - Session + incomplete profile → `/onboarding`
 - Session + complete profile → `/(tabs)`
 
-The five main tabs are: Home (index), Market, Ranking, Matches, Profile.
+The five main tabs, in tab-bar order: Home (index), Ranking, Matches, Market, Profile.
 
 ### State Management
 - **`AuthContext`** (`context/AuthContext.tsx`) — Supabase session + loaded user profile. Access via `useAuth()`.
@@ -77,12 +84,13 @@ All Supabase queries live in `lib/`. Components never query Supabase directly.
 - `lib/schemas/` — Zod schemas; use `z.infer<typeof schema>` for TypeScript types
 
 ### Database Domain Model (key tables)
-`profiles` → `team_members` → `teams` → `matches` / `results`
-`market_posts` → `market_team_posts` | `market_player_posts`
-`conversations` → `messages`
+`profiles` → `team_members` → `teams` → `matches` → `match_participants` / `match_results`
+`challenges` → `match_proposals` → `matches` · `wo_claims` · `team_rankings` (rating per format) · `seasons`
+`market_team_posts` | `market_player_posts` (each with its `*_applications`)
+`conversations` (`MATCH_CHAT` | `MARKET_DM`) → `messages`
 
-Team member roles: `CAPITAN`, `SUBCAPITAN`, `JUGADOR`
-Match statuses: `CONFIRMADO`, `PENDIENTE`, `JUGADO`, `CANCELADO`
+Team member roles: `CAPITAN`, `SUBCAPITAN`, `JUGADOR`, `DIRECTOR_TECNICO`
+Match statuses: `PENDIENTE`, `CONFIRMADO`, `EN_VIVO`, `FINALIZADO`, `EN_DISPUTA`, `WO_A`, `WO_B`, `CANCELADO` (flow in `knowledge/07-flujo-estados-partido.md`, outside this repo)
 
 ## Tab Screen Pattern (follow profile.tsx as the reference)
 
