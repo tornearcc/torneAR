@@ -9,6 +9,7 @@ import { GlobalHeader } from '@/components/GlobalHeader';
 import { HomeSkeleton } from '@/components/home/HomeSkeleton';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { useAppFonts } from '@/hooks/useAppFonts';
+import { useEngagedReviewPrompt } from '@/hooks/useEngagedReviewPrompt';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { fetchHomeViewData } from '@/lib/home-data';
 import { fetchActiveTeamRankingInfo, fetchRankingWithFilters } from '@/lib/ranking-data';
@@ -60,6 +61,8 @@ function formatMatchDate(iso: string): string {
 
 export default function HomeScreen() {
   const { profile } = useAuth();
+  // D-63: pedido de valoración al volver a Inicio, desde el 5.º día de uso.
+  useEngagedReviewPrompt();
   const activeTeamId = useTeamStore((state) => state.activeTeamId);
   const isFocused = useIsFocused();
   const fontsReady = useAppFonts();

@@ -29,7 +29,7 @@
 -- ============================================================
 
 begin;
-select plan(27);
+select plan(29);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- S — Estructura
@@ -238,6 +238,26 @@ select is(
   claim_review_prompt('match_shared', 'ios', '1.3.0'),
   false,
   'B-15: denunciar algo es la declaración más explícita de que acá pasó algo malo');
+
+-- ── B-16..B-17. Disparador engaged_return (D-63, 20260929210000) ────────────
+-- Otro perfil, sin pedidos previos: el del Capitán Alfa ya está en su período
+-- de 120 días.
+select tests.clear_auth();
+update profiles set created_at = now() - interval '60 days'
+ where id = '0b000000-0000-0000-0000-000000000003';
+select tests.authenticate_as_profile('0a000000-0000-0000-0000-000000000003');
+
+select is(
+  claim_review_prompt('engaged_return', 'android', '1.4.0'),
+  true,
+  'B-16: el disparador engaged_return (usuario frecuente) se acepta');
+select tests.clear_auth();
+
+select is(
+  (select trigger_name from review_prompts
+    where profile_id = '0b000000-0000-0000-0000-000000000003' and app_version = '1.4.0'),
+  'engaged_return',
+  'B-17: y queda registrado con su nombre');
 
 select * from finish();
 rollback;

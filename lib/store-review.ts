@@ -21,7 +21,9 @@ import { getCurrentAppVersion, getCurrentPlatform } from '@/lib/app-version';
  *    no hay nada que hacer con su resultado.
  */
 
-export type ReviewPromptTrigger = 'match_shared' | 'result_confirmed';
+// engaged_return (D-63): al volver a Inicio desde el 5.º día distinto de uso
+// (hooks/useEngagedReviewPrompt.ts). Los otros dos son los momentos de D-50.
+export type ReviewPromptTrigger = 'match_shared' | 'result_confirmed' | 'engaged_return';
 
 /**
  * Pausa antes de reclamar y abrir el diálogo. El llamador suele venir de cerrar
@@ -152,4 +154,15 @@ export async function runStoreReviewPrompt(
 /** Dispara el pedido sin bloquear al llamador. */
 export function requestStoreReviewIfEligible(trigger: ReviewPromptTrigger): void {
   void runStoreReviewPrompt(trigger);
+}
+
+// Una vez por sesión: volver a Inicio pasa muchas veces y cada intento sería
+// un round-trip de más (el gate igual diría que no después del primero).
+let engagedRequestedThisSession = false;
+
+/** Pedido «usuario frecuente» (D-63): como mucho una vez por sesión. */
+export function requestEngagedReturnReviewOnce(): void {
+  if (engagedRequestedThisSession) return;
+  engagedRequestedThisSession = true;
+  requestStoreReviewIfEligible('engaged_return');
 }
