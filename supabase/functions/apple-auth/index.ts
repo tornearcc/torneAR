@@ -12,7 +12,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 //                       Se llama en CADA login con Apple: el código vive 5
 //                       minutos y no existe al momento de pedir la baja.
 //   · action 'revoke' — revoca ese refresh_token contra Apple y borra la fila.
-//                       Se llama justo antes de delete_own_account().
+//                       Se llama justo antes de delete_own_account(). Con
+//                       `targetProfileId` revoca el de OTRA persona: sólo
+//                       para admins, justo antes de admin_delete_account()
+//                       (baja desde el dashboard, P1-9).
 //
 // ── Por qué una sola función y no dos ───────────────────────────────────────
 // Las dos necesitan exactamente los mismos secretos y el mismo client_secret
@@ -23,8 +26,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // A diferencia de push-dispatch, acá el llamador SÍ es un cliente autenticado,
 // así que se deja `verify_jwt` en su valor por defecto (true) y además se
 // resuelve el usuario del JWT adentro. El usuario sobre el que se opera sale
-// SIEMPRE del token, nunca del body: si viniera por parámetro, cualquiera
-// podría revocarle la credencial a otro.
+// del token, nunca del body: si viniera por parámetro, cualquiera podría
+// revocarle la credencial a otro. La única excepción es `targetProfileId`, y
+// se acepta sólo si el dueño del token es admin (profiles.is_admin).
 //
 // ── Secretos (Supabase → Edge Functions → Secrets) ──────────────────────────
 //   APPLE_TEAM_ID     — 10 caracteres, Membership del portal de Apple.
@@ -207,7 +211,7 @@ async function handleLink(authUserId: string, authorizationCode: string): Promis
  * conservarla deja el token disponible para un reintento; y si el usuario
  * completa igual la baja, `delete_own_account()` la borra de todos modos.
  */
-async function handleRevoke(authUserId: string): Promise<Response> {
+async function handleRevoke(authUserId: string, requestedBy?: string): Promise<Response> {
   const { data, error } = await admin
     .from('apple_credentials')
     .select('refresh_token')
@@ -258,9 +262,42 @@ async function handleRevoke(authUserId: string): Promise<Response> {
   await log('info', 'Token de Apple revocado', {
     scope: 'apple-auth.revoke',
     auth_user_id: authUserId,
+    ...(requestedBy ? { requested_by: requestedBy } : {}),
   });
 
   return json({ revoked: true });
+}
+
+/**
+ * Resuelve la cuenta a revocar cuando un admin da de baja a otra persona.
+ * Devuelve el auth_user_id de `targetProfileId`, o una respuesta de error si
+ * quien llama no es admin o el perfil no existe.
+ */
+async function resolveAdminTarget(
+  callerAuthUserId: string,
+  targetProfileId: string,
+): Promise<{ authUserId: string } | { response: Response }> {
+  const { data: caller } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('auth_user_id', callerAuthUserId)
+    .maybeSingle();
+
+  if (!caller?.is_admin) {
+    return { response: json({ error: 'forbidden' }, 403) };
+  }
+
+  const { data: target } = await admin
+    .from('profiles')
+    .select('auth_user_id')
+    .eq('id', targetProfileId)
+    .maybeSingle();
+
+  if (!target?.auth_user_id) {
+    return { response: json({ revoked: false, reason: 'profile_not_found' }) };
+  }
+
+  return { authUserId: target.auth_user_id };
 }
 
 Deno.serve(async (req) => {
@@ -282,7 +319,7 @@ Deno.serve(async (req) => {
   }
   const authUserId = userData.user.id;
 
-  let payload: { action?: string; authorizationCode?: string };
+  let payload: { action?: string; authorizationCode?: string; targetProfileId?: string };
   try {
     payload = await req.json();
   } catch {
@@ -298,6 +335,11 @@ Deno.serve(async (req) => {
     }
 
     if (payload.action === 'revoke') {
+      if (payload.targetProfileId) {
+        const target = await resolveAdminTarget(authUserId, payload.targetProfileId);
+        if ('response' in target) return target.response;
+        return await handleRevoke(target.authUserId, authUserId);
+      }
       return await handleRevoke(authUserId);
     }
 
@@ -310,6 +352,7 @@ Deno.serve(async (req) => {
       scope: 'apple-auth',
       auth_user_id: authUserId,
       action: payload.action ?? null,
+      target_profile_id: payload.targetProfileId ?? null,
       reason: unexpected instanceof Error ? unexpected.message : String(unexpected),
     });
     return json({ error: 'internal_error' }, 500);
