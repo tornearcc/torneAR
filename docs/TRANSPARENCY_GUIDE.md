@@ -613,7 +613,7 @@ cuesta −5 y no aparecer cuesta −15**.
 
 ## 6. Qué pasa cuando un partido queda colgado
 
-Una vez por hora (**a los :20 de cada hora**) corre un barrido automático que
+Una vez por hora (**a los :15 de cada hora**) corre un barrido automático que
 cierra los partidos que quedaron sin resolver. Ningún partido queda abierto para
 siempre.
 
@@ -631,7 +631,7 @@ siempre.
 **El barrido nunca pisa un reclamo de walkover que un administrador todavía está
 evaluando**, ni una disputa que un administrador ya resolvió.
 
-Las disputas las procesa un barrido **propio y separado**, a los :40 de cada
+Las disputas las procesa un barrido **propio y separado**, a los :45 de cada
 hora. Es deliberado: el escrutinio toca Elo, Fair Play y marcadores, y si algo
 sale mal ahí no puede llevarse puesto el cierre de los partidos huérfanos.
 
@@ -872,8 +872,8 @@ creer que no te postulaste.
 | Vencimiento del código de invitados | 48 h | ✅ Sí |
 | Vencimiento de avisos «busco equipo» | 14 días | No |
 | Recordatorio antes del partido | 24 h | No |
-| Frecuencia del barrido automático | Cada hora (:20) | No |
-| Frecuencia del escrutinio de disputas | Cada hora (:40) | No |
+| Frecuencia del barrido automático | Cada hora (:15) | No |
+| Frecuencia del escrutinio de disputas | Cada hora (:45) | No |
 
 ---
 

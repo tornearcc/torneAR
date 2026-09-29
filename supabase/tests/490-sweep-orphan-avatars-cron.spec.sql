@@ -1,7 +1,7 @@
 -- ============================================================
 -- 490-sweep-orphan-avatars-cron — job diario del barrido (pgTAP)
 -- ============================================================
--- Cubre 20260925150000: el job existe, corre a las 06:55 UTC, llama a
+-- Cubre 20260925150000 (horario: 20260929170000): el job existe, corre a las 07:00 UTC, llama a
 -- sweep_orphan_avatars en modo real (no dry-run) y está activo.
 -- ============================================================
 
@@ -10,8 +10,8 @@ select plan(3);
 
 select is(
   (select schedule from cron.job where jobname = 'sweep-orphan-avatars'),
-  '55 6 * * *',
-  'el job sweep-orphan-avatars corre todos los días a las 06:55 UTC');
+  '0 7 * * *',
+  'el job sweep-orphan-avatars corre todos los días a las 07:00 UTC');
 
 select is(
   (select command from cron.job where jobname = 'sweep-orphan-avatars'),

@@ -4,7 +4,7 @@
 -- Cubre 20260927120000:
 --   R-1  send_push_dispatch arma el pedido con timeout de 30 s.
 --   R-2  Ni el helper ni el reintento son ejecutables por anon/authenticated.
---   R-3  El job retry-pending-pushes existe, corre cada 5 minutos y está activo.
+--   R-3  El job retry-pending-pushes existe, corre cada 15 minutos (20260929170000) y está activo.
 --   R-4  El reintento corre sin error.
 --   R-5  Con secretos, reenvía sólo lo que está en la ventana de 2 min a 2 h
 --        y sin pushed_at: ni la recién creada, ni la vieja, ni la ya empujada.
@@ -38,8 +38,8 @@ select ok(
 -- ── R-3 ─────────────────────────────────────────────────────────────────────
 select results_eq(
   $$ select schedule, command, active from cron.job where jobname = 'retry-pending-pushes' $$,
-  $$ values ('*/5 * * * *'::text, 'select public.retry_pending_pushes();'::text, true) $$,
-  'R-3: el job corre cada 5 minutos, llama al reintento y está activo');
+  $$ values ('*/15 * * * *'::text, 'select public.retry_pending_pushes();'::text, true) $$,
+  'R-3: el job corre cada 15 minutos, llama al reintento y está activo');
 
 -- ── Setup ───────────────────────────────────────────────────────────────────
 -- Las notificaciones del seed se dan por empujadas para aislar el caso.
