@@ -24,6 +24,8 @@ import { TeamShield } from '@/components/ui/TeamShield';
 import { HomeOnboardingState } from '@/components/home/HomeOnboardingState';
 import { HomeOnboardingTour } from '@/components/home/HomeOnboardingTour';
 import { CensusEntryCard } from '@/components/home/CensusEntryCard';
+import { SoloTeamInviteCard } from '@/components/home/SoloTeamInviteCard';
+import { shareTeamInvite } from '@/lib/share-team-invite';
 import { MiniRankingCard } from '@/components/home/MiniRankingCard';
 import { PendingActionsCard } from '@/components/home/PendingActionsCard';
 import { UpcomingMatchesSection } from '@/components/home/UpcomingMatchesSection';
@@ -429,6 +431,26 @@ export default function HomeScreen() {
     router.push('/censo');
   };
 
+  // Tanda 7: el mismo link que la gestión del equipo (link + código).
+  const [sharingSoloInvite, setSharingSoloInvite] = useState(false);
+  const handleInviteToSoloTeam = async () => {
+    const soloTeam = viewData?.soloTeam;
+    if (!soloTeam || sharingSoloInvite) return;
+    try {
+      setSharingSoloInvite(true);
+      await shareTeamInvite({ team: soloTeam, profile: profile ?? null, surface: 'home_solo_card' });
+    } catch (error) {
+      Logger.error('No se pudo compartir la invitación del equipo desde Inicio', {
+        scope: 'tabs.index.handleInviteToSoloTeam',
+        teamId: soloTeam.id,
+        error,
+      });
+      showAlert('No se pudo compartir', getGenericSupabaseErrorMessage(error, 'Intenta nuevamente en unos segundos.'));
+    } finally {
+      setSharingSoloInvite(false);
+    }
+  };
+
   const handleManageTeam = () => {
     router.navigate('/(tabs)/profile');
   };
@@ -511,6 +533,14 @@ export default function HomeScreen() {
             actions={viewData.pendingActions}
             onActionPress={handlePendingAction}
           />
+
+          {viewData.soloTeam && (
+            <SoloTeamInviteCard
+              teamName={viewData.soloTeam.name}
+              sharing={sharingSoloInvite}
+              onInvite={handleInviteToSoloTeam}
+            />
+          )}
 
           {/* ── TAREA 1 — Próximo partido con cuenta regresiva ────────────── */}
           {nextMatch && (

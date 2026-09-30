@@ -91,6 +91,10 @@ export interface ShareIntentPayload {
    *  cuando se cancela la hoja, y en las superficies que no usan
    *  `Share.share`. Nunca se completa con un valor inventado. */
   activityType?: string;
+  /** Pantalla desde la que se compartió, cuando el mismo contenido sale de
+   *  más de un lugar (`team_invite`: `team_manage` o `home_solo_card`). Sirve
+   *  para saber si la tarjeta de Inicio de la Tanda 7 mueve la aguja. */
+  surface?: string;
 }
 
 /**
@@ -115,6 +119,7 @@ export function buildShareEventDetails(payload: ShareIntentPayload): Record<stri
     ...(payload.matchId ? { matchId: payload.matchId } : {}),
     ...(payload.teamId ? { teamId: payload.teamId } : {}),
     ...(payload.activityType ? { activity_type: payload.activityType } : {}),
+    ...(payload.surface ? { surface: payload.surface } : {}),
   };
 }
 

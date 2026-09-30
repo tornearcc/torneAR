@@ -8,6 +8,7 @@ import type {
   HomeViewData,
   HomeTeamSnapshot,
   HomeMatchEntry,
+  HomeSoloTeam,
   PendingAction,
   PendingActionType,
 } from '@/components/home/types';
@@ -540,5 +541,56 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
     };
   });
 
-  return { myTeams, upcomingMatches, pendingActions, pendingTransfers };
+  const soloTeam = await fetchSoloCaptainTeam(profileId, captainTeamIds);
+
+  return { myTeams, upcomingMatches, pendingActions, pendingTransfers, soloTeam };
+}
+
+/**
+ * De los equipos que la persona capitanea o subcapitanea, el primero que
+ * todavía tiene un solo integrante (Tanda 7, P1-11: al 29/09, 16 de los 17
+ * equipos reales estaban así). Un fallo acá devuelve `null` y queda
+ * registrado: la tarjeta es un extra, no puede tirar abajo la Home.
+ *
+ * Exportada para el test.
+ */
+export async function fetchSoloCaptainTeam(
+  profileId: string,
+  captainTeamIds: string[],
+): Promise<HomeSoloTeam | null> {
+  if (captainTeamIds.length === 0) return null;
+
+  try {
+    const { data: members, error: membersError } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .in('team_id', captainTeamIds);
+    if (membersError) throw membersError;
+
+    const countByTeam = new Map<string, number>();
+    for (const row of members ?? []) {
+      countByTeam.set(row.team_id, (countByTeam.get(row.team_id) ?? 0) + 1);
+    }
+    const soloTeamId = captainTeamIds.find((id) => countByTeam.get(id) === 1);
+    if (!soloTeamId) return null;
+
+    // Las solicitudes pendientes no se cuentan acá: ya las muestra la bandeja
+    // de acciones (TEAM_REQUEST).
+    const { data: team, error: teamError } = await supabase
+      .from('teams')
+      .select('id, name, invite_code, is_active')
+      .eq('id', soloTeamId)
+      .maybeSingle();
+    if (teamError) throw teamError;
+    if (!team || !team.is_active) return null;
+
+    return { id: team.id, name: team.name, inviteCode: team.invite_code };
+  } catch (error) {
+    Logger.warn('No se pudo calcular el equipo de un solo integrante para la Home', {
+      scope: 'home-data.fetchSoloCaptainTeam',
+      profileId,
+      error,
+    });
+    return null;
+  }
 }

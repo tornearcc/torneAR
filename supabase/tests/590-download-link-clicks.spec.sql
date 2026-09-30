@@ -1,13 +1,13 @@
 -- ============================================================
 -- 590-download-link-clicks — clicks en los links de descarga (pgTAP)
 -- ============================================================
--- Cubre 20260929150000 y 20260929160000 (canal fb) (#37). El capitán de Tigres (auth …0004) hace de admin
+-- Cubre 20260929150000, 20260929160000 (canal fb) y 20260930130000 (canal equipo) (#37). El capitán de Tigres (auth …0004) hace de admin
 -- sólo dentro de esta transacción.
 --
 --   L-1..L-3  log_link_click registra un canal de la lista (también como
 --             anon), normaliza la plataforma e ignora un canal desconocido.
 --   L-4       nadie lee ni escribe link_clicks directo desde la API.
---   L-5..L-6  dashboard_link_clicks devuelve los cinco canales con sus
+--   L-5..L-6  dashboard_link_clicks devuelve los seis canales con sus
 --             conteos y exige is_admin.
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
@@ -25,17 +25,18 @@ select lives_ok(
 select public.log_link_click('wpp', 'android');
 select public.log_link_click('story', 'Windows NT');
 select public.log_link_click('fb', 'android');
+select public.log_link_click('equipo', 'ios');
 select public.log_link_click('tiktok', 'ios');
 select public.log_link_click(null, 'ios');
 reset role;
 
 select results_eq(
   $$ select channel, platform from link_clicks order by id $$,
-  $$ values ('wpp', 'ios'), ('wpp', 'android'), ('story', 'otro'), ('fb', 'android') $$,
+  $$ values ('wpp', 'ios'), ('wpp', 'android'), ('story', 'otro'), ('fb', 'android'), ('equipo', 'ios') $$,
   'L-2: se guardan canal y plataforma, y una plataforma desconocida queda como otro');
 
 select is(
-  (select count(*)::int from link_clicks where channel not in ('dm', 'wpp', 'story', 'cancha', 'fb')),
+  (select count(*)::int from link_clicks where channel not in ('dm', 'wpp', 'story', 'cancha', 'fb', 'equipo')),
   0,
   'L-3: un canal fuera de la lista (o nulo) no se registra');
 
@@ -55,8 +56,9 @@ select results_eq(
             ('wpp', 2::bigint, 1::bigint, 1::bigint, 0::bigint),
             ('story', 1::bigint, 0::bigint, 0::bigint, 1::bigint),
             ('fb', 1::bigint, 0::bigint, 1::bigint, 0::bigint),
-            ('cancha', 0::bigint, 0::bigint, 0::bigint, 0::bigint) $$,
-  'L-5: el resumen trae los cinco canales, también los que tienen 0');
+            ('cancha', 0::bigint, 0::bigint, 0::bigint, 0::bigint),
+            ('equipo', 1::bigint, 1::bigint, 0::bigint, 0::bigint) $$,
+  'L-5: el resumen trae los seis canales, también los que tienen 0');
 select tests.clear_auth();
 
 select tests.authenticate_as_profile('aaaaaaaa-0000-0000-0000-000000000001');

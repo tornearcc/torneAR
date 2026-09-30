@@ -68,6 +68,19 @@ describe('buildShareEventDetails', () => {
     // Omitidas, no en null: en SQL `details ? 'activity_type'` tiene que dar false.
     expect(details).not.toHaveProperty('activity_type');
     expect(details).not.toHaveProperty('matchId');
+    expect(details).not.toHaveProperty('surface');
+  });
+
+  it('invitación de equipo desde la tarjeta de Inicio: incluye la pantalla (Tanda 7)', () => {
+    expect(
+      buildShareEventDetails({
+        target: 'generic',
+        contentType: 'team_invite',
+        profileId: 'p1',
+        teamId: 't9',
+        surface: 'home_solo_card',
+      }),
+    ).toMatchObject({ content_type: 'team_invite', teamId: 't9', surface: 'home_solo_card' });
   });
 
   it('profileId null se manda explícito: el evento sigue siendo válido sin perfil cargado', () => {

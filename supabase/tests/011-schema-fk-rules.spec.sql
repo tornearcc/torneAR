@@ -60,6 +60,9 @@ select set_eq(
       ('match_goals_team_id_fkey => CASCADE'),
       ('team_join_requests_team_id_fkey => CASCADE'),
       ('team_members_team_id_fkey => CASCADE'),
+      -- Registro de los avisos al capitán de un equipo solo (Tanda 7,
+      -- 20260930120000): sin el equipo no hay a quién avisar.
+      ('team_nudges_team_id_fkey => CASCADE'),
       -- El ELO por formato es un dato accesorio del equipo: si el equipo se
       -- borra, sus filas de ranking no le sirven a nadie (a diferencia de
       -- matches/match_results, que le pertenecen también al rival).

@@ -1,5 +1,6 @@
 import * as Linking from 'expo-linking';
 import type { Href } from 'expo-router';
+import { normalizeTeamInviteCode } from '@/lib/team-invite-link';
 
 /**
  * Rutas públicas alcanzables sin sesión. Cualquier otra ruta se considera
@@ -127,6 +128,17 @@ function normalizeUniversalLink(url: string): string {
   const encodedUsername = path.slice(REFERRAL_UNIVERSAL_LINK_PREFIX.length);
   if (!encodedUsername) {
     return url;
+  }
+
+  // Invitación a un equipo (`?e=<código>`, ver `lib/team-invite-link.ts`): va a
+  // «Unirme a un equipo» con el código cargado en vez de al login. Es una ruta
+  // protegida, así que sin sesión se difiere hasta que la persona entre. En ese
+  // caso el referido (`ref`) no viaja: lo que importa del link es el equipo.
+  const teamCode = normalizeTeamInviteCode(
+    typeof parsed.queryParams?.e === 'string' ? parsed.queryParams.e : null,
+  );
+  if (teamCode) {
+    return `${APP_SCHEME}://team-join?code=${encodeURIComponent(teamCode)}`;
   }
 
   const username = decodeURIComponent(encodedUsername);
