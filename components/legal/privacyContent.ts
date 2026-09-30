@@ -1,8 +1,11 @@
 /**
  * Política de Privacidad de torneAR — texto definitivo, vigente desde el
- * 25 de septiembre de 2026. Cambio respecto de la versión del 24 de agosto de
- * 2026: una finalidad nueva en la §4, el uso del género para validar la
- * composición de los equipos de categoría Mixto (F3, 20260925160000). Sin
+ * 30 de septiembre de 2026. Cambios respecto de la versión del 25 de
+ * septiembre: el correo electrónico como dato de registro (§3), la distancia
+ * del Check-in que se guarda (§5) y los registros técnicos asociados a la
+ * cuenta, no anónimos (§6). Son aclaraciones de lo que ya hacía la app,
+ * pedidas para el formulario de Seguridad de datos de Google Play. El 25/09 se
+ * había sumado el uso del género para los equipos Mixto (§4). Sin
  * re-aceptación: needsLegalAcceptance() sólo compara la versión de los TyC.
  *
  * Redactada sobre la auditoría técnica de la app (Expo), el dashboard (Next) y
@@ -47,7 +50,7 @@ import type { LegalSection } from './termsContent';
  * Se muestra bajo el título Y actúa como identificador de versión del
  * documento. Cambiarlo al publicar una versión nueva.
  */
-export const PRIVACY_LAST_UPDATED = '25 de Septiembre, 2026';
+export const PRIVACY_LAST_UPDATED = '30 de Septiembre, 2026';
 
 export const PRIVACY_INTRO =
   'En torneAR valoramos y respetamos la privacidad de nuestros usuarios. Esta política describe qué datos recopilamos, para qué los usamos, con quién se comparten y durante cuánto tiempo los conservamos.';
@@ -69,7 +72,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     title: '3. Datos Personales que Recopilamos',
     paragraphs: [
       'Para que la plataforma funcione, recopilamos la siguiente información:',
-      'Datos obligatorios de registro: Nombre completo, nombre de usuario (username), fecha de nacimiento (exclusivamente para validar la mayoría de edad), género, pie hábil, posición preferida en la cancha y zona geográfica. Si no proporcionás estos datos, no podrás crear una cuenta.',
+      'Datos obligatorios de registro: Correo electrónico (el que usás para entrar, o el que nos comparte Google o Apple si ingresás con esas cuentas), nombre completo, nombre de usuario (username), fecha de nacimiento (exclusivamente para validar la mayoría de edad), género, pie hábil, posición preferida en la cancha y zona geográfica. Si no proporcionás estos datos, no podrás crear una cuenta.',
       'Datos opcionales y de uso: Fotografía de perfil (avatar), escudos de equipos, y el contenido que generes (mensajes en chats, reportes).',
       'Datos deportivos e historial: Resultados de partidos, cantidad de goles, reconocimientos (MVP), presencias, historial de equipos y estadísticas de juego.',
       'Datos técnicos: Identificadores internos (UUID) y tokens de notificaciones push (Expo Push Tokens) para enviarte alertas de partidos.',
@@ -93,7 +96,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'TorneAR solicita acceso a la ubicación precisa (GPS) de tu dispositivo con un único fin: validar el Check-in presencial de los equipos en la cancha al momento de jugar un partido de ranking.',
       'La ubicación solo se obtiene en primer plano, en el momento exacto en que tocás el botón de Check-in.',
-      'TorneAR no rastrea tu ubicación en segundo plano ni guarda un historial de tus movimientos.',
+      'TorneAR no rastrea tu ubicación en segundo plano ni guarda un historial de tus movimientos. Tus coordenadas se usan en el momento para comparar tu posición con la de la cancha y no se almacenan. Lo único que se guarda de cada Check-in es la distancia aproximada, en metros, a la que estabas de la cancha, que usamos para ajustar el radio permitido.',
       'Si denegás el permiso de ubicación, no podrás realizar el Check-in para validar partidos competitivos, pero podrás seguir usando el resto de la aplicación.',
     ],
   },
@@ -102,7 +105,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'La infraestructura de TorneAR está diseñada para proteger tu información limitando el acceso de terceros.',
       'Servicios de terceros: Utilizamos Supabase (alojado en AWS) para la base de datos y autenticación, y Vercel para el alojamiento de nuestra web y generación de imágenes. También utilizamos Firebase (FCM) de forma exclusiva para el ruteo técnico de las notificaciones push.',
-      'Analíticas: TorneAR no utiliza SDKs de rastreo comercial ni analíticas de terceros (como Google Analytics, Meta Pixel o Mixpanel). Toda la telemetría, el análisis de uso y los reportes de errores se procesan de forma interna y anónima en nuestros propios servidores para mejorar la aplicación.',
+      'Analíticas: TorneAR no utiliza SDKs de rastreo comercial ni analíticas de terceros (como Google Analytics, Meta Pixel o Mixpanel). La telemetría, el análisis de uso (por ejemplo, cuándo se comparte un partido o una invitación) y los reportes de errores se procesan de forma interna en nuestros propios servidores. Cada registro queda asociado a tu cuenta para poder diagnosticar fallas y mejorar la aplicación; solo lo ve el equipo de TorneAR y nunca se comparte con terceros.',
       'TorneAR no vende, alquila ni comercializa tus datos personales con terceros bajo ninguna circunstancia.',
     ],
   },
