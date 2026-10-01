@@ -446,29 +446,42 @@ export async function submitDisputeVote(matchId: string, votedTeamId: string): P
 // (SECURITY DEFINER), que valida autorización + pertenencia de goleadores/MVP
 // server-side e inserta el reclamo. claimed_by se deriva de auth.uid() en la RPC.
 
+/**
+ * Sube una foto al bucket wo_evidences como `<partido>/<equipo>_<timestamp>.jpg`,
+ * el formato que exige la policy de subida (y respond_wo_claim para la foto de
+ * la respuesta). Devuelve el path.
+ */
+async function uploadWoEvidence(
+  matchId: string,
+  teamId: string,
+  photoBase64: string,
+  mimeType: string,
+): Promise<string> {
+  const fileName = `${matchId}/${teamId}_${Date.now()}.jpg`;
+  const binaryStr = atob(photoBase64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('wo_evidences')
+    .upload(fileName, bytes.buffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+  if (uploadError) throw uploadError;
+  return uploadData?.path ?? fileName;
+}
+
 export async function claimWo(
   matchId: string,
   teamId: string,
   data: WoClaimFormData,
 ): Promise<void> {
   // Upload evidence photo
-  let photoUrl = '';
-  if (data.photoBase64) {
-    const fileName = `${matchId}/${teamId}_${Date.now()}.jpg`;
-    const binaryStr = atob(data.photoBase64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('wo_evidences')
-      .upload(fileName, bytes.buffer, {
-        contentType: data.photoMimeType,
-        upsert: true,
-      });
-    if (uploadError) throw uploadError;
-    photoUrl = uploadData?.path ?? fileName;
-  }
+  const photoUrl = data.photoBase64
+    ? await uploadWoEvidence(matchId, teamId, data.photoBase64, data.photoMimeType)
+    : '';
 
   const scorers = (data.scorers ?? []).map((s) => ({ profile_id: s.profileId, goals: s.goals }));
 
@@ -480,6 +493,28 @@ export async function claimWo(
     p_photo_url: photoUrl,
     p_scorers: scorers,
     p_mvp_id: data.mvpProfileId ?? undefined,
+  });
+  if (error) throw error;
+}
+
+/**
+ * D-61: versión del equipo acusado de un reclamo de WO. Una por reclamo y
+ * dentro del plazo; la RPC valida quién responde y el path de la foto.
+ */
+export async function respondToWoClaim(
+  claimId: string,
+  matchId: string,
+  teamId: string,
+  data: { text: string; photoBase64: string | null; photoMimeType: string },
+): Promise<void> {
+  const photoUrl = data.photoBase64
+    ? await uploadWoEvidence(matchId, teamId, data.photoBase64, data.photoMimeType)
+    : undefined;
+
+  const { error } = await supabase.rpc('respond_wo_claim', {
+    p_claim_id: claimId,
+    p_text: data.text,
+    p_photo_url: photoUrl,
   });
   if (error) throw error;
 }

@@ -1,6 +1,8 @@
 # PoC — Navegación por swipe entre tabs
 
 > Backlog Post-Lanzamiento · Tarea 5 (opcional / investigación).
+> **Decisión (D-42): se difiere hasta que algún usuario lo pida.** Coincide con la
+> recomendación de abajo.
 > **Estado: NO integrado.** El código de abajo está listo para copiar, pero
 > requiere dos dependencias nuevas con código nativo y un cambio en la
 > estructura de rutas. Leé «Costos» antes de decidir.

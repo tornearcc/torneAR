@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, Share, ScrollView } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -13,7 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { Logger } from '@/lib/logger';
-import { shareActivityType, trackShareIntent } from '@/lib/share-analytics';
+import { shareTeamInvite } from '@/lib/share-team-invite';
 import { supabase } from '@/lib/supabase';
 import { TEAM_CATEGORY_OPTIONS, TEAM_FORMAT_OPTIONS, getTeamRoleLabel, TeamCategory, TeamFormat, TeamRole } from '@/lib/team-options';
 import { allowedRolesToAssign, canManageMember } from '@/lib/team-helpers';
@@ -619,10 +619,14 @@ export default function TeamManageScreen() {
 
   const handleShareInvite = async () => {
     if (!team) return;
-    let activityType: string | undefined;
     try {
-      const result = await Share.share({ message: `Unite a ${team.name} en TorneAR\nCodigo de invitacion: ${team.invite_code}` });
-      activityType = shareActivityType(result);
+      // Link + código (Tanda 7): el link abre la landing del equipo en la web o,
+      // con la app instalada, «Unirme a un equipo» con el código cargado.
+      await shareTeamInvite({
+        team: { id: team.id, name: team.name, inviteCode: team.invite_code },
+        profile: profile ?? null,
+        surface: 'team_manage',
+      });
     } catch (error) {
       Logger.error('No se pudo compartir la invitación del equipo', {
         scope: 'team-manage.handleShareInvite',
@@ -630,20 +634,6 @@ export default function TeamManageScreen() {
         error,
       });
       showAlert('No se pudo compartir', getGenericSupabaseErrorMessage(error, 'Intenta nuevamente en unos segundos.'));
-    } finally {
-      // Al cerrarse la hoja y no antes: es cuando iOS informa el destino. Mismo
-      // criterio que ProfileInviteCard (ver lib/share-analytics.ts).
-      //
-      // Sin `?n=`: este mensaje no lleva link. No existe una página web de
-      // invitación a un equipo — el código se canjea adentro de la app, en
-      // "Unirme a un equipo" — así que no hay landing que pueda mostrar el nombre.
-      trackShareIntent({
-        target: 'generic',
-        contentType: 'team_invite',
-        profileId: profile?.id ?? null,
-        teamId: team.id,
-        activityType,
-      });
     }
   };
 

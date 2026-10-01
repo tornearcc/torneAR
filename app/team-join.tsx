@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { TeamShield } from '@/components/ui/TeamShield';
@@ -11,33 +11,41 @@ import { getTeamCategoryLabel, getTeamFormatLabel } from '@/lib/team-options';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { findTeamByCode, sendJoinRequest, TeamPreview } from '@/lib/team-join-data';
 import { Logger } from '@/lib/logger';
+import { normalizeTeamInviteCode } from '@/lib/team-invite-link';
 
 export default function TeamJoinScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
 
-  const [inviteCode, setInviteCode] = useState('');
+  // `code` llega del link de invitación a un equipo (lib/team-invite-link.ts,
+  // vía lib/deep-linking.ts): se carga y se busca solo, así quien toca el link
+  // ve el equipo directamente y sólo tiene que mandar la solicitud.
+  const { code: codeParam } = useLocalSearchParams<{ code?: string }>();
+  const linkCode = normalizeTeamInviteCode(typeof codeParam === 'string' ? codeParam : null);
+
+  const [inviteCode, setInviteCode] = useState(linkCode ?? '');
   const [searching, setSearching] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [team, setTeam] = useState<TeamPreview | null>(null);
 
   const normalizedCode = inviteCode.trim().toUpperCase();
 
-  const handleFindTeam = async () => {
-    if (normalizedCode.length < 6) {
+  const findTeam = async (code: string) => {
+    if (code.length < 6) {
       showAlert('Código inválido', 'Revisá el código de invitación e intentá nuevamente.');
       return;
     }
 
     try {
       setSearching(true);
-      const foundTeam = await findTeamByCode(normalizedCode);
+      const foundTeam = await findTeamByCode(code);
 
       if (!foundTeam) {
         Logger.warn('Código de invitación sin equipo asociado', {
           scope: 'team-join.handleFindTeam',
-          codeLength: normalizedCode.length,
+          codeLength: code.length,
+          fromLink: code === linkCode,
         });
         setTeam(null);
         showAlert('No encontrado', 'No existe un equipo con ese codigo.');
@@ -55,6 +63,20 @@ export default function TeamJoinScreen() {
       setSearching(false);
     }
   };
+
+  const handleFindTeam = () => findTeam(normalizedCode);
+
+  // Una sola búsqueda automática por código de link, aunque la pantalla se
+  // vuelva a renderizar o el mismo link se toque dos veces.
+  const searchedLinkCode = useRef<string | null>(null);
+  useEffect(() => {
+    if (!linkCode || searchedLinkCode.current === linkCode) return;
+    searchedLinkCode.current = linkCode;
+    setInviteCode(linkCode);
+    void findTeam(linkCode);
+    // `findTeam` cambia en cada render; lo que dispara la búsqueda es el código.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkCode]);
 
   const handleJoinTeam = async () => {
     if (!profile || !team) return;

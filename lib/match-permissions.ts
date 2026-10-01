@@ -57,7 +57,9 @@ export function isTeamMatchAdmin(role: string | null | undefined): boolean {
  *
  * ⚠️ Es gating de UI. La autoridad es la policy de INSERT de `match_results` y
  * el bloque 3 de `submit_team_checkin`, los dos actualizados en la migración
- * `20260730120000`. Este predicado tiene que quedar sincronizado con ellos.
+ * `20260730120000`, y la policy de INSERT de `messages` para el chat del
+ * partido (`20260929130000`). Este predicado tiene que quedar sincronizado con
+ * ellos.
  */
 export function isTeamMatchStaff(role: string | null | undefined): boolean {
   return isTeamMatchAdmin(role) || role === 'DIRECTOR_TECNICO';

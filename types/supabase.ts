@@ -652,6 +652,27 @@ export type Database = {
         }
         Relationships: []
       }
+      link_clicks: {
+        Row: {
+          channel: string
+          created_at: string
+          id: number
+          platform: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          id?: never
+          platform: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: never
+          platform?: string
+        }
+        Relationships: []
+      }
       market_player_post_applications: {
         Row: {
           applicant_profile_id: string
@@ -2442,6 +2463,85 @@ export type Database = {
           },
         ]
       }
+      team_zone_changes: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_zone: string
+          id: string
+          is_admin_override: boolean
+          reason: string | null
+          season_id: string | null
+          team_id: string
+          to_zone: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_zone: string
+          id?: string
+          is_admin_override?: boolean
+          reason?: string | null
+          season_id?: string | null
+          team_id: string
+          to_zone: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_zone?: string
+          id?: string
+          is_admin_override?: boolean
+          reason?: string | null
+          season_id?: string | null
+          team_id?: string
+          to_zone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_zone_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_zone_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_zone_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "team_zone_changes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_zone_changes_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_zone_changes_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           category: Database["public"]["Enums"]["team_category"]
@@ -2645,6 +2745,11 @@ export type Database = {
           reason: string | null
           resolved_at: string | null
           resolved_by: string | null
+          responded_at: string | null
+          responded_by: string | null
+          response_deadline: string | null
+          response_photo_url: string | null
+          response_text: string | null
           scorers: Json
           status: Database["public"]["Enums"]["wo_status"]
         }
@@ -2660,6 +2765,11 @@ export type Database = {
           reason?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          response_deadline?: string | null
+          response_photo_url?: string | null
+          response_text?: string | null
           scorers?: Json
           status?: Database["public"]["Enums"]["wo_status"]
         }
@@ -2675,6 +2785,11 @@ export type Database = {
           reason?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          response_deadline?: string | null
+          response_photo_url?: string | null
+          response_text?: string | null
           scorers?: Json
           status?: Database["public"]["Enums"]["wo_status"]
         }
@@ -2759,6 +2874,27 @@ export type Database = {
           {
             foreignKeyName: "wo_claims_resolved_by_fkey"
             columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "wo_claims_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_claims_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wo_claims_responded_by_fkey"
+            columns: ["responded_by"]
             isOneToOne: false
             referencedRelation: "v_player_stats"
             referencedColumns: ["profile_id"]
@@ -2903,6 +3039,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_delete_account: {
+        Args: { p_profile_id: string; p_reason: string }
+        Returns: undefined
+      }
       admin_disconnect_instagram_account: {
         Args: { p_account_id: string }
         Returns: undefined
@@ -2939,6 +3079,10 @@ export type Database = {
         Args: { p_gender: string; p_profile_id: string; p_reason: string }
         Returns: Json
       }
+      admin_set_team_zone: {
+        Args: { p_reason: string; p_team_id: string; p_zone: string }
+        Returns: Json
+      }
       admin_suspend_user: {
         Args: { p_profile_id: string; p_reason?: string }
         Returns: undefined
@@ -2947,11 +3091,19 @@ export type Database = {
         Args: { p_profile_id: string; p_reason?: string }
         Returns: undefined
       }
+      anonymize_account: {
+        Args: { p_auth_user_id: string; p_profile_id: string; p_scope: string }
+        Returns: undefined
+      }
       apply_match_outcome: {
         Args: {
           p_at?: string
           p_match: Database["public"]["Tables"]["matches"]["Row"]
         }
+        Returns: undefined
+      }
+      assert_checkin_window: {
+        Args: { p_scheduled_at: string }
         Returns: undefined
       }
       assert_mixed_roster: {
@@ -2964,6 +3116,10 @@ export type Database = {
       }
       assert_ranking_same_category: {
         Args: { p_own_team_id: string; p_rival_team_id: string }
+        Returns: undefined
+      }
+      assert_team_zone_change_allowed: {
+        Args: { p_is_update: boolean; p_team_id: string; p_zone: string }
         Returns: undefined
       }
       avatar_file_in_open_report: { Args: { p_path: string }; Returns: boolean }
@@ -3079,6 +3235,16 @@ export type Database = {
           day: string
           signups: number
           teams: number
+        }[]
+      }
+      dashboard_link_clicks: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          android: number
+          channel: string
+          clicks: number
+          ios: number
+          otro: number
         }[]
       }
       dashboard_logs_timeseries: {
@@ -3380,15 +3546,24 @@ export type Database = {
         Args: never
         Returns: {
           claim_id: string
+          claiming_checkin_at: string
+          claiming_checkins: number
           claiming_team_id: string
           claiming_team_name: string
           created_at: string
           match_id: string
           mvp_id: string
           mvp_name: string
+          opponent_checkin_at: string
+          opponent_checkins: number
           opponent_team_name: string
           photo_url: string
           reason: string
+          responded_at: string
+          responded_by_name: string
+          response_deadline: string
+          response_photo_url: string
+          response_text: string
           scheduled_at: string
           scorers: Json
         }[]
@@ -3538,6 +3713,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_link_click: {
+        Args: { p_channel: string; p_platform: string }
+        Returns: undefined
+      }
       mark_instagram_sync: {
         Args: { p_account_id: string; p_error?: string }
         Returns: undefined
@@ -3589,6 +3768,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      request_shield_file_deletion: {
+        Args: { p_context?: Json; p_paths: string[] }
+        Returns: number
+      }
       resolve_match: { Args: { p_match_id: string }; Returns: undefined }
       resolve_wo_claim: {
         Args: { p_admin_notes?: string; p_approve: boolean; p_claim_id: string }
@@ -3598,6 +3781,11 @@ export type Database = {
         Args: { p_accept: boolean; p_request_id: string }
         Returns: string
       }
+      respond_wo_claim: {
+        Args: { p_claim_id: string; p_photo_url?: string; p_text: string }
+        Returns: undefined
+      }
+      retry_pending_pushes: { Args: { p_limit?: number }; Returns: number }
       save_own_profile: {
         Args: {
           p_date_of_birth: string
@@ -3645,6 +3833,7 @@ export type Database = {
         }
         Returns: Json
       }
+      send_push_dispatch: { Args: { p_record: Json }; Returns: number }
       service_snapshot_upsert: {
         Args: {
           p_account_id: string
@@ -3685,6 +3874,7 @@ export type Database = {
         Returns: undefined
       }
       storage_avatars_object_url: { Args: never; Returns: string }
+      storage_shields_object_url: { Args: never; Returns: string }
       submit_content_report: {
         Args: {
           p_entity_id: string
@@ -3709,6 +3899,14 @@ export type Database = {
       }
       sweep_disputed_matches: { Args: never; Returns: Json }
       sweep_orphan_avatars: {
+        Args: { p_dry_run?: boolean; p_limit?: number }
+        Returns: {
+          bytes: number
+          objeto: string
+          subido_at: string
+        }[]
+      }
+      sweep_orphan_shields: {
         Args: { p_dry_run?: boolean; p_limit?: number }
         Returns: {
           bytes: number

@@ -199,6 +199,10 @@ export default function NotificationsScreen() {
         case 'ANUNCIO':
           // Un aviso general se lee acá mismo: no tiene pantalla de destino, y
           // no es un tipo "sin ruta" que haya que registrar como el default.
+          // Excepción: el aviso al capitán de un equipo de un solo integrante
+          // (Tanda 7, `nudge_solo_team_captains`) trae `team_id` y lleva a la
+          // gestión del equipo, donde está el botón para invitar.
+          if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
           break;
 
         default:

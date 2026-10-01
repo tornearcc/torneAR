@@ -469,12 +469,24 @@ Si el barrido todavía no corrió, podés reclamarlo vos. Requisitos:
 - El reclamo lo **revisa un administrador** de torneAR. Los dos equipos son
   notificados del veredicto, con las notas del admin si las hubo.
 
+**El equipo acusado da su versión.** Apenas se reclama, todo el equipo acusado
+recibe un aviso y tiene **24 horas** ← ajustable para responder desde el partido:
+un texto (hasta 500 caracteres) y, si quiere, una foto. Responde el capitán, el
+subcapitán o alguien del equipo que haya hecho check-in, y se manda **una sola
+vez**. El equipo que reclamó recibe un aviso cuando llega la respuesta.
+
+El administrador ve las dos versiones y, además, **qué equipo hizo check-in y a
+qué hora**, que es el dato objetivo. Mientras el acusado está en plazo y no
+respondió, el reclamo **no se puede aprobar**: aprobarlo antes le quitaría su
+derecho a contestar. Rechazarlo sí se puede en cualquier momento. Si el plazo
+vence sin respuesta, el administrador resuelve con lo que hay. **No hay
+aprobación automática.**
+
+Sigue habiendo **un solo reclamo por partido**: si los dos equipos quieren
+reclamar, el segundo responde al reclamo del primero.
+
 Si el admin **rechaza** el reclamo y el partido estaba `CONFIRMADO`, el partido se
 **cancela**: se cierra el ciclo y se liberan los jugadores convocados.
-
-> **Limitación conocida:** hoy existe **un solo reclamo por partido**. El primero
-> en reclamar define la versión que lee el administrador; no hay contra-reclamo.
-> Está identificado y pendiente de resolver.
 
 ### 4.6 Cuando los dos cargan resultados distintos
 
@@ -601,7 +613,7 @@ cuesta −5 y no aparecer cuesta −15**.
 
 ## 6. Qué pasa cuando un partido queda colgado
 
-Una vez por hora (**a los :20 de cada hora**) corre un barrido automático que
+Una vez por hora (**a los :15 de cada hora**) corre un barrido automático que
 cierra los partidos que quedaron sin resolver. Ningún partido queda abierto para
 siempre.
 
@@ -619,7 +631,7 @@ siempre.
 **El barrido nunca pisa un reclamo de walkover que un administrador todavía está
 evaluando**, ni una disputa que un administrador ya resolvió.
 
-Las disputas las procesa un barrido **propio y separado**, a los :40 de cada
+Las disputas las procesa un barrido **propio y separado**, a los :45 de cada
 hora. Es deliberado: el escrutinio toca Elo, Fair Play y marcadores, y si algo
 sale mal ahí no puede llevarse puesto el cierre de los partidos huérfanos.
 
@@ -727,18 +739,20 @@ abandono o expulsión.
 | Marcar mi propia llegada (check-in) | ✅ | ✅ | ✅ | ✅ |
 | Presentar la lista de convocados | ✅ | ✅ | ✅ | ❌ |
 | Cargar el resultado | ✅ | ✅ | ✅ | ❌ |
+| Escribir en el chat del partido | ✅ | ✅ | ✅ | ❌ |
 | Corregir un resultado que cargó otro | ✅ | ✅ | ❌ | ❌ |
 | Votar en una disputa | ✅* | ✅* | ✅* | ✅* |
 | Cerrar la votación de una disputa | ❌ | ❌ | ❌ | ❌ |
 | Enviar o aceptar un desafío | ✅ | ✅ | ❌ | ❌ |
 | Proponer / confirmar / cancelar un partido | ✅ | ✅ | ❌ | ❌ |
 | Reclamar un walkover | ✅ | ✅ | ❌ | ✅** |
+| Responder un reclamo de walkover en contra | ✅ | ✅ | ❌ | ✅** |
 | Publicar en el Mercado por el equipo | ✅ | ✅ | ❌ | ❌ |
 | Aceptar postulantes del Mercado | ✅ | ✅ | ❌ | ❌ |
 | Administrar miembros y roles | ✅ | ✅ | ❌ | ❌ |
 
 \* Sólo quienes hicieron check-in en ese partido.
-\** Un jugador puede reclamar el walkover si él mismo hizo check-in.
+\** Un jugador puede reclamar el walkover, o responder uno en contra, si él mismo hizo check-in.
 
 **Nadie cierra la votación de una disputa** — ni siquiera un capitán. La cierra
 el sistema a las 24 horas. Es la única fila de esta tabla donde no hay ningún ✅,
@@ -746,8 +760,8 @@ y es a propósito: mientras existió ese permiso, el primero en usarlo se llevab
 el partido (ver 4.6).
 
 **Por qué el DT tiene ese recorte exacto:** se le dieron los permisos del **día del
-partido** (presentar la lista, cargar el resultado) y **ninguno de gestión del
-club**. El corte no es de confianza, es de naturaleza del acto: proponer o
+partido** (presentar la lista, cargar el resultado, escribir en el chat del
+partido) y **ninguno de gestión del club**. El corte no es de confianza, es de naturaleza del acto: proponer o
 confirmar un partido compromete al club frente a otro club (fecha, cancha, seña) y
 eso es de la conducción; reclamar o resolver un walkover cierra un resultado.
 
@@ -770,17 +784,16 @@ Hay **un solo chat por partido**, garantizado por la base de datos.
 | | Quién |
 |---|---|
 | **Puede leer** | Todos los miembros de **los dos equipos**, sin importar el rol |
-| **Puede escribir** | Sólo **capitán y subcapitán**, de cualquiera de los dos equipos |
+| **Puede escribir** | **Capitán, subcapitán y director técnico**, de cualquiera de los dos equipos |
 
 **Dos consecuencias que conviene tener claras:**
 
 1. **No es un canal privado de tu equipo.** El rival lee absolutamente todo lo
    que se escribe ahí. Es un canal de coordinación entre clubes, no un vestuario.
-2. **El director técnico y los jugadores leen pero no escriben.** El DT recibió
-   permisos del día del partido (presentar la lista, cargar el resultado), pero
-   las tablas de comunicación quedaron fuera de ese cambio. Hoy, en el chat del
-   partido, un DT tiene el mismo acceso que un jugador: ve la conversación
-   completa y no puede responder.
+2. **Los jugadores leen pero no escriben.** Ven la conversación completa y, en
+   lugar del campo para escribir, un aviso que les dice quién escribe. El
+   director técnico escribe desde el 29/09/2026: antes tenía los permisos del día
+   del partido pero no el del chat, y era una inconsistencia.
 
 **Los invitados no entran.** Un jugador que se sumó con el código único del
 partido no es miembro del equipo, así que no ve el chat.
@@ -851,6 +864,7 @@ creer que no te postulaste.
 | Jugadores compartidos que bloquean un ranking | 2 o más | No |
 | Aviso por diferencia de Elo (no bloquea) | > 400 | No |
 | Gracia antes del walkover automático | 4 h | ✅ Sí |
+| Plazo para responder un reclamo de walkover | 24 h | ✅ Sí |
 | Cancelación de un pendiente sin coordinar | 14 días | ✅ Sí |
 | Cierre de un partido en vivo sin resultado | 24 h | ✅ Sí |
 | Duración de la votación de una disputa | **24 h** | ✅ Sí |
@@ -858,8 +872,8 @@ creer que no te postulaste.
 | Vencimiento del código de invitados | 48 h | ✅ Sí |
 | Vencimiento de avisos «busco equipo» | 14 días | No |
 | Recordatorio antes del partido | 24 h | No |
-| Frecuencia del barrido automático | Cada hora (:20) | No |
-| Frecuencia del escrutinio de disputas | Cada hora (:40) | No |
+| Frecuencia del barrido automático | Cada hora (:15) | No |
+| Frecuencia del escrutinio de disputas | Cada hora (:45) | No |
 
 ---
 
@@ -868,19 +882,12 @@ creer que no te postulaste.
 Este documento no sirve de nada si sólo cuenta lo que funciona bien. Estos son los
 puntos abiertos conocidos al día de hoy:
 
-1. **No hay contra-reclamo de walkover.** Existe un solo reclamo por partido: el
-   primero en reclamar define la versión que ve el administrador.
-2. **El «Rivales Ideales» y el gráfico de evolución del Elo todavía usan el Elo
+1. **El «Rivales Ideales» y el gráfico de evolución del Elo todavía usan el Elo
    global**, no el del formato. Puede haber diferencias con la tabla de ranking
    hasta que se complete la migración.
-3. **El historial de evolución del Elo no distingue formatos** todavía.
-4. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
+2. **El historial de evolución del Elo no distingue formatos** todavía.
+3. **Las zonas sin complejos cargados no permiten partidos de ranking.** Es una
    limitación de cobertura, no de diseño, y se resuelve sumando canchas.
-5. **El director técnico no puede escribir en el chat del partido.** Recibió los
-   permisos operativos del día del partido, pero las políticas de mensajería
-   quedaron fuera de ese cambio y siguen admitiendo sólo a capitán y subcapitán.
-   Es una inconsistencia con el resto de sus atribuciones, no una decisión
-   tomada.
 
 ---
 

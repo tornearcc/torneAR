@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Los `vi.mock` de abajo se elevan por encima de este import.
-import { runStoreReviewPrompt } from './store-review';
+import { requestEngagedReturnReviewOnce, runStoreReviewPrompt } from './store-review';
 
 const { loggerMock, rpcMock, storeReviewMock, platformMock, versionMock, appStateMock } = vi.hoisted(() => ({
   loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -148,5 +148,15 @@ describe('runStoreReviewPrompt', () => {
     await runStoreReviewPrompt('match_shared', 0);
 
     expect(rpcMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('requestEngagedReturnReviewOnce (D-63)', () => {
+  it('reclama con engaged_return una sola vez por sesión', async () => {
+    requestEngagedReturnReviewOnce();
+    requestEngagedReturnReviewOnce();
+    // El pedido real espera la pausa de presentación antes de llamar a la RPC.
+    await vi.waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(rpcMock).toHaveBeenCalledWith('claim_review_prompt', expect.objectContaining({ p_trigger: 'engaged_return' }));
   });
 });

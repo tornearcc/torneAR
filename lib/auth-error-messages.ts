@@ -165,6 +165,20 @@ export function getGenericSupabaseErrorMessage(
     return 'Esa zona no está en la lista. Elegí una de las opciones.';
   }
 
+  // D-61: respuesta del equipo acusado a un reclamo de WO (respond_wo_claim,
+  // 20260929140000).
+  if (msg.includes('response_window_closed')) {
+    return 'Ya venció el plazo para responder este reclamo. Lo resuelve un administrador.';
+  }
+
+  if (msg.includes('already_responded')) {
+    return 'Tu equipo ya dio su versión de este reclamo.';
+  }
+
+  if (msg.includes('claim_already_resolved')) {
+    return 'Este reclamo ya fue resuelto.';
+  }
+
   return fallback;
 }
 

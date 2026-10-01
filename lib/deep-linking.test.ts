@@ -182,6 +182,31 @@ describe('resolveDeepLink · Universal Links de referido (https://tornear.vercel
   });
 });
 
+describe('resolveDeepLink · Invitación a un equipo (https://tornear.vercel.app/i/<username>?e=<código>)', () => {
+  // Tanda 7: el link de invitar al equipo (lib/team-invite-link.ts) reutiliza
+  // /i/ porque es el único path que el SO ya abre en la app.
+  it('con sesión, abre «Unirme a un equipo» con el código cargado', () => {
+    expect(
+      resolveDeepLink('https://tornear.vercel.app/i/agussala?n=Agust%C3%ADn&e=ab12cd34&t=Furbol', true),
+    ).toEqual({
+      kind: 'navigate',
+      href: { pathname: '/team-join', params: { code: 'AB12CD34' } },
+    });
+  });
+
+  it('sin sesión, lo difiere hasta el login (team-join es protegida)', () => {
+    const url = 'https://tornear.vercel.app/i/agussala?e=AB12CD34';
+    expect(resolveDeepLink(url, false)).toEqual({ kind: 'defer', url });
+  });
+
+  it('un código inválido se ignora y queda el link de referido de siempre', () => {
+    expect(resolveDeepLink('https://tornear.vercel.app/i/agussala?e=no', false)).toEqual({
+      kind: 'navigate',
+      href: { pathname: '/login', params: { ref: 'agussala' } },
+    });
+  });
+});
+
 describe('resolveDeepLink · Defer (ruta protegida sin sesión)', () => {
   it('difiere una tab protegida y conserva la url para el store', () => {
     expect(resolveDeepLink('tornear://market', false)).toEqual({
