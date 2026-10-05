@@ -22,13 +22,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 //      viejo igual — puede seguir siendo válido, y no vale la pena perder
 //      el snapshot del día por un refresh que puede reintentarse mañana.
 //   3. Pide followers_count/follows_count/media_count a graph.instagram.com/me.
-//   3b. (04/10, P2-8) Estadísticas del día anterior en hora argentina
-//       (/me/insights, metric_type=total_value): alcance, vistas, visitas al
-//       perfil e interacciones van a sus columnas; toques en el link y el
-//       resto, a raw.insights. Y las de cada publicación de los últimos 30
-//       días (/{media}/insights) a raw.media. Si fallan, el snapshot de
-//       seguidores se guarda igual y el motivo queda en raw.*_error.
-//   4. Guarda el snapshot (service_snapshot_upsert, source='api').
+//   3b. (P2-8, 04-05/10) Estadísticas del día anterior en hora argentina
+//       (/me/insights, metric_type=total_value) a social_insights_daily con
+//       su día real (service_instagram_insights_upsert), y las de cada
+//       publicación de los últimos 30 días (/{media}/insights) a
+//       social_media_snapshots (service_instagram_media_upsert). Con
+//       `{"backfill_days": N}` en el body carga los últimos N días (máx. 30)
+//       en vez de sólo ayer. Si fallan, el snapshot de seguidores se guarda
+//       igual y el motivo queda en raw.insights_error / raw.media_error.
+//   4. Guarda el snapshot de seguidores (service_snapshot_upsert, source='api').
 //   5. Marca el resultado (mark_instagram_sync) — éxito o motivo de error,
 //      siempre, incluso si el paso 3 o 4 fallaron.
 //
@@ -89,11 +91,22 @@ interface MediaItem {
   permalink?: string;
 }
 
-/** Ayer en hora argentina: [00:00, 24:00) como segundos UNIX, y la fecha. */
-function yesterdayInArgentina(now: Date): { since: number; until: number; day: string } {
+const MAX_BACKFILL_DAYS = 30;
+
+/** Fecha de hoy en hora argentina (YYYY-MM-DD). */
+function todayInArgentina(now: Date): string {
+  return new Date(now.getTime() - AR_OFFSET_HOURS * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Un día en hora argentina, `daysBack` días antes de hoy (1 = ayer):
+ * [00:00, 24:00) como segundos UNIX, y la fecha.
+ */
+function argentinaDay(now: Date, daysBack: number): { since: number; until: number; day: string } {
   const todayAr = new Date(now.getTime() - AR_OFFSET_HOURS * 3_600_000);
-  const until = Date.UTC(todayAr.getUTCFullYear(), todayAr.getUTCMonth(), todayAr.getUTCDate(), AR_OFFSET_HOURS);
-  const since = until - 24 * 3_600_000;
+  const todayStart = Date.UTC(todayAr.getUTCFullYear(), todayAr.getUTCMonth(), todayAr.getUTCDate(), AR_OFFSET_HOURS);
+  const since = todayStart - daysBack * 24 * 3_600_000;
+  const until = since + 24 * 3_600_000;
   return {
     since: Math.floor(since / 1000),
     until: Math.floor(until / 1000),
@@ -110,8 +123,8 @@ function toValues(body: InsightsResponse): Record<string, number> {
   return out;
 }
 
-async function fetchAccountInsights(accessToken: string, now: Date) {
-  const { since, until, day } = yesterdayInArgentina(now);
+async function fetchAccountInsights(accessToken: string, now: Date, daysBack: number) {
+  const { since, until, day } = argentinaDay(now, daysBack);
   const url = `${GRAPH_BASE}/me/insights?metric=${ACCOUNT_METRICS.join(',')}&period=day&metric_type=total_value&since=${since}&until=${until}&access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url);
   const body = (await res.json()) as InsightsResponse;
@@ -140,7 +153,7 @@ async function fetchMediaInsights(accessToken: string, now: Date) {
         type: m.media_product_type ?? null,
         posted_at: m.timestamp ?? null,
         permalink: m.permalink ?? null,
-        caption: (m.caption ?? '').slice(0, 80),
+        caption: (m.caption ?? '').slice(0, 280),
         ...(r.ok && !ins.error ? toValues(ins) : { error: ins.error?.message ?? `HTTP ${r.status}` }),
       };
     }),
@@ -190,7 +203,10 @@ async function refreshTokenIfNeeded(
   }
 }
 
-async function syncAccount(account: SocialAccountRow): Promise<{ id: string; ok: boolean; error?: string }> {
+async function syncAccount(
+  account: SocialAccountRow,
+  backfillDays: number,
+): Promise<{ id: string; ok: boolean; error?: string }> {
   const { data: tokenRow, error: tokenError } = await supabase
     .rpc('get_instagram_token', { p_account_id: account.id })
     .maybeSingle();
@@ -216,33 +232,42 @@ async function syncAccount(account: SocialAccountRow): Promise<{ id: string; ok:
 
     const now = new Date();
     const raw: Record<string, unknown> = { ...profile };
-    let insights: Record<string, number> = {};
-    try {
-      const yesterday = await fetchAccountInsights(accessToken, now);
-      insights = yesterday.values;
-      raw.insights_day = yesterday.day;
-      raw.insights = yesterday.values;
-    } catch (err) {
-      raw.insights_error = err instanceof Error ? err.message : String(err);
+
+    // Un día por llamada: con total_value, la API suma la ventana entera.
+    const insightErrors: string[] = [];
+    for (let daysBack = backfillDays; daysBack >= 1; daysBack--) {
+      try {
+        const { day, values } = await fetchAccountInsights(accessToken, now, daysBack);
+        const { error } = await supabase.rpc('service_instagram_insights_upsert', {
+          p_account_id: account.id,
+          p_day: day,
+          p_metrics: values,
+        });
+        if (error) insightErrors.push(`${day}: ${error.message}`);
+      } catch (err) {
+        insightErrors.push(`-${daysBack}d: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
+    if (insightErrors.length > 0) raw.insights_error = insightErrors.join(' | ');
+
     try {
-      raw.media = await fetchMediaInsights(accessToken, now);
+      const media = await fetchMediaInsights(accessToken, now);
+      const { error } = await supabase.rpc('service_instagram_media_upsert', {
+        p_account_id: account.id,
+        p_captured_at: todayInArgentina(now),
+        p_items: media,
+      });
+      if (error) raw.media_error = error.message;
     } catch (err) {
       raw.media_error = err instanceof Error ? err.message : String(err);
     }
 
-    // captured_at es el día de la corrida (seguidores al momento); reach,
-    // views, profile_views y engagements son del día anterior (raw.insights_day).
     const { error: upsertError } = await supabase.rpc('service_snapshot_upsert', {
       p_account_id: account.id,
-      p_captured_at: now.toISOString().slice(0, 10),
+      p_captured_at: todayInArgentina(now),
       p_followers: profile.followers_count ?? null,
       p_following: profile.follows_count ?? null,
       p_posts: profile.media_count ?? null,
-      p_reach: insights.reach ?? null,
-      p_views: insights.views ?? null,
-      p_profile_views: insights.profile_views ?? null,
-      p_engagements: insights.total_interactions ?? null,
       p_raw: raw,
     });
 
@@ -287,7 +312,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  const results = await Promise.all(accounts.map((a) => syncAccount(a)));
+  // El cron manda `{}`: sólo ayer. La carga inicial manda `{"backfill_days": 30}`.
+  const body = (await req.json().catch(() => ({}))) as { backfill_days?: unknown };
+  const requested = Number(body.backfill_days);
+  const backfillDays = Number.isInteger(requested) && requested > 1 ? Math.min(requested, MAX_BACKFILL_DAYS) : 1;
+
+  const results = await Promise.all(accounts.map((a) => syncAccount(a, backfillDays)));
 
   return new Response(JSON.stringify({ synced: results.length, results }), {
     status: 200,
