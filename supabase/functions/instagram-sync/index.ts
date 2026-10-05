@@ -22,6 +22,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 //      viejo igual — puede seguir siendo válido, y no vale la pena perder
 //      el snapshot del día por un refresh que puede reintentarse mañana.
 //   3. Pide followers_count/follows_count/media_count a graph.instagram.com/me.
+//   3b. (04/10, P2-8) Estadísticas del día anterior en hora argentina
+//       (/me/insights, metric_type=total_value): alcance, vistas, visitas al
+//       perfil e interacciones van a sus columnas; toques en el link y el
+//       resto, a raw.insights. Y las de cada publicación de los últimos 30
+//       días (/{media}/insights) a raw.media. Si fallan, el snapshot de
+//       seguidores se guarda igual y el motivo queda en raw.*_error.
 //   4. Guarda el snapshot (service_snapshot_upsert, source='api').
 //   5. Marca el resultado (mark_instagram_sync) — éxito o motivo de error,
 //      siempre, incluso si el paso 3 o 4 fallaron.
@@ -48,6 +54,97 @@ interface InstagramProfileResponse {
   media_count?: number;
   username?: string;
   error?: { message: string };
+}
+
+// Métricas de la cuenta con metric_type=total_value (el resto de la API las
+// devuelve sólo como serie diaria o con breakdown).
+const ACCOUNT_METRICS = [
+  'reach',
+  'views',
+  'profile_views',
+  'website_clicks',
+  'accounts_engaged',
+  'total_interactions',
+  'likes',
+  'comments',
+  'shares',
+  'saves',
+];
+const MEDIA_METRICS = ['views', 'reach', 'likes', 'comments', 'shares', 'saved', 'total_interactions'];
+const REELS_METRICS = ['ig_reels_avg_watch_time'];
+const MEDIA_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+// Medianoche argentina (UTC-3, sin horario de verano) en UTC.
+const AR_OFFSET_HOURS = 3;
+
+interface InsightsResponse {
+  data?: { name: string; total_value?: { value: number }; values?: { value: number }[] }[];
+  error?: { message: string };
+}
+
+interface MediaItem {
+  id: string;
+  caption?: string;
+  media_product_type?: string;
+  timestamp?: string;
+  permalink?: string;
+}
+
+/** Ayer en hora argentina: [00:00, 24:00) como segundos UNIX, y la fecha. */
+function yesterdayInArgentina(now: Date): { since: number; until: number; day: string } {
+  const todayAr = new Date(now.getTime() - AR_OFFSET_HOURS * 3_600_000);
+  const until = Date.UTC(todayAr.getUTCFullYear(), todayAr.getUTCMonth(), todayAr.getUTCDate(), AR_OFFSET_HOURS);
+  const since = until - 24 * 3_600_000;
+  return {
+    since: Math.floor(since / 1000),
+    until: Math.floor(until / 1000),
+    day: new Date(since - AR_OFFSET_HOURS * 3_600_000).toISOString().slice(0, 10),
+  };
+}
+
+function toValues(body: InsightsResponse): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const m of body.data ?? []) {
+    const value = m.total_value?.value ?? m.values?.[0]?.value;
+    if (typeof value === 'number') out[m.name] = value;
+  }
+  return out;
+}
+
+async function fetchAccountInsights(accessToken: string, now: Date) {
+  const { since, until, day } = yesterdayInArgentina(now);
+  const url = `${GRAPH_BASE}/me/insights?metric=${ACCOUNT_METRICS.join(',')}&period=day&metric_type=total_value&since=${since}&until=${until}&access_token=${encodeURIComponent(accessToken)}`;
+  const res = await fetch(url);
+  const body = (await res.json()) as InsightsResponse;
+  if (!res.ok || body.error) throw new Error(body.error?.message ?? `HTTP ${res.status}`);
+  return { day, values: toValues(body) };
+}
+
+async function fetchMediaInsights(accessToken: string, now: Date) {
+  const listUrl = `${GRAPH_BASE}/me/media?fields=id,caption,media_product_type,timestamp,permalink&limit=25&access_token=${encodeURIComponent(accessToken)}`;
+  const res = await fetch(listUrl);
+  const body = (await res.json()) as { data?: MediaItem[]; error?: { message: string } };
+  if (!res.ok || body.error) throw new Error(body.error?.message ?? `HTTP ${res.status}`);
+
+  const recent = (body.data ?? []).filter(
+    (m) => m.timestamp && now.getTime() - new Date(m.timestamp).getTime() <= MEDIA_WINDOW_MS,
+  );
+
+  return Promise.all(
+    recent.map(async (m) => {
+      const metrics = m.media_product_type === 'REELS' ? [...MEDIA_METRICS, ...REELS_METRICS] : MEDIA_METRICS;
+      const url = `${GRAPH_BASE}/${m.id}/insights?metric=${metrics.join(',')}&access_token=${encodeURIComponent(accessToken)}`;
+      const r = await fetch(url);
+      const ins = (await r.json()) as InsightsResponse;
+      return {
+        id: m.id,
+        type: m.media_product_type ?? null,
+        posted_at: m.timestamp ?? null,
+        permalink: m.permalink ?? null,
+        caption: (m.caption ?? '').slice(0, 80),
+        ...(r.ok && !ins.error ? toValues(ins) : { error: ins.error?.message ?? `HTTP ${r.status}` }),
+      };
+    }),
+  );
 }
 
 interface RefreshTokenResponse {
@@ -117,13 +214,36 @@ async function syncAccount(account: SocialAccountRow): Promise<{ id: string; ok:
       return { id: account.id, ok: false, error: message };
     }
 
+    const now = new Date();
+    const raw: Record<string, unknown> = { ...profile };
+    let insights: Record<string, number> = {};
+    try {
+      const yesterday = await fetchAccountInsights(accessToken, now);
+      insights = yesterday.values;
+      raw.insights_day = yesterday.day;
+      raw.insights = yesterday.values;
+    } catch (err) {
+      raw.insights_error = err instanceof Error ? err.message : String(err);
+    }
+    try {
+      raw.media = await fetchMediaInsights(accessToken, now);
+    } catch (err) {
+      raw.media_error = err instanceof Error ? err.message : String(err);
+    }
+
+    // captured_at es el día de la corrida (seguidores al momento); reach,
+    // views, profile_views y engagements son del día anterior (raw.insights_day).
     const { error: upsertError } = await supabase.rpc('service_snapshot_upsert', {
       p_account_id: account.id,
-      p_captured_at: new Date().toISOString().slice(0, 10),
+      p_captured_at: now.toISOString().slice(0, 10),
       p_followers: profile.followers_count ?? null,
       p_following: profile.follows_count ?? null,
       p_posts: profile.media_count ?? null,
-      p_raw: profile,
+      p_reach: insights.reach ?? null,
+      p_views: insights.views ?? null,
+      p_profile_views: insights.profile_views ?? null,
+      p_engagements: insights.total_interactions ?? null,
+      p_raw: raw,
     });
 
     if (upsertError) {
