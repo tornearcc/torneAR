@@ -60,8 +60,8 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado esp
       Verificado contra producción en transacción revertida: al bloquear al capitán rival
       la bandeja baja de 2 a 1 y las ofertas de equipo de 4 a 3, y la oferta del tercer
       usuario queda visible
-- [x] **D4** — `review-apple/App-Review-Response-TorneAR-v2.pdf` y
-      `review-apple/Guion-Video-Revision.pdf`
+- [x] **D4** — `tiendas/apple/review/App-Review-Response-TorneAR-v2.pdf` y
+      `tiendas/apple/review/Guion-Video-Revision.pdf`
 
 ### Gestiones tuyas (yo no las puedo hacer)
 
@@ -638,7 +638,7 @@ que alguien entre al panel.
 **D3. Screenshots de la ficha**, iPhone **y iPad** (fueron a iPad Air 11"), con el login nuevo
 visible. Lo pide explícitamente el mensaje de Apple.
 
-**D4. Reescribir `review-apple/App-Review-Response-TorneAR.txt`** con una sección por guideline
+**D4. Reescribir `tiendas/apple/review/App-Review-Response-TorneAR.txt`** con una sección por guideline
 citada, diciendo qué se hizo y dónde verlo. Adjuntarlo y pegar lo esencial en el Notes de App
 Review Information junto con el link al video.
 
