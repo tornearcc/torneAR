@@ -126,6 +126,17 @@ export async function runStoreReviewPrompt(
       return false;
     }
 
+    // Antes de la API nativa: si `requestReview` se cuelga o la app se cierra
+    // en el medio, este log dice igual que el servidor aprobó. El 07/10 quedó
+    // la fila en `review_prompts` y ningún log más, y no se pudo saber qué pasó.
+    Logger.info('Pedido de valoración aprobado por el servidor', {
+      scope: 'store-review.runStoreReviewPrompt',
+      event: 'review_prompt.claimed',
+      trigger,
+      platform,
+      appVersion,
+    });
+
     await StoreReview.requestReview();
 
     // Es la única traza de que el gate dijo que sí Y el cliente llamó a la API.
