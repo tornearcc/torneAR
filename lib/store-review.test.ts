@@ -133,6 +133,19 @@ describe('runStoreReviewPrompt', () => {
       skippedWith('app_not_active');
     });
 
+    it('gate en true → registra el reclamo ANTES de abrir el diálogo nativo', async () => {
+      // 07/10: quedó la fila en review_prompts (gate en true) pero ningún log
+      // posterior, así que no se sabía si requestReview llegó a correr.
+      storeReviewMock.requestReview.mockImplementation(() => {
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          'Pedido de valoración aprobado por el servidor',
+          expect.objectContaining({ event: 'review_prompt.claimed', trigger: 'match_shared' }),
+        );
+        return Promise.resolve(undefined);
+      });
+      await expect(runStoreReviewPrompt('match_shared', 0)).resolves.toBe(true);
+    });
+
     it('cuando se pide, no registra un "no mostrado"', async () => {
       await runStoreReviewPrompt('match_shared', 0);
       expect(loggerMock.info).not.toHaveBeenCalledWith(

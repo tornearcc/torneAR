@@ -205,6 +205,15 @@ export default function NotificationsScreen() {
           if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
           break;
 
+        case 'TEMPORADA_INICIADA':
+        case 'TEMPORADA_VENCIDA':
+          // Avisos de temporada: como ANUNCIO, se leen acá y no tienen pantalla
+          // de destino. Además, los avisos generales anteriores al tipo ANUNCIO
+          // (20260928230000) se mandaron como TEMPORADA_INICIADA, por ejemplo
+          // «Nuevas reglas desde hoy» del 25/09; al tocarlos caían en el default
+          // y dejaban un warn «tipo no ruteado» (app_logs, 11/10).
+          break;
+
         default:
           // D11: todo evento de partido —confirmación, cancelación, disputa,
           // WO aprobado/rechazado/automático, recordatorio de 24h— viaja con
