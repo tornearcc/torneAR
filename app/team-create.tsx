@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,12 @@ import { createTeam } from '@/lib/team-create-data';
 import { ZoneSelectField } from '@/components/ui/ZoneSelect';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { Logger } from '@/lib/logger';
+import {
+  fetchAmbassadorProgramEnabled,
+  fetchTeamCreateAmbassadorPrefill,
+  setTeamAmbassador,
+  teamAmbassadorOutcomeMessage,
+} from '@/lib/ambassador-data';
 
 export default function TeamCreateScreen() {
   const router = useRouter();
@@ -24,6 +30,26 @@ export default function TeamCreateScreen() {
   const [category, setCategory] = useState<TeamCategory>('MIXTO');
   const [format, setFormat] = useState<TeamFormat>('FUTBOL_7');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ambassadorEnabled, setAmbassadorEnabled] = useState(false);
+  const [ambassadorUsername, setAmbassadorUsername] = useState('');
+  // Si el usuario ya escribió algo, el prefill (que llega async) no lo pisa.
+  const ambassadorTouched = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const enabled = await fetchAmbassadorProgramEnabled();
+      if (cancelled || !enabled) return;
+      setAmbassadorEnabled(true);
+      const prefill = await fetchTeamCreateAmbassadorPrefill();
+      if (!cancelled && prefill && !ambassadorTouched.current) {
+        setAmbassadorUsername(prefill);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /*
    * `useState(profile?.zone ?? '')` solo se evalua en el primer render. Si esta
@@ -78,7 +104,15 @@ export default function TeamCreateScreen() {
         format,
       });
 
-      showAlert('Equipo creado', `Tu equipo ${teamData.name} ya está listo.`, async () => {
+      // El equipo ya existe: si el embajador no se puede vincular, sólo se avisa.
+      let ambassadorNote = '';
+      if (ambassadorEnabled && ambassadorUsername.trim()) {
+        const outcome = await setTeamAmbassador(teamData.id, ambassadorUsername);
+        const message = teamAmbassadorOutcomeMessage(outcome);
+        if (message) ambassadorNote = ` ${message}`;
+      }
+
+      showAlert('Equipo creado', `Tu equipo ${teamData.name} ya está listo.${ambassadorNote}`, async () => {
         if (profile?.id) {
           await fetchMyTeams(profile.id);
         }
@@ -170,6 +204,26 @@ export default function TeamCreateScreen() {
               })}
             </View>
           </View>
+
+          {ambassadorEnabled ? (
+            <View>
+              <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">¿Quién los invitó? (opcional)</Text>
+              <TextInput
+                value={ambassadorUsername}
+                onChangeText={(text) => {
+                  ambassadorTouched.current = true;
+                  setAmbassadorUsername(text);
+                }}
+                placeholder="Usuario del embajador"
+                placeholderTextColor="#5E5A58"
+                autoCapitalize="none"
+                autoCorrect={false}
+                className="rounded-xl border border-neutral-outline-variant/15 bg-surface-low px-4 py-4 text-neutral-on-surface"
+                maxLength={40}
+              />
+              <Text className="mt-2 text-xs text-neutral-on-surface-variant">Si un embajador te pasó TorneAR, poné su usuario. Podés cargarlo ahora o en las próximas 24 horas desde la gestión del equipo, si todavía no jugaron.</Text>
+            </View>
+          ) : null}
         </View>
 
         <TouchableOpacity

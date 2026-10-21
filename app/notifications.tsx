@@ -134,7 +134,7 @@ export default function NotificationsScreen() {
       // incluida SOLICITUD_UNION_ACEPTADA, que justamente le pide al jugador
       // confirmar el traspaso — se marcaba como leída y no hacía nada, dejando
       // al usuario sin forma de llegar a la acción que la notificación pedía.
-      const maybeData = (item.data ?? {}) as { team_id?: unknown; match_id?: unknown };
+      const maybeData = (item.data ?? {}) as { team_id?: unknown; match_id?: unknown; kind?: unknown };
       const teamId = typeof maybeData.team_id === 'string' ? maybeData.team_id : null;
       const matchId = typeof maybeData.match_id === 'string' ? maybeData.match_id : null;
 
@@ -201,8 +201,11 @@ export default function NotificationsScreen() {
           // no es un tipo "sin ruta" que haya que registrar como el default.
           // Excepción: el aviso al capitán de un equipo de un solo integrante
           // (Tanda 7, `nudge_solo_team_captains`) trae `team_id` y lleva a la
-          // gestión del equipo, donde está el botón para invitar.
-          if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
+          // gestión del equipo, donde está el botón para invitar. Y el aviso de
+          // premio del programa de embajadores (`kind: 'ambassador_reward'`,
+          // sweep_ambassador_rewards) lleva a la pantalla del embajador.
+          if (maybeData.kind === 'ambassador_reward') router.push('/ambassador');
+          else if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
           break;
 
         case 'TEMPORADA_INICIADA':

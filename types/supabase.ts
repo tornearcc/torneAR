@@ -39,6 +39,263 @@ export type Database = {
   }
   public: {
     Tables: {
+      ambassador_exclusions: {
+        Row: {
+          note: string
+          team_id: string
+        }
+        Insert: {
+          note: string
+          team_id: string
+        }
+        Update: {
+          note?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassador_exclusions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_exclusions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambassador_rewards: {
+        Row: {
+          ambassador_profile_id: string
+          amount: number
+          counted_profile_ids: string[]
+          created_at: string
+          id: string
+          kind: string
+          match_id: string
+          note: string | null
+          paid_at: string | null
+          paid_by: string | null
+          status: string
+          team_id: string
+        }
+        Insert: {
+          ambassador_profile_id: string
+          amount: number
+          counted_profile_ids?: string[]
+          created_at?: string
+          id?: string
+          kind: string
+          match_id: string
+          note?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          status?: string
+          team_id: string
+        }
+        Update: {
+          ambassador_profile_id?: string
+          amount?: number
+          counted_profile_ids?: string[]
+          created_at?: string
+          id?: string
+          kind?: string
+          match_id?: string
+          note?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          status?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassador_rewards_ambassador_profile_id_fkey"
+            columns: ["ambassador_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_ambassador_profile_id_fkey"
+            columns: ["ambassador_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_ambassador_profile_id_fkey"
+            columns: ["ambassador_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassador_rewards_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambassadors: {
+        Row: {
+          accepted_at: string
+          created_at: string
+          follow_verified_at: string | null
+          follow_verified_by: string | null
+          instagram: string
+          own_team_first_match_id: string | null
+          own_team_id: string | null
+          own_team_set_at: string | null
+          payout_alias: string | null
+          profile_id: string
+          reactivated_at: string | null
+          show_in_ranking: boolean
+          status: string
+          status_note: string | null
+          terms_version: number
+        }
+        Insert: {
+          accepted_at?: string
+          created_at?: string
+          follow_verified_at?: string | null
+          follow_verified_by?: string | null
+          instagram: string
+          own_team_first_match_id?: string | null
+          own_team_id?: string | null
+          own_team_set_at?: string | null
+          payout_alias?: string | null
+          profile_id: string
+          reactivated_at?: string | null
+          show_in_ranking?: boolean
+          status?: string
+          status_note?: string | null
+          terms_version: number
+        }
+        Update: {
+          accepted_at?: string
+          created_at?: string
+          follow_verified_at?: string | null
+          follow_verified_by?: string | null
+          instagram?: string
+          own_team_first_match_id?: string | null
+          own_team_id?: string | null
+          own_team_set_at?: string | null
+          payout_alias?: string | null
+          profile_id?: string
+          reactivated_at?: string | null
+          show_in_ranking?: boolean
+          status?: string
+          status_note?: string | null
+          terms_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassadors_follow_verified_by_fkey"
+            columns: ["follow_verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_follow_verified_by_fkey"
+            columns: ["follow_verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_follow_verified_by_fkey"
+            columns: ["follow_verified_by"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "ambassadors_own_team_first_match_id_fkey"
+            columns: ["own_team_first_match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_own_team_id_fkey"
+            columns: ["own_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_own_team_id_fkey"
+            columns: ["own_team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ambassadors_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       app_feedback: {
         Row: {
           created_at: string
@@ -2159,6 +2416,124 @@ export type Database = {
         }
         Relationships: []
       }
+      social_insights_daily: {
+        Row: {
+          account_id: string
+          accounts_engaged: number | null
+          comments: number | null
+          day: string
+          likes: number | null
+          profile_views: number | null
+          reach: number | null
+          saves: number | null
+          shares: number | null
+          total_interactions: number | null
+          updated_at: string
+          views: number | null
+          website_clicks: number | null
+        }
+        Insert: {
+          account_id: string
+          accounts_engaged?: number | null
+          comments?: number | null
+          day: string
+          likes?: number | null
+          profile_views?: number | null
+          reach?: number | null
+          saves?: number | null
+          shares?: number | null
+          total_interactions?: number | null
+          updated_at?: string
+          views?: number | null
+          website_clicks?: number | null
+        }
+        Update: {
+          account_id?: string
+          accounts_engaged?: number | null
+          comments?: number | null
+          day?: string
+          likes?: number | null
+          profile_views?: number | null
+          reach?: number | null
+          saves?: number | null
+          shares?: number | null
+          total_interactions?: number | null
+          updated_at?: string
+          views?: number | null
+          website_clicks?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_insights_daily_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_media_snapshots: {
+        Row: {
+          account_id: string
+          avg_watch_ms: number | null
+          caption: string | null
+          captured_at: string
+          comments: number | null
+          likes: number | null
+          media_id: string
+          media_type: string | null
+          permalink: string | null
+          posted_at: string | null
+          reach: number | null
+          saved: number | null
+          shares: number | null
+          total_interactions: number | null
+          views: number | null
+        }
+        Insert: {
+          account_id: string
+          avg_watch_ms?: number | null
+          caption?: string | null
+          captured_at: string
+          comments?: number | null
+          likes?: number | null
+          media_id: string
+          media_type?: string | null
+          permalink?: string | null
+          posted_at?: string | null
+          reach?: number | null
+          saved?: number | null
+          shares?: number | null
+          total_interactions?: number | null
+          views?: number | null
+        }
+        Update: {
+          account_id?: string
+          avg_watch_ms?: number | null
+          caption?: string | null
+          captured_at?: string
+          comments?: number | null
+          likes?: number | null
+          media_id?: string
+          media_type?: string | null
+          permalink?: string | null
+          posted_at?: string | null
+          reach?: number | null
+          saved?: number | null
+          shares?: number | null
+          total_interactions?: number | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_media_snapshots_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_metrics_daily: {
         Row: {
           account_id: string
@@ -2331,6 +2706,66 @@ export type Database = {
           },
           {
             foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_nudges: {
+        Row: {
+          note: string | null
+          profile_id: string | null
+          sent_at: string
+          stage: number
+          team_id: string
+        }
+        Insert: {
+          note?: string | null
+          profile_id?: string | null
+          sent_at?: string
+          stage: number
+          team_id: string
+        }
+        Update: {
+          note?: string | null
+          profile_id?: string | null
+          sent_at?: string
+          stage?: number
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_nudges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_nudges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_nudges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "team_nudges_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_nudges_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "v_team_ranking"
@@ -2544,6 +2979,7 @@ export type Database = {
       }
       teams: {
         Row: {
+          ambassador_profile_id: string | null
           category: Database["public"]["Enums"]["team_category"]
           created_at: string
           elo_rating: number
@@ -2565,6 +3001,7 @@ export type Database = {
           zone: string
         }
         Insert: {
+          ambassador_profile_id?: string | null
           category: Database["public"]["Enums"]["team_category"]
           created_at?: string
           elo_rating?: number
@@ -2586,6 +3023,7 @@ export type Database = {
           zone: string
         }
         Update: {
+          ambassador_profile_id?: string | null
           category?: Database["public"]["Enums"]["team_category"]
           created_at?: string
           elo_rating?: number
@@ -2606,7 +3044,29 @@ export type Database = {
           updated_at?: string
           zone?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "teams_ambassador_profile_id_fkey"
+            columns: ["ambassador_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_ambassador_profile_id_fkey"
+            columns: ["ambassador_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_ambassador_profile_id_fkey"
+            columns: ["ambassador_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
       }
       user_blocks: {
         Row: {
@@ -3075,6 +3535,14 @@ export type Database = {
         Args: { p_is_admin: boolean; p_profile_id: string }
         Returns: undefined
       }
+      admin_set_ambassador_reward_status: {
+        Args: { p_id: string; p_note?: string; p_status: string }
+        Returns: undefined
+      }
+      admin_set_ambassador_status: {
+        Args: { p_note: string; p_profile_id: string; p_status: string }
+        Returns: undefined
+      }
       admin_set_profile_gender: {
         Args: { p_gender: string; p_profile_id: string; p_reason: string }
         Returns: Json
@@ -3090,6 +3558,28 @@ export type Database = {
       admin_unban_user: {
         Args: { p_profile_id: string; p_reason?: string }
         Returns: undefined
+      }
+      admin_verify_ambassador_follow: {
+        Args: { p_profile_id: string; p_verified: boolean }
+        Returns: undefined
+      }
+      ambassador_bonus_allowed: {
+        Args: { p_kind: string; p_profile_id: string }
+        Returns: boolean
+      }
+      ambassador_eligible_teams: {
+        Args: { p_profile_id: string }
+        Returns: string[]
+      }
+      ambassador_program_enabled: { Args: never; Returns: boolean }
+      ambassador_require_admin: { Args: never; Returns: string }
+      ambassador_required_members: {
+        Args: { p_format: Database["public"]["Enums"]["team_format"] }
+        Returns: number
+      }
+      ambassador_team_members_at: {
+        Args: { p_at: string; p_team_id: string }
+        Returns: string[]
       }
       anonymize_account: {
         Args: { p_auth_user_id: string; p_profile_id: string; p_scope: string }
@@ -3193,6 +3683,62 @@ export type Database = {
           matches_scheduled: number
         }[]
       }
+      dashboard_ambassador_rewards: {
+        Args: never
+        Returns: {
+          ambassador_full_name: string
+          ambassador_profile_id: string
+          ambassador_username: string
+          amount: number
+          counted_members: number
+          created_at: string
+          finished_at: string
+          follow_verified: boolean
+          format: string
+          id: string
+          instagram: string
+          kind: string
+          match_id: string
+          note: string
+          paid_at: string
+          payout_alias: string
+          rival_team_name: string
+          status: string
+          team_name: string
+        }[]
+      }
+      dashboard_ambassador_summary: {
+        Args: never
+        Returns: {
+          ambassadors: number
+          committed: number
+          enabled: boolean
+          paid: number
+          pending_follow_checks: number
+          slots_total: number
+          slots_used: number
+        }[]
+      }
+      dashboard_ambassadors: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          debut_state: string
+          earned: number
+          email: string
+          follow_verified_at: string
+          full_name: string
+          instagram: string
+          own_team_name: string
+          paid: number
+          payout_alias: string
+          profile_id: string
+          show_in_ranking: boolean
+          status: string
+          teams_brought: number
+          username: string
+        }[]
+      }
       dashboard_attribution_stats: {
         Args: { p_from?: string; p_to?: string }
         Returns: {
@@ -3235,6 +3781,41 @@ export type Database = {
           day: string
           signups: number
           teams: number
+        }[]
+      }
+      dashboard_instagram_insights: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          accounts_engaged: number
+          comments: number
+          day: string
+          likes: number
+          profile_views: number
+          reach: number
+          saves: number
+          shares: number
+          total_interactions: number
+          views: number
+          website_clicks: number
+        }[]
+      }
+      dashboard_instagram_posts: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          avg_watch_ms: number
+          caption: string
+          captured_at: string
+          comments: number
+          likes: number
+          media_id: string
+          media_type: string
+          permalink: string
+          posted_at: string
+          reach: number
+          saved: number
+          shares: number
+          total_interactions: number
+          views: number
         }[]
       }
       dashboard_link_clicks: {
@@ -3334,6 +3915,14 @@ export type Database = {
           profile_views: number
           reach: number
           views: number
+        }[]
+      }
+      dashboard_team_squads: {
+        Args: never
+        Returns: {
+          teams_2plus_7d_ago: number
+          teams_2plus_now: number
+          teams_solo_now: number
         }[]
       }
       dashboard_top_referrers: {
@@ -3464,6 +4053,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_my_ambassador_overview: { Args: never; Returns: Json }
       get_my_matches: {
         Args: { p_team_id: string }
         Returns: {
@@ -3631,6 +4221,7 @@ export type Database = {
           status: string
         }[]
       }
+      get_team_create_ambassador_prefill: { Args: never; Returns: string }
       get_team_h2h: {
         Args: { p_team_a_id: string; p_team_b_id: string }
         Returns: {
@@ -3750,6 +4341,8 @@ export type Database = {
         Returns: string
       }
       normalize_for_filter: { Args: { p_text: string }; Returns: string }
+      nudge_solo_team_captains: { Args: never; Returns: number }
+      public_ambassador_board: { Args: { p_limit?: number }; Returns: Json }
       recalculate_team_fps: { Args: { p_team_id: string }; Returns: undefined }
       remove_team_member: {
         Args: { p_profile_id: string; p_team_id: string }
@@ -3834,6 +4427,14 @@ export type Database = {
         Returns: Json
       }
       send_push_dispatch: { Args: { p_record: Json }; Returns: number }
+      service_instagram_insights_upsert: {
+        Args: { p_account_id: string; p_day: string; p_metrics: Json }
+        Returns: undefined
+      }
+      service_instagram_media_upsert: {
+        Args: { p_account_id: string; p_captured_at: string; p_items: Json }
+        Returns: undefined
+      }
       service_snapshot_upsert: {
         Args: {
           p_account_id: string
@@ -3849,6 +4450,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_ambassador_own_team: { Args: { p_team_id: string }; Returns: string }
+      set_ambassador_payout_alias: {
+        Args: { p_alias: string }
+        Returns: string
+      }
       set_referral: {
         Args: {
           p_referred_by_username: string
@@ -3857,6 +4463,10 @@ export type Database = {
           p_utm_source?: string
         }
         Returns: undefined
+      }
+      set_team_ambassador: {
+        Args: { p_team_id: string; p_username: string }
+        Returns: string
       }
       social_snapshot_upsert: {
         Args: {
@@ -3897,6 +4507,7 @@ export type Database = {
         }
         Returns: Json
       }
+      sweep_ambassador_rewards: { Args: never; Returns: number }
       sweep_disputed_matches: { Args: never; Returns: Json }
       sweep_orphan_avatars: {
         Args: { p_dry_run?: boolean; p_limit?: number }
@@ -3946,6 +4557,15 @@ export type Database = {
           p_expires_in_seconds: number
         }
         Returns: undefined
+      }
+      upsert_ambassador: {
+        Args: {
+          p_accept_terms: boolean
+          p_confirm_adult: boolean
+          p_instagram: string
+          p_show_in_ranking: boolean
+        }
+        Returns: string
       }
       verify_instagram_sync_secret: {
         Args: { p_candidate: string }
@@ -4244,3 +4864,4 @@ export const Constants = {
     },
   },
 } as const
+
