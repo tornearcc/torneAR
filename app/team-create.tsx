@@ -16,6 +16,7 @@ import {
   fetchAmbassadorProgramEnabled,
   fetchTeamCreateAmbassadorPrefill,
   setTeamAmbassador,
+  teamAmbassadorOutcomeMessage,
 } from '@/lib/ambassador-data';
 
 export default function TeamCreateScreen() {
@@ -107,13 +108,8 @@ export default function TeamCreateScreen() {
       let ambassadorNote = '';
       if (ambassadorEnabled && ambassadorUsername.trim()) {
         const outcome = await setTeamAmbassador(teamData.id, ambassadorUsername);
-        if (outcome === 'noop_invalid') {
-          ambassadorNote = ' No encontramos un embajador con ese usuario.';
-        } else if (outcome === 'noop_ambassador_member') {
-          ambassadorNote = ' Un embajador no puede traer un equipo del que forma parte.';
-        } else if (outcome !== 'applied') {
-          ambassadorNote = ' No se pudo vincular al embajador.';
-        }
+        const message = teamAmbassadorOutcomeMessage(outcome);
+        if (message) ambassadorNote = ` ${message}`;
       }
 
       showAlert('Equipo creado', `Tu equipo ${teamData.name} ya está listo.${ambassadorNote}`, async () => {
@@ -225,7 +221,7 @@ export default function TeamCreateScreen() {
                 className="rounded-xl border border-neutral-outline-variant/15 bg-surface-low px-4 py-4 text-neutral-on-surface"
                 maxLength={40}
               />
-              <Text className="mt-2 text-xs text-neutral-on-surface-variant">Si un embajador te pasó TorneAR, poné su usuario. Sólo se puede cargar ahora.</Text>
+              <Text className="mt-2 text-xs text-neutral-on-surface-variant">Si un embajador te pasó TorneAR, poné su usuario. Podés cargarlo ahora o en las próximas 24 horas desde la gestión del equipo, si todavía no jugaron.</Text>
             </View>
           ) : null}
         </View>

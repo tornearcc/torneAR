@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createQueryBuilder } from './test-utils/supabase-mock';
 import {
   buildAmbassadorInviteMessage,
+  canSetTeamAmbassador,
+  fetchTeamAmbassadorLinkInfo,
+  teamAmbassadorOutcomeMessage,
   fetchAmbassadorOverview,
   fetchAmbassadorProgramEnabled,
   setAmbassadorOwnTeam,
@@ -30,6 +33,7 @@ const REGISTERED = {
   show_in_ranking: false,
   follow_verified: false,
   has_payout_alias: false,
+  payout_alias: null,
   own_team: OWN_TEAM,
   eligible_own_teams: [{ team_id: 't1', name: 'Los Pibes' }],
   debut_state: 'DISPONIBLE',
@@ -238,5 +242,116 @@ describe('setTeamAmbassador', () => {
   it('devuelve rpc_error si la llamada tira', async () => {
     supabaseMock.rpc.mockRejectedValue(new Error('network'));
     expect(await setTeamAmbassador('t1', 'jose')).toBe('rpc_error');
+  });
+});
+
+describe('buildAmbassadorInviteMessage (usuario con caracteres especiales)', () => {
+  it('codifica el usuario en el link y lo deja tal cual en el texto', () => {
+    const msg = buildAmbassadorInviteMessage('jo sé');
+    expect(msg).toContain('https://tornear.vercel.app/i/jo%20s%C3%A9?emb=1');
+    expect(msg).toContain('poné mi usuario jo sé');
+  });
+});
+
+describe('canSetTeamAmbassador', () => {
+  const NOW = new Date('2026-10-21T12:00:00.000Z');
+  const BASE = {
+    programEnabled: true,
+    role: 'CAPITAN' as const,
+    createdAt: '2026-10-21T00:00:00.000Z',
+    ambassadorProfileId: null,
+    hasFinishedMatch: false,
+  };
+
+  it('deja cargarlo con todo en regla', () => {
+    expect(canSetTeamAmbassador(BASE, NOW)).toBe(true);
+  });
+
+  it('no con el programa apagado', () => {
+    expect(canSetTeamAmbassador({ ...BASE, programEnabled: false }, NOW)).toBe(false);
+  });
+
+  it('sólo el capitán', () => {
+    expect(canSetTeamAmbassador({ ...BASE, role: 'SUBCAPITAN' }, NOW)).toBe(false);
+    expect(canSetTeamAmbassador({ ...BASE, role: 'JUGADOR' }, NOW)).toBe(false);
+    expect(canSetTeamAmbassador({ ...BASE, role: null }, NOW)).toBe(false);
+  });
+
+  it('no si ya tiene embajador', () => {
+    expect(canSetTeamAmbassador({ ...BASE, ambassadorProfileId: 'p1' }, NOW)).toBe(false);
+  });
+
+  it('no si ya jugó un partido finalizado', () => {
+    expect(canSetTeamAmbassador({ ...BASE, hasFinishedMatch: true }, NOW)).toBe(false);
+  });
+
+  it('hasta 24 h después de creado', () => {
+    expect(canSetTeamAmbassador({ ...BASE, createdAt: '2026-10-20T12:00:01.000Z' }, NOW)).toBe(true);
+    expect(canSetTeamAmbassador({ ...BASE, createdAt: '2026-10-20T12:00:00.000Z' }, NOW)).toBe(false);
+    expect(canSetTeamAmbassador({ ...BASE, createdAt: '2026-10-19T12:00:00.000Z' }, NOW)).toBe(false);
+  });
+
+  it('no con una fecha de creación ilegible', () => {
+    expect(canSetTeamAmbassador({ ...BASE, createdAt: 'no-es-fecha' }, NOW)).toBe(false);
+  });
+});
+
+describe('teamAmbassadorOutcomeMessage', () => {
+  it('no tiene mensaje para applied', () => {
+    expect(teamAmbassadorOutcomeMessage('applied')).toBeNull();
+  });
+
+  it('explica los rechazos conocidos y cae en uno genérico', () => {
+    expect(teamAmbassadorOutcomeMessage('noop_invalid')).toBe('No encontramos un embajador con ese usuario.');
+    expect(teamAmbassadorOutcomeMessage('noop_ambassador_member')).toBe(
+      'Un embajador no puede traer un equipo del que forma parte.',
+    );
+    expect(teamAmbassadorOutcomeMessage('noop_too_late')).toBe(
+      'Ya pasaron las 24 horas desde que se creó el equipo o ya jugaron un partido.',
+    );
+    expect(teamAmbassadorOutcomeMessage('rpc_error')).toBe('No se pudo vincular al embajador.');
+  });
+});
+
+describe('fetchTeamAmbassadorLinkInfo', () => {
+  it('lee el equipo y si ya jugó un partido finalizado', async () => {
+    const teamBuilder = createQueryBuilder({
+      data: { created_at: '2026-10-21T00:00:00.000Z', ambassador_profile_id: null },
+      error: null,
+    });
+    const matchesBuilder = createQueryBuilder({ data: [{ id: 'm1' }], error: null });
+    supabaseMock.from.mockImplementation((table: string) => (table === 'teams' ? teamBuilder : matchesBuilder));
+
+    expect(await fetchTeamAmbassadorLinkInfo('t1')).toEqual({
+      createdAt: '2026-10-21T00:00:00.000Z',
+      ambassadorProfileId: null,
+      hasFinishedMatch: true,
+    });
+    expect(teamBuilder.eq).toHaveBeenCalledWith('id', 't1');
+    expect(matchesBuilder.eq).toHaveBeenCalledWith('status', 'FINALIZADO');
+    expect(matchesBuilder.or).toHaveBeenCalledWith('team_a_id.eq.t1,team_b_id.eq.t1');
+  });
+
+  it('sin partidos finalizados → hasFinishedMatch false', async () => {
+    const teamBuilder = createQueryBuilder({
+      data: { created_at: '2026-10-21T00:00:00.000Z', ambassador_profile_id: 'p9' },
+      error: null,
+    });
+    const matchesBuilder = createQueryBuilder({ data: [], error: null });
+    supabaseMock.from.mockImplementation((table: string) => (table === 'teams' ? teamBuilder : matchesBuilder));
+
+    expect(await fetchTeamAmbassadorLinkInfo('t1')).toEqual({
+      createdAt: '2026-10-21T00:00:00.000Z',
+      ambassadorProfileId: 'p9',
+      hasFinishedMatch: false,
+    });
+  });
+
+  it('devuelve null ante un error o un equipo inexistente', async () => {
+    supabaseMock.from.mockImplementation(() => createQueryBuilder({ data: null, error: { message: 'boom' } }));
+    expect(await fetchTeamAmbassadorLinkInfo('t1')).toBeNull();
+
+    supabaseMock.from.mockImplementation(() => createQueryBuilder({ data: null, error: null }));
+    expect(await fetchTeamAmbassadorLinkInfo('t1')).toBeNull();
   });
 });

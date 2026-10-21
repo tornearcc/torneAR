@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -24,6 +24,7 @@ import { TeamManagePendingRequests } from '@/components/team-manage/TeamManagePe
 import { TeamManageHistoryRequests } from '@/components/team-manage/TeamManageHistoryRequests';
 import { TeamMembersList } from '@/components/team-manage/TeamMembersList';
 import { MixedCompositionCard } from '@/components/team-manage/MixedCompositionCard';
+import { TeamAmbassadorLinkCard } from '@/components/team-manage/TeamAmbassadorLinkCard';
 import { TeamManageViewData, TeamMemberRow, TeamJoinRequestRow } from '@/components/team-manage/types';
 import {
   fetchTeamManageViewData,
@@ -40,6 +41,14 @@ import {
   setTeamActive,
   getTeamActionErrorMessage,
 } from '@/lib/team-manage-data';
+import {
+  canSetTeamAmbassador,
+  fetchAmbassadorProgramEnabled,
+  fetchTeamAmbassadorLinkInfo,
+  fetchTeamCreateAmbassadorPrefill,
+  setTeamAmbassador,
+  teamAmbassadorOutcomeMessage,
+} from '@/lib/ambassador-data';
 
 export default function TeamManageScreen() {
   const router = useRouter();
@@ -97,6 +106,10 @@ export default function TeamManageScreen() {
   const [showDeleteTeamModal, setShowDeleteTeamModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
+  // «¿Quién los invitó?» (programa de embajadores): sólo mientras el capitán
+  // todavía lo puede cargar. Guarda el teamId para no mostrar el de otro equipo.
+  const [ambassadorLink, setAmbassadorLink] = useState<{ teamId: string; prefill: string | null } | null>(null);
+  const [savingAmbassador, setSavingAmbassador] = useState(false);
 
   const myRole = useMemo(() => {
     if (!profile) return null;
@@ -104,6 +117,43 @@ export default function TeamManageScreen() {
   }, [members, profile]);
 
   const canEditTeam = myRole === 'CAPITAN' || myRole === 'SUBCAPITAN';
+  const showAmbassadorLink = myRole === 'CAPITAN' && !!teamId && ambassadorLink?.teamId === teamId;
+
+  useEffect(() => {
+    if (!teamId || myRole !== 'CAPITAN') return;
+    let cancelled = false;
+    void (async () => {
+      const [enabled, info] = await Promise.all([
+        fetchAmbassadorProgramEnabled(),
+        fetchTeamAmbassadorLinkInfo(teamId),
+      ]);
+      if (cancelled || !info) return;
+      if (!canSetTeamAmbassador({ ...info, programEnabled: enabled, role: myRole }, new Date())) return;
+      const prefill = await fetchTeamCreateAmbassadorPrefill();
+      if (!cancelled) setAmbassadorLink({ teamId, prefill });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId, myRole]);
+
+  const handleSaveAmbassador = useCallback(async (username: string) => {
+    if (!teamId || savingAmbassador) return;
+    setSavingAmbassador(true);
+    const outcome = await setTeamAmbassador(teamId, username);
+    setSavingAmbassador(false);
+    const message = teamAmbassadorOutcomeMessage(outcome);
+    if (!message) {
+      setAmbassadorLink(null);
+      showAlert('Embajador cargado', 'Quedó registrado quién los invitó a TorneAR.');
+      return;
+    }
+    // Ya no se puede cargar: la fila desaparece.
+    if (outcome === 'noop_too_late' || outcome === 'noop_already_set' || outcome === 'noop_disabled') {
+      setAmbassadorLink(null);
+    }
+    showAlert('No pudimos vincular al embajador', message);
+  }, [teamId, savingAmbassador, showAlert]);
   const canModerateRequests = myRole === 'CAPITAN' || myRole === 'SUBCAPITAN';
   const allowedRoleOptions = allowedRolesToAssign(myRole);
   const transferableCaptainCandidates = useMemo(() => {
@@ -701,6 +751,15 @@ export default function TeamManageScreen() {
               </Text>
             </View>
           </View>
+        )}
+
+        {showAmbassadorLink && (
+          <TeamAmbassadorLinkCard
+            key={teamId}
+            initialUsername={ambassadorLink?.prefill ?? null}
+            saving={savingAmbassador}
+            onSave={(username) => void handleSaveAmbassador(username)}
+          />
         )}
 
         {mixedComposition && <MixedCompositionCard status={mixedComposition} />}

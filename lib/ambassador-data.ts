@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Logger } from '@/lib/logger';
 import { ambassadorOverviewSchema, type AmbassadorOverview } from '@/lib/schemas/ambassador';
+import type { TeamRole } from '@/lib/team-options';
 
 export type { AmbassadorOverview } from '@/lib/schemas/ambassador';
 
@@ -75,7 +76,7 @@ const TEAM_AMBASSADOR_OUTCOMES: readonly TeamAmbassadorOutcome[] = [
   'noop_too_late',
 ];
 
-const PAYOUT_ALIAS_OUTCOMES:readonly PayoutAliasOutcome[] = ['applied', 'noop_not_ambassador', 'noop_invalid'];
+const PAYOUT_ALIAS_OUTCOMES: readonly PayoutAliasOutcome[] = ['applied', 'noop_not_ambassador', 'noop_invalid'];
 
 /** Base del link de invitación. Misma que `lib/referral-link.ts`. */
 const INVITE_BASE_URL = 'https://tornear.vercel.app/i';
@@ -338,11 +339,98 @@ export async function setTeamAmbassador(teamId: string, username: string): Promi
   }
 }
 
+/**
+ * Mensaje para el capitán cuando `set_team_ambassador` no vinculó al
+ * embajador; `null` si quedó vinculado. Lo usan la creación y la gestión del
+ * equipo.
+ */
+export function teamAmbassadorOutcomeMessage(outcome: TeamAmbassadorOutcome): string | null {
+  switch (outcome) {
+    case 'applied':
+      return null;
+    case 'noop_invalid':
+      return 'No encontramos un embajador con ese usuario.';
+    case 'noop_ambassador_member':
+      return 'Un embajador no puede traer un equipo del que forma parte.';
+    case 'noop_too_late':
+      return 'Ya pasaron las 24 horas desde que se creó el equipo o ya jugaron un partido.';
+    default:
+      return 'No se pudo vincular al embajador.';
+  }
+}
+
+/** Lo que hace falta del equipo para saber si todavía se puede cargar «¿Quién los invitó?». */
+export type TeamAmbassadorLinkInfo = {
+  createdAt: string;
+  ambassadorProfileId: string | null;
+  hasFinishedMatch: boolean;
+};
+
+/** Ventana de `set_team_ambassador`: 24 h desde que se creó el equipo. */
+const TEAM_AMBASSADOR_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Espejo de las reglas de `set_team_ambassador` que se pueden saber de
+ * antemano: programa prendido, capitán, equipo sin embajador, creado hace
+ * menos de 24 h y sin partidos FINALIZADO. El servidor vuelve a validar todo.
+ */
+export function canSetTeamAmbassador(
+  team: TeamAmbassadorLinkInfo & { programEnabled: boolean; role: TeamRole | null },
+  now: Date,
+): boolean {
+  if (!team.programEnabled || team.role !== 'CAPITAN') return false;
+  if (team.ambassadorProfileId !== null || team.hasFinishedMatch) return false;
+  const created = Date.parse(team.createdAt);
+  if (Number.isNaN(created)) return false;
+  return now.getTime() - created < TEAM_AMBASSADOR_WINDOW_MS;
+}
+
+/** Lee lo que necesita `canSetTeamAmbassador`. `null` ante cualquier error; nunca tira. */
+export async function fetchTeamAmbassadorLinkInfo(teamId: string): Promise<TeamAmbassadorLinkInfo | null> {
+  try {
+    const [teamRes, matchesRes] = await Promise.all([
+      supabase.from('teams').select('created_at, ambassador_profile_id').eq('id', teamId).maybeSingle(),
+      supabase
+        .from('matches')
+        .select('id')
+        .eq('status', 'FINALIZADO')
+        .or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`)
+        .limit(1),
+    ]);
+    if (teamRes.error || matchesRes.error || !teamRes.data) {
+      if (teamRes.error || matchesRes.error) {
+        Logger.warn('No se pudo leer si el equipo puede cargar a su embajador', {
+          scope: 'ambassador-data.fetchTeamAmbassadorLinkInfo',
+          event: 'ambassador.team_link_info',
+          status: 'rpc_error',
+          teamId,
+          error: teamRes.error ?? matchesRes.error,
+        });
+      }
+      return null;
+    }
+    return {
+      createdAt: teamRes.data.created_at,
+      ambassadorProfileId: teamRes.data.ambassador_profile_id,
+      hasFinishedMatch: (matchesRes.data ?? []).length > 0,
+    };
+  } catch (error) {
+    Logger.warn('Falló la lectura del vínculo equipo-embajador', {
+      scope: 'ambassador-data.fetchTeamAmbassadorLinkInfo',
+      event: 'ambassador.team_link_info',
+      status: 'rpc_error',
+      teamId,
+      error,
+    });
+    return null;
+  }
+}
+
 /** Mensaje para compartir: link con `?emb=1` e instrucción para el capitán del equipo nuevo. */
 export function buildAmbassadorInviteMessage(username: string): string {
   return [
     '¿Querés ganar plata jugando al fútbol? Sumate a TorneAR.',
     `Creá tu equipo y en "¿Quién los invitó?" poné mi usuario ${username}`,
-    `${INVITE_BASE_URL}/${username}?emb=1`,
+    `${INVITE_BASE_URL}/${encodeURIComponent(username)}?emb=1`,
   ].join('\n');
 }

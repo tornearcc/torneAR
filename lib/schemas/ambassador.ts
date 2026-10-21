@@ -48,6 +48,8 @@ const registeredSchema = z.object({
   show_in_ranking: z.boolean(),
   follow_verified: z.boolean(),
   has_payout_alias: z.boolean(),
+  /** El alias o CBU propio, para poder corregirlo desde la pantalla. */
+  payout_alias: z.string().nullable(),
   own_team: ambassadorOwnTeamSchema.nullable(),
   eligible_own_teams: z.array(ambassadorEligibleTeamSchema),
   debut_state: z.enum(DEBUT_STATES),
