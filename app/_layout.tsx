@@ -377,6 +377,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="profile-stats" />
         <Stack.Screen name="faq" />
+        <Stack.Screen name="ambassador" />
         <Stack.Screen name="censo" />
         <Stack.Screen name="team-create" />
         <Stack.Screen name="team-join" />
