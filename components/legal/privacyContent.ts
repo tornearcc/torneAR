@@ -50,7 +50,7 @@ import type { LegalSection } from './termsContent';
  * Se muestra bajo el título Y actúa como identificador de versión del
  * documento. Cambiarlo al publicar una versión nueva.
  */
-export const PRIVACY_LAST_UPDATED = '30 de Septiembre, 2026';
+export const PRIVACY_LAST_UPDATED = '21 de Octubre, 2026';
 
 export const PRIVACY_INTRO =
   'En torneAR valoramos y respetamos la privacidad de nuestros usuarios. Esta política describe qué datos recopilamos, para qué los usamos, con quién se comparten y durante cuánto tiempo los conservamos.';
@@ -136,7 +136,18 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: '11. Modificaciones a la Política',
+    title: '11. Programa de Embajadores',
+    paragraphs: [
+      'Si te inscribís como embajador desde la app, tratamos datos adicionales para administrar el programa. Es opcional: si no te inscribís, nada de esto se recopila.',
+      'Qué datos: tu usuario de Instagram (obligatorio para inscribirte), tu alias o CBU (recién cuando tenés un premio para cobrar), los equipos que traés y los montos de tus premios. Tu nombre y tu mail ya los tenemos de tu cuenta. Si lo elegís, también publicamos tu usuario, tu foto, la cantidad de equipos que trajiste y lo que ganaste en el ranking público del programa; por defecto no aparecés.',
+      'Para qué: contactarte, verificar que seguís a @tornear.app en Instagram, calcular y pagar tus premios, y mostrar el ranking público solo si lo elegiste. Nunca mostramos tu nombre real, tu mail ni tu Instagram en ese ranking.',
+      'Base: tu consentimiento al inscribirte y aceptar las bases del programa (https://tornear.vercel.app/legal/embajadores).',
+      'Cuánto los guardamos: mientras dure el programa y el tiempo que exijan los registros de pago y las obligaciones legales aplicables.',
+      'Cómo pedir la baja: escribinos a tornearcc@gmail.com o salí del ranking desde la app cuando quieras. Podés ejercer además los derechos de la sección 9.',
+    ],
+  },
+  {
+    title: '12. Modificaciones a la Política',
     paragraphs: [
       'Podemos actualizar esta Política de Privacidad periódicamente para reflejar mejoras técnicas o cambios legales. Si realizamos cambios sustanciales, te lo notificaremos a través de la aplicación para que puedas revisar y aceptar las nuevas condiciones antes de seguir utilizando TorneAR.',
       'La versión vigente de este documento siempre está disponible en https://tornear.vercel.app/legal/privacidad.',
