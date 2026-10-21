@@ -53,6 +53,9 @@ select set_eq(
       -- embajador queda vacío (el embajador sigue inscripto).
       ('ambassador_exclusions_team_id_fkey => CASCADE'),
       ('ambassadors_own_team_id_fkey => SET NULL'),
+      -- Un equipo con premio ya jugó (matches es NO ACTION), así que en la
+      -- práctica no se borra; si se borrara, sus premios no tienen sentido.
+      ('ambassador_rewards_team_id_fkey => CASCADE'),
       ('elo_history_team_id_fkey => CASCADE'),
       ('market_player_post_applications_team_id_fkey => CASCADE'),
       ('market_team_posts_team_id_fkey => CASCADE'),
