@@ -84,11 +84,14 @@ COMMENT ON TABLE public.ambassador_exclusions IS
 ALTER TABLE public.ambassador_exclusions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.ambassador_exclusions FROM anon, authenticated;
 
--- Demo de Apple (D-52). En una base sin la demo no inserta nada.
+-- Demo de Apple (D-52), por los ids fijos de supabase/demo-data/apple-reviewer-setup.sql
+-- (Apple FC y Los Pibes del Barrio). Por id y no por nombre: un equipo real
+-- puede llamarse igual. En una base sin la demo no inserta nada.
 INSERT INTO public.ambassador_exclusions (team_id, note)
 SELECT t.id, 'Demo de Apple (D-52)'
   FROM public.teams t
- WHERE t.name IN ('Apple FC', 'Los Pibes del Barrio')
+ WHERE t.id IN ('a99a0000-0000-4000-8000-000000000001'::uuid,
+                'a99a0000-0000-4000-8000-000000000002'::uuid)
 ON CONFLICT (team_id) DO NOTHING;
 
 
@@ -104,15 +107,17 @@ CREATE INDEX IF NOT EXISTS teams_ambassador_profile_idx
   ON public.teams (ambassador_profile_id) WHERE ambassador_profile_id IS NOT NULL;
 
 -- UPDATE ya está cerrado por columna (sólo name, zone, ...). El INSERT del
--- cliente sí es amplio: nadie puede crear un equipo ya «traído» por su cuenta.
+-- cliente sí es amplio: nadie puede crear un equipo ya «traído» por su cuenta,
+-- ni elegir su created_at (la ventana de 24 h de set_team_ambassador se cuenta
+-- desde ahí: uno con fecha futura la estiraría).
 CREATE OR REPLACE FUNCTION public.teams_clear_ambassador_on_insert()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $function$
 BEGIN
-  IF NEW.ambassador_profile_id IS NOT NULL
-     AND current_user IN ('anon', 'authenticated') THEN
+  IF current_user IN ('anon', 'authenticated') THEN
     NEW.ambassador_profile_id := NULL;
+    NEW.created_at := now();
   END IF;
   RETURN NEW;
 END;
@@ -500,7 +505,8 @@ UPDATE public.badges SET name = 'Reclutador' WHERE slug = 'embajador';
 --   · TEAM_BROUGHT: un equipo traído juega su primer partido válido contra
 --     cualquier equipo. Una vez por equipo, para siempre (aunque se rechace).
 --   · DEBUT: el primer partido válido del equipo propio (desde que lo eligió)
---     es contra un equipo que trajo el embajador. Se evalúa una sola vez
+--     es contra un equipo que trajo el embajador y que ya generó su
+--     TEAM_BROUGHT no rechazado (en ese partido o antes, R13). Se evalúa una sola vez
 --     (own_team_first_match_id); si ese partido es contra otro, se pierde.
 --   · BONUS_5 / BONUS_10: al llegar a 5 y a 10 TEAM_BROUGHT no rechazados.
 -- Tope: ambassador_max_paid_teams TEAM_BROUGHT no rechazados. Con el tope
@@ -794,7 +800,19 @@ BEGIN
       UPDATE public.ambassadors SET own_team_first_match_id = v_m.id WHERE profile_id = v_own.profile_id;
 
       v_rival := CASE WHEN v_own.own_team_id = v_m.team_a_id THEN v_m.team_b_id ELSE v_m.team_a_id END;
+      -- R13: el rival tiene que ser un traído de este embajador que ya generó
+      -- su TEAM_BROUGHT (no rechazado) en este partido o en uno anterior. Un
+      -- «traído» que no califica (sus jugadores son los del propio, el
+      -- embajador está adentro, …) no da debut: se pierde.
       IF EXISTS (SELECT 1 FROM public.teams WHERE id = v_rival AND ambassador_profile_id = v_own.profile_id)
+         AND EXISTS (SELECT 1
+                       FROM public.ambassador_rewards tb
+                       JOIN public.matches tm ON tm.id = tb.match_id
+                      WHERE tb.ambassador_profile_id = v_own.profile_id
+                        AND tb.kind = 'TEAM_BROUGHT'
+                        AND tb.team_id = v_rival
+                        AND tb.status <> 'RECHAZADO'
+                        AND (tm.finished_at, tm.id) <= (v_m.finished_at, v_m.id))
          AND NOT EXISTS (SELECT 1 FROM public.ambassador_rewards
                           WHERE ambassador_profile_id = v_own.profile_id AND kind = 'DEBUT' AND status <> 'RECHAZADO') THEN
         -- R9: con el tope alcanzado el debut se pierde, salvo que este mismo
@@ -1025,6 +1043,7 @@ BEGIN
     'show_in_ranking',  v_amb.show_in_ranking,
     'follow_verified',  v_amb.follow_verified_at IS NOT NULL,
     'has_payout_alias', v_amb.payout_alias IS NOT NULL,
+    'payout_alias',     v_amb.payout_alias,
     'own_team',         v_own,
     'eligible_own_teams', v_eligible,
     'debut_state',      v_debut,
@@ -1226,7 +1245,8 @@ GRANT EXECUTE ON FUNCTION public.dashboard_ambassador_summary() TO authenticated
 -- ─── 3.5 admin_set_ambassador_reward_status ─────────────────
 -- PAGADO exige el follow verificado. RECHAZADO exige nota. Un PAGADO no
 -- cambia; un RECHAZADO tampoco (para volver a pagarlo se genera de nuevo).
--- Rechazar un TEAM_BROUGHT arrastra: el DEBUT pendiente del mismo partido y
+-- Rechazar un TEAM_BROUGHT arrastra: el DEBUT pendiente contra ese traído (de
+-- cualquier partido, R13) y
 -- los bonos pendientes que ya no corresponden (nota «Bajó de N equipos»: esa
 -- frase inicial la usa ambassador_bonus_allowed para volver a generarlos).
 -- Toma el mismo lock que el barrido para no cruzarse con una corrida.
@@ -1284,12 +1304,13 @@ BEGIN
   UPDATE public.ambassador_rewards SET status = 'RECHAZADO', note = v_note WHERE id = p_id;
 
   IF v_r.kind = 'TEAM_BROUGHT' THEN
-    -- El debut de ese mismo partido contra ese traído cae con él.
+    -- El debut contra ese traído cae con él, sea del mismo partido o de uno
+    -- posterior (R13: sin TEAM_BROUGHT vigente del rival no hay debut).
     UPDATE public.ambassador_rewards
-       SET status = 'RECHAZADO', note = 'Se rechazó el equipo traído del mismo partido'
+       SET status = 'RECHAZADO', note = 'Se rechazó el equipo traído rival'
      WHERE ambassador_profile_id = v_r.ambassador_profile_id
        AND kind = 'DEBUT' AND status = 'PENDIENTE'
-       AND match_id = v_r.match_id AND team_id = v_r.team_id;
+       AND team_id = v_r.team_id;
 
     SELECT count(*) INTO v_count
       FROM public.ambassador_rewards
@@ -1310,7 +1331,7 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.admin_set_ambassador_reward_status(uuid, text, text) IS
-  'Programa de embajadores v2 (P3-14). Marca un premio PAGADO (exige follow verificado) o RECHAZADO (exige nota). Rechazar un TEAM_BROUGHT rechaza el DEBUT pendiente del mismo partido y los bonos pendientes que ya no alcanzan (nota «Bajó de N equipos»). Exige is_admin.';
+  'Programa de embajadores v2 (P3-14). Marca un premio PAGADO (exige follow verificado) o RECHAZADO (exige nota). Rechazar un TEAM_BROUGHT rechaza el DEBUT pendiente contra ese traído (de cualquier partido) y los bonos pendientes que ya no alcanzan (nota «Bajó de N equipos»). Exige is_admin.';
 
 REVOKE ALL ON FUNCTION public.admin_set_ambassador_reward_status(uuid, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_ambassador_reward_status(uuid, text, text) TO authenticated;

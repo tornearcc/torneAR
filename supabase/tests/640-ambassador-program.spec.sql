@@ -16,7 +16,7 @@
 --   T-4  set_team_ambassador: caminos felices y rechazos.
 --   T-5  set_team_ambassador: demasiado tarde y demo excluida.
 --   T-5b el embajador es o fue integrante del equipo → noop_ambassador_member (R8).
---   T-6  prefill, alias, permisos de anon, insignia «Reclutador».
+--   T-6  prefill, alias, permisos de anon, insignia «Reclutador», created_at forzado.
 --
 --   Parte 2 — premios y barrido (sweep_ambassador_rewards)
 --   Perfiles propios 0b200000-…-NNN (helpers tests.amb_*), equipos de 7 en F7.
@@ -36,12 +36,13 @@
 --         bono «Bajó de N equipos» y su regeneración con la RPC real, lock del barrido.
 --   R9    el DEBUT y el BONUS_5 del TEAM_BROUGHT que llena el último lugar sí se crean.
 --   R10   sin pagos retroactivos tras una suspensión (reactivated_at).
+--   R13   el DEBUT exige un TEAM_BROUGHT no rechazado del rival; rechazarlo arrastra el DEBUT.
 --   T-17  canal embajador en log_link_click.
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
 
 begin;
-select plan(202);
+select plan(213);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 -- Equipos nuevos (superuser: no pasan por las policies).
@@ -322,6 +323,16 @@ select is((select ambassador_profile_id from public.teams where id = '0c000000-0
 
 select ok(not has_column_privilege('authenticated', 'public.teams', 'ambassador_profile_id', 'UPDATE'),
   'T-6: authenticated no puede escribir teams.ambassador_profile_id con un UPDATE');
+
+-- Un INSERT desde la API tampoco elige su created_at: la ventana de 24 h de
+-- «¿Quién los invitó?» se cuenta desde el alta real.
+select tests.authenticate_as_profile('0a000000-0000-0000-0000-000000000010');
+insert into public.teams (id, name, category, zone, preferred_format, created_at)
+  values ('0c000000-0000-0000-0000-0000000000dc', 'Del futuro', 'HOMBRES', 'Palermo', 'FUTBOL_5',
+          now() + interval '10 days');
+select tests.clear_auth();
+select is((select created_at from public.teams where id = '0c000000-0000-0000-0000-0000000000dc'),
+  now(), 'T-6: un INSERT desde la API con created_at en el futuro queda con now()');
 
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -771,6 +782,11 @@ select results_eq(
   'T-14: el traído B1 está PENDIENTE con $5.000');
 select is((public.get_my_ambassador_overview()->>'slots_left')::int, 100 - tests.amb_used(),
   'T-14: slots_left = tope - ocupados');
+select tests.authenticate_as_profile(tests.amb_a(20));
+select results_eq(
+  $$ select o->>'payout_alias', (o->>'has_payout_alias')::boolean from (select public.get_my_ambassador_overview() o) s $$,
+  $$ values ('alias.e20'::text, true) $$,
+  'T-14: el resumen trae el alias propio para poder corregirlo');
 select tests.authenticate_as_profile(tests.amb_a(41));
 select is(public.get_my_ambassador_overview()->>'debut_state', 'PERDIDO', 'T-14: tras T-9, debut PERDIDO');
 select tests.authenticate_as_profile(tests.amb_a(134));
@@ -1052,6 +1068,49 @@ select lives_ok($$ select public.admin_set_ambassador_status(tests.amb_p(540), '
 select tests.clear_auth();
 select ok((select status = 'SUSPENDIDO' and status_note = 'Cuenta dudosa' from public.ambassadors where profile_id = tests.amb_p(540)),
   'R10: suspender deja SUSPENDIDO y el motivo');
+
+-- ── R13: el DEBUT exige que el rival haya generado su TEAM_BROUGHT ──────────
+-- (a) E355: propio (team 130, p355..p362) y un «traído» (team 131) armado con
+-- los 7 compañeros del propio. No cobra como traído, así que tampoco hay debut.
+select tests.amb_team(130, 'Propio A17', tests.amb_r(355, 362));
+select tests.amb_team(131, 'Traído B17', tests.amb_r(356, 362), 355);
+select tests.amb_add(355, 130);
+select tests.amb_match(130, 130, 131, 8);
+select is(public.sweep_ambassador_rewards(), 0, 'R13: rival traído hecho con jugadores del propio → 0');
+select is(tests.amb_n(355, null, true), 0, 'R13: ni TEAM_BROUGHT ni DEBUT para E355');
+select is((select own_team_first_match_id from public.ambassadors where profile_id = tests.amb_p(355)),
+  tests.amb_m(130), 'R13: ese partido igual queda como el primero del propio (debut perdido)');
+
+-- (b) E363: propio (team 132) y un traído (team 133) al que E363 se sumó
+-- después de vincularlo (R8): el traído no cobra y el debut tampoco.
+select tests.amb_team(132, 'Propio A18', tests.amb_r(363, 369));
+select tests.amb_team(133, 'Traído B18', tests.amb_r(370, 376), 363);
+insert into public.team_members (team_id, profile_id, role, joined_at)
+  values (tests.amb_t(133), tests.amb_p(363), 'JUGADOR', now() - interval '20 days');
+select tests.amb_add(363, 132);
+select tests.amb_match(131, 132, 133, 7);
+select is(public.sweep_ambassador_rewards(), 0, 'R13: el embajador está en el traído rival (R8) → 0');
+select is(tests.amb_n(363, null, true), 0, 'R13: ni TEAM_BROUGHT ni DEBUT para E363');
+
+-- (c) E377: el traído C (team 135) cobra contra X (team 136) y después el
+-- propio (team 134) debuta contra C. Rechazar el TEAM_BROUGHT de C (de otro
+-- partido) rechaza también el DEBUT pendiente.
+select tests.amb_team(134, 'Propio A19', tests.amb_r(377, 383));
+select tests.amb_team(135, 'Traído C19', tests.amb_r(384, 390), 377);
+select tests.amb_team(136, 'Rival X19', tests.amb_r(391, 397));
+select tests.amb_add(377, 134);
+select tests.amb_match(132, 135, 136, 6);
+select tests.amb_match(133, 134, 135, 5);
+select is(public.sweep_ambassador_rewards(), 2, 'R13: TEAM_BROUGHT de C19 y después el DEBUT contra C19');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select lives_ok($$ select public.admin_set_ambassador_reward_status(tests.amb_rw(135), 'RECHAZADO', 'Mismo grupo') $$,
+  'R13: rechazar el TEAM_BROUGHT de C19');
+select tests.clear_auth();
+select results_eq(
+  $$ select kind, status from public.ambassador_rewards where ambassador_profile_id = tests.amb_p(377) order by kind $$,
+  $$ values ('DEBUT'::text, 'RECHAZADO'::text), ('TEAM_BROUGHT'::text, 'RECHAZADO'::text) $$,
+  'R13: el DEBUT pendiente contra C19, de otro partido, se rechaza también');
+select is(public.sweep_ambassador_rewards(), 0, 'R13: ni el debut ni el traído se regeneran');
 
 -- Resumen del dashboard (al final: ya hay de todo).
 select tests.authenticate_as_profile(tests.amb_a(401));
