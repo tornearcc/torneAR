@@ -13,6 +13,8 @@ import { AmbassadorPayoutCard } from '@/components/ambassador/AmbassadorPayoutCa
 import { AmbassadorShareCard } from '@/components/ambassador/AmbassadorShareCard';
 import { AmbassadorDebutCard } from '@/components/ambassador/AmbassadorDebutCard';
 import { AmbassadorTeamsList } from '@/components/ambassador/AmbassadorTeamsList';
+import { AmbassadorSettingsCard } from '@/components/ambassador/AmbassadorSettingsCard';
+import { AmbassadorNotice } from '@/components/ambassador/AmbassadorNotice';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import {
@@ -48,7 +50,18 @@ const ALIAS_MESSAGES: Partial<Record<PayoutAliasOutcome, string>> = {
   noop_invalid: 'El alias o CBU tiene que tener entre 6 y 40 caracteres.',
 };
 
-const GENERIC_ERROR = getGenericSupabaseErrorMessage(null, 'No se pudo completar la operación. Intentá de nuevo.');
+const SETTINGS_MESSAGES: Partial<Record<UpsertAmbassadorOutcome, string>> = {
+  noop_disabled: 'El programa está pausado: por ahora no se pueden cambiar estos datos.',
+  noop_instagram: UPSERT_MESSAGES.noop_instagram,
+  noop_suspended: 'Tu cuenta de embajador está suspendida. Escribinos a tornearcc@gmail.com.',
+};
+
+const SUSPENDED_NOTICE = 'Tu cuenta de embajador está suspendida. Escribinos a tornearcc@gmail.com.';
+const PAUSED_NOTICE = 'El programa está pausado o terminó. Los premios ya generados se pagan igual.';
+const SLOTS_EXHAUSTED_NOTICE =
+  'Se completaron los 100 equipos del programa. Los premios ya generados se pagan igual.';
+
+const GENERIC_ERROR =getGenericSupabaseErrorMessage(null, 'No se pudo completar la operación. Intentá de nuevo.');
 
 export default function AmbassadorScreen() {
   const { profile, user } = useAuth();
@@ -118,6 +131,23 @@ export default function AmbassadorScreen() {
     [busy, load, showAlert],
   );
 
+  const handleSettings = useCallback(
+    async (input: { instagram: string; showInRanking: boolean }) => {
+      if (busy) return;
+      setBusy(true);
+      // En una edición la RPC no mira las casillas de bases y mayoría de edad.
+      const outcome = await upsertAmbassador({ ...input, acceptTerms: false, confirmAdult: false });
+      if (outcome === 'updated' || outcome === 'created') {
+        await load();
+        showAlert('Datos guardados', 'Actualizamos tus datos de embajador.');
+      } else {
+        showAlert('No pudimos guardar tus datos', SETTINGS_MESSAGES[outcome] ?? GENERIC_ERROR);
+      }
+      setBusy(false);
+    },
+    [busy, load, showAlert],
+  );
+
   const renderBody = () => {
     if (!overview) {
       return (
@@ -137,7 +167,7 @@ export default function AmbassadorScreen() {
       );
     }
 
-    if (!overview.enabled) {
+    if (!overview.registered && !overview.enabled) {
       return (
         <View className="items-center px-4 py-10">
           <Text className="font-uiBold text-center text-base text-neutral-on-surface">
@@ -159,9 +189,19 @@ export default function AmbassadorScreen() {
     }
 
     const captainTeamId = myTeams.find((t) => t.role === 'CAPITAN')?.id ?? null;
+    // Un inscripto siempre ve lo que ganó, el alias y sus datos, aunque el
+    // programa se apague, se llenen los cupos o lo suspendan: lo generado se
+    // paga igual. Sólo se esconde lo que sirve para sumar más.
+    const suspended = overview.status !== 'ACTIVO';
+    const slotsExhausted = overview.enabled && overview.slots_left === 0;
+    const canShare = overview.enabled && !suspended && !slotsExhausted;
+    const showPayoutCard = !overview.has_payout_alias && overview.earned_total > 0;
 
     return (
       <>
+        {suspended && <AmbassadorNotice message={SUSPENDED_NOTICE} />}
+        {!overview.enabled && <AmbassadorNotice message={PAUSED_NOTICE} />}
+        {slotsExhausted && <AmbassadorNotice message={SLOTS_EXHAUSTED_NOTICE} />}
         <AmbassadorEarningsHeader
           earnedTotal={overview.earned_total}
           paidTotal={overview.paid_total}
@@ -170,23 +210,33 @@ export default function AmbassadorScreen() {
           nextBonusAt={overview.next_bonus_at}
         />
         {!overview.follow_verified && <AmbassadorFollowCard />}
-        {!overview.has_payout_alias && overview.earned_total > 0 && (
-          <AmbassadorPayoutCard saving={busy} onSave={(alias) => void handleAlias(alias)} />
-        )}
-        {profile && (
+        {showPayoutCard && <AmbassadorPayoutCard saving={busy} onSave={(alias) => void handleAlias(alias)} />}
+        {profile && canShare && (
           <AmbassadorShareCard
             profileId={profile.id}
             username={overview.username}
             onError={(message) => showAlert('No se pudo compartir', message)}
           />
         )}
-        <AmbassadorDebutCard
-          debutState={overview.debut_state}
-          ownTeam={overview.own_team}
-          eligibleTeams={overview.eligible_own_teams}
-          defaultTeamId={captainTeamId}
+        {overview.enabled && (
+          <AmbassadorDebutCard
+            debutState={overview.debut_state}
+            ownTeam={overview.own_team}
+            eligibleTeams={overview.eligible_own_teams}
+            defaultTeamId={captainTeamId}
+            saving={busy}
+            onConfirmTeam={(teamId) => void handleOwnTeam(teamId)}
+          />
+        )}
+        <AmbassadorSettingsCard
+          key={`${overview.instagram}|${overview.show_in_ranking}|${overview.payout_alias ?? ''}`}
+          instagram={overview.instagram}
+          showInRanking={overview.show_in_ranking}
+          payoutAlias={overview.payout_alias}
+          showAliasField={!showPayoutCard}
           saving={busy}
-          onConfirmTeam={(teamId) => void handleOwnTeam(teamId)}
+          onSaveProfile={(input) => void handleSettings(input)}
+          onSaveAlias={(alias) => void handleAlias(alias)}
         />
         <AmbassadorTeamsList teams={overview.brought_teams} />
       </>

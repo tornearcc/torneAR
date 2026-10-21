@@ -86,8 +86,11 @@ export function AmbassadorDebutCard({
   let body: React.ReactNode;
 
   if (debutState === 'SIN_EQUIPO') {
+    // Con un solo equipo elegible también se ofrece elegirlo: la asignación
+    // automática no corre si ya lo tenía antes de inscribirse con dos, o si
+    // sacó su equipo propio.
     body =
-      eligibleTeams.length >= 2 ? (
+      eligibleTeams.length >= 1 ? (
         <>
           <Text className="font-uiBold text-sm text-neutral-on-surface">¿Cuál es tu equipo?</Text>
           <TeamPicker teams={eligibleTeams} initialId={defaultTeamId} saving={saving} onConfirm={onConfirmTeam} />
