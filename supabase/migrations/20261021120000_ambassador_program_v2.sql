@@ -192,10 +192,6 @@ BEGIN
     RAISE EXCEPTION 'PROFILE_NOT_FOUND: perfil no encontrado para el usuario actual';
   END IF;
 
-  IF NOT public.ambassador_program_enabled() THEN
-    RETURN 'noop_disabled';
-  END IF;
-
   v_ig := btrim(ltrim(lower(btrim(coalesce(p_instagram, ''))), '@'));
   IF v_ig = '' OR v_ig !~ '^[a-z0-9._]{1,30}$' THEN
     RETURN 'noop_instagram';
@@ -214,6 +210,12 @@ BEGIN
            follow_verified_by = CASE WHEN v_ig <> v_existing.instagram THEN NULL ELSE follow_verified_by END
      WHERE profile_id = v_caller;
     RETURN 'updated';
+  END IF;
+
+  -- Con el programa pausado sólo se bloquea la inscripción nueva: quien ya
+  -- está inscripto puede seguir editando sus datos y salir del ranking (R15).
+  IF NOT public.ambassador_program_enabled() THEN
+    RETURN 'noop_disabled';
   END IF;
 
   IF NOT coalesce(p_accept_terms, false) OR NOT coalesce(p_confirm_adult, false) THEN
@@ -1083,7 +1085,7 @@ AS $function$
     'enabled',     public.ambassador_program_enabled(),
     'slots_total', coalesce((SELECT value FROM public.app_settings WHERE key = 'ambassador_max_paid_teams'), 100)::integer,
     'slots_used',  (SELECT count(*) FROM public.ambassador_rewards WHERE kind = 'TEAM_BROUGHT' AND status <> 'RECHAZADO'),
-    'ranking',     coalesce((
+    'ranking',     CASE WHEN NOT public.ambassador_program_enabled() THEN '[]'::jsonb ELSE coalesce((
       SELECT jsonb_agg(jsonb_build_object(
                'username',   b.username,
                'avatar_url', b.avatar_url,
@@ -1102,7 +1104,7 @@ AS $function$
            ORDER BY 4 DESC, p.username
            LIMIT least(greatest(coalesce(p_limit, 50), 1), 200)
         ) b
-    ), '[]'::jsonb)
+    ), '[]'::jsonb) END
   );
 $function$;
 

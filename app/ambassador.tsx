@@ -51,7 +51,6 @@ const ALIAS_MESSAGES: Partial<Record<PayoutAliasOutcome, string>> = {
 };
 
 const SETTINGS_MESSAGES: Partial<Record<UpsertAmbassadorOutcome, string>> = {
-  noop_disabled: 'El programa está pausado: por ahora no se pueden cambiar estos datos.',
   noop_instagram: UPSERT_MESSAGES.noop_instagram,
   noop_suspended: 'Tu cuenta de embajador está suspendida. Escribinos a tornearcc@gmail.com.',
 };

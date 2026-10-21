@@ -38,11 +38,12 @@
 --   R10   sin pagos retroactivos tras una suspensión (reactivated_at).
 --   R13   el DEBUT exige un TEAM_BROUGHT no rechazado del rival; rechazarlo arrastra el DEBUT.
 --   T-17  canal embajador en log_link_click.
+--   R15   programa pausado: un inscripto edita Instagram y ranking, sale del tablero público y carga el alias.
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
 
 begin;
-select plan(213);
+select plan(221);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 -- Equipos nuevos (superuser: no pasan por las policies).
@@ -1119,6 +1120,44 @@ select results_eq(
   $$ select true, 100, e.slots_used, e.committed, e.paid, e.ambs, e.pending from tests.amb_exp() e $$,
   'T-16: dashboard_ambassador_summary: tope, ocupados, comprometido, pagado, embajadores y follows por verificar');
 select tests.clear_auth();
+
+-- ── R15: programa pausado, el inscripto sigue pudiendo editar y salir del ranking ──
+select ok(jsonb_array_length(public.public_ambassador_board()->'ranking') > 0, 'R15: programa prendido, el tablero tiene ranking');
+update public.app_settings set value = 0 where key = 'ambassador_program_enabled';
+
+select tests.authenticate_as_profile(tests.amb_a(1));
+select is(public.upsert_ambassador('trota.nuevo', false, false, false), 'updated',
+  'R15: pausado, un inscripto edita Instagram y ranking (updated)');
+select set_config('r15.alias', public.set_ambassador_payout_alias('alias.pausado'), true);
+select tests.clear_auth();
+select results_eq(
+  $$ select instagram, show_in_ranking, payout_alias from public.ambassadors where profile_id = tests.amb_p(1) $$,
+  $$ values ('trota.nuevo'::text, false, 'alias.pausado'::text) $$,
+  'R15: pausado, quedaron guardados Instagram, ranking y alias');
+select is(current_setting('r15.alias'), 'applied', 'R15: pausado, set_ambassador_payout_alias devuelve applied');
+
+select tests.authenticate_as_profile('0a000000-0000-0000-0000-000000000007');
+select is(public.upsert_ambassador('nuevo.pausado', true, true, true), 'noop_disabled',
+  'R15: pausado, una persona sin inscripción sigue en noop_disabled');
+select tests.clear_auth();
+select is((select count(*)::int from public.ambassadors where profile_id = '0b000000-0000-0000-0000-000000000007'), 0,
+  'R15: pausado, no se crea la fila');
+
+update public.ambassadors set status = 'SUSPENDIDO' where profile_id = tests.amb_p(1);
+select tests.authenticate_as_profile(tests.amb_a(1));
+select is(public.upsert_ambassador('trota.otro', true, true, true), 'noop_suspended',
+  'R15: pausado, un suspendido sigue en noop_suspended');
+select tests.clear_auth();
+update public.ambassadors set status = 'ACTIVO', show_in_ranking = true where profile_id = tests.amb_p(1);
+
+set local role anon;
+select results_eq(
+  $$ select b->'ranking', (b->>'enabled')::boolean, (b->>'slots_total')::int is not null, (b->>'slots_used')::int is not null
+       from (select public.public_ambassador_board() b) s $$,
+  $$ values ('[]'::jsonb, false, true, true) $$,
+  'R15: pausado, el tablero público devuelve ranking vacío y enabled = false');
+reset role;
+update public.app_settings set value = 1 where key = 'ambassador_program_enabled';
 
 -- ── T-17: canal embajador en /d/<canal> ─────────────────────────────────────
 set local role anon;
