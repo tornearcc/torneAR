@@ -5,7 +5,9 @@ import {
   fetchAmbassadorOverview,
   fetchAmbassadorProgramEnabled,
   setAmbassadorOwnTeam,
+  fetchTeamCreateAmbassadorPrefill,
   setAmbassadorPayoutAlias,
+  setTeamAmbassador,
   upsertAmbassador,
 } from './ambassador-data';
 
@@ -182,5 +184,59 @@ describe('buildAmbassadorInviteMessage', () => {
     const msg = buildAmbassadorInviteMessage('jose');
     expect(msg).toContain('https://tornear.vercel.app/i/jose?emb=1');
     expect(msg).toContain('Creá tu equipo y en "¿Quién los invitó?" poné mi usuario jose');
+  });
+});
+
+describe('fetchTeamCreateAmbassadorPrefill', () => {
+  it('devuelve el usuario del embajador', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: 'jose', error: null });
+    expect(await fetchTeamCreateAmbassadorPrefill()).toBe('jose');
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('get_team_create_ambassador_prefill');
+  });
+
+  it('devuelve null cuando no hay embajador', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: null });
+    expect(await fetchTeamCreateAmbassadorPrefill()).toBeNull();
+  });
+
+  it('devuelve null ante un error de la RPC', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    expect(await fetchTeamCreateAmbassadorPrefill()).toBeNull();
+    expect(loggerMock.warn).toHaveBeenCalled();
+  });
+
+  it('devuelve null si la llamada tira', async () => {
+    supabaseMock.rpc.mockRejectedValue(new Error('network'));
+    expect(await fetchTeamCreateAmbassadorPrefill()).toBeNull();
+  });
+});
+
+describe('setTeamAmbassador', () => {
+  it('no llama a la RPC con un usuario vacío', async () => {
+    expect(await setTeamAmbassador('t1', '   ')).toBe('noop_invalid');
+    expect(supabaseMock.rpc).not.toHaveBeenCalled();
+  });
+
+  it('pasa el usuario recortado y devuelve el estado', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: 'applied', error: null });
+    expect(await setTeamAmbassador('t1', ' jose ')).toBe('applied');
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('set_team_ambassador', { p_team_id: 't1', p_username: 'jose' });
+  });
+
+  it('devuelve noop_ambassador_member', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: 'noop_ambassador_member', error: null });
+    expect(await setTeamAmbassador('t1', 'jose')).toBe('noop_ambassador_member');
+  });
+
+  it('devuelve rpc_error ante error o estado desconocido', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    expect(await setTeamAmbassador('t1', 'jose')).toBe('rpc_error');
+    supabaseMock.rpc.mockResolvedValue({ data: 'otra_cosa', error: null });
+    expect(await setTeamAmbassador('t1', 'jose')).toBe('rpc_error');
+  });
+
+  it('devuelve rpc_error si la llamada tira', async () => {
+    supabaseMock.rpc.mockRejectedValue(new Error('network'));
+    expect(await setTeamAmbassador('t1', 'jose')).toBe('rpc_error');
   });
 });
