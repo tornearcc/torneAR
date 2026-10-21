@@ -51,11 +51,13 @@ CREATE TABLE IF NOT EXISTS public.ambassadors (
   terms_version          integer     NOT NULL,
   accepted_at            timestamptz NOT NULL DEFAULT now(),
   status                 text        NOT NULL DEFAULT 'ACTIVO' CHECK (status IN ('ACTIVO', 'SUSPENDIDO')),
+  status_note            text,
+  reactivated_at         timestamptz,
   created_at             timestamptz NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE public.ambassadors IS
-  'Programa de embajadores v2 (P3-14). Una fila por persona inscripta. own_team_id es el equipo propio (opcional; sólo sirve para el extra de debut). follow_verified_at lo carga TorneAR a mano: sin eso no se paga.';
+  'Programa de embajadores v2 (P3-14). Una fila por persona inscripta. own_team_id es el equipo propio (opcional; sólo sirve para el extra de debut). follow_verified_at lo carga TorneAR a mano: sin eso no se paga. reactivated_at: cuándo volvió de SUSPENDIDO a ACTIVO; el barrido ignora los partidos terminados antes (R10, sin pagos retroactivos). status_note: motivo de la última suspensión o reactivación.';
 
 -- Un equipo es propio de un solo embajador.
 CREATE UNIQUE INDEX IF NOT EXISTS ambassadors_own_team_uidx
@@ -502,8 +504,10 @@ UPDATE public.badges SET name = 'Reclutador' WHERE slug = 'embajador';
 --     (own_team_first_match_id); si ese partido es contra otro, se pierde.
 --   · BONUS_5 / BONUS_10: al llegar a 5 y a 10 TEAM_BROUGHT no rechazados.
 -- Tope: ambassador_max_paid_teams TEAM_BROUGHT no rechazados. Con el tope
--- alcanzado no se crea ningún premio, salvo el bono que dispara el último
--- TEAM_BROUGHT. Un RECHAZADO libera el lugar (para otros equipos).
+-- alcanzado no se crea ningún premio, salvo los que dispara el TEAM_BROUGHT
+-- que llena el último lugar: sus BONUS_* y el DEBUT del mismo partido (R9).
+-- Sin pagos retroactivos (R10): tras una suspensión sólo cuentan los partidos
+-- terminados desde ambassadors.reactivated_at. Un RECHAZADO libera el lugar (para otros equipos).
 
 -- ─── 2.1 ambassador_rewards ─────────────────────────────────
 
@@ -637,6 +641,7 @@ DECLARE
   v_used      integer;
   v_created   integer := 0;
   v_cap_hit   boolean := false;
+  v_filled_amb uuid;
   v_req       integer;
   v_m         record;
   v_side      record;
@@ -685,13 +690,15 @@ BEGIN
                    FROM public.teams t
                    JOIN public.ambassadors a ON a.profile_id = t.ambassador_profile_id AND a.status = 'ACTIVO'
                   WHERE t.id IN (m.team_a_id, m.team_b_id)
+                    AND m.finished_at >= coalesce(a.reactivated_at, '-infinity'::timestamptz)
                     AND NOT EXISTS (SELECT 1 FROM public.ambassador_rewards r
                                      WHERE r.team_id = t.id AND r.kind = 'TEAM_BROUGHT'))
          OR EXISTS (SELECT 1 FROM public.ambassadors a
                      WHERE a.status = 'ACTIVO'
                        AND a.own_team_id IN (m.team_a_id, m.team_b_id)
                        AND a.own_team_first_match_id IS NULL
-                       AND m.finished_at >= a.own_team_set_at)
+                       AND m.finished_at >= a.own_team_set_at
+                       AND m.finished_at >= coalesce(a.reactivated_at, '-infinity'::timestamptz))
        )
      ORDER BY m.finished_at, m.id
   LOOP
@@ -700,7 +707,8 @@ BEGIN
     CONTINUE WHEN (SELECT count(*) FROM public.ambassador_team_members_at(v_m.team_a_id, v_m.finished_at)) < v_req
                OR (SELECT count(*) FROM public.ambassador_team_members_at(v_m.team_b_id, v_m.finished_at)) < v_req;
 
-    v_new_ids := '{}';
+    v_new_ids    := '{}';
+    v_filled_amb := NULL;
 
     -- 1. Equipos traídos que juegan su primer partido válido (que paga).
     FOR v_side IN
@@ -708,6 +716,7 @@ BEGIN
         FROM public.teams t
         JOIN public.ambassadors a ON a.profile_id = t.ambassador_profile_id AND a.status = 'ACTIVO'
        WHERE t.id IN (v_m.team_a_id, v_m.team_b_id)
+         AND v_m.finished_at >= coalesce(a.reactivated_at, '-infinity'::timestamptz)
          AND NOT EXISTS (SELECT 1 FROM public.ambassador_rewards r
                           WHERE r.team_id = t.id AND r.kind = 'TEAM_BROUGHT')
        ORDER BY (t.id = v_m.team_a_id) DESC
@@ -743,7 +752,8 @@ BEGIN
       v_used    := v_used + 1;
       v_created := v_created + 1;
       IF v_used >= v_max THEN
-        v_cap_hit := true;
+        v_cap_hit    := true;
+        v_filled_amb := v_side.amb;   -- R9: éste llenó el último lugar
       END IF;
 
       -- 3. Bonos: los dispara un TEAM_BROUGHT nuevo (aun el último del tope).
@@ -775,6 +785,7 @@ BEGIN
          AND a.own_team_id IN (v_m.team_a_id, v_m.team_b_id)
          AND a.own_team_first_match_id IS NULL
          AND v_m.finished_at >= a.own_team_set_at
+         AND v_m.finished_at >= coalesce(a.reactivated_at, '-infinity'::timestamptz)
        FOR UPDATE
     LOOP
       CONTINUE WHEN v_own.profile_id NOT IN
@@ -786,8 +797,10 @@ BEGIN
       IF EXISTS (SELECT 1 FROM public.teams WHERE id = v_rival AND ambassador_profile_id = v_own.profile_id)
          AND NOT EXISTS (SELECT 1 FROM public.ambassador_rewards
                           WHERE ambassador_profile_id = v_own.profile_id AND kind = 'DEBUT' AND status <> 'RECHAZADO') THEN
-        IF v_used >= v_max THEN
-          v_cap_hit := true;   -- con el tope alcanzado el debut se pierde
+        -- R9: con el tope alcanzado el debut se pierde, salvo que este mismo
+        -- partido haya generado el TEAM_BROUGHT que llenó el último lugar.
+        IF v_used >= v_max AND v_filled_amb IS DISTINCT FROM v_own.profile_id THEN
+          v_cap_hit := true;
         ELSE
           INSERT INTO public.ambassador_rewards (ambassador_profile_id, kind, team_id, match_id, amount)
           VALUES (v_own.profile_id, 'DEBUT', v_rival, v_m.id, v_amount)
@@ -878,3 +891,567 @@ SELECT cron.schedule(
   '30 * * * *',
   $$SELECT public.sweep_ambassador_rewards()$$
 );
+
+
+-- ════════════════════════════════════════════════════════════
+-- PARTE 3 — LECTURAS (APP, WEB PÚBLICA, DASHBOARD) Y ACCIONES DE ADMIN
+-- ════════════════════════════════════════════════════════════
+
+-- ─── 3.1 Chequeo de admin (mismo bloque que dashboard_link_clicks) ───
+-- No existía un require_admin(): este helper es interno (sin acceso desde la
+-- API) y lo llaman las funciones dashboard_* y admin_* de abajo.
+
+CREATE OR REPLACE FUNCTION public.ambassador_require_admin()
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_admin uuid;
+BEGIN
+  SELECT id INTO v_admin
+    FROM public.profiles
+   WHERE auth_user_id = auth.uid() AND is_admin = true;
+  IF v_admin IS NULL THEN
+    RAISE EXCEPTION 'NOT_AUTHORIZED: se requiere is_admin';
+  END IF;
+  RETURN v_admin;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.ambassador_require_admin() FROM PUBLIC, anon, authenticated;
+
+
+-- ─── 3.2 get_my_ambassador_overview ─────────────────────────
+-- Todo lo que necesita la pantalla del embajador en una sola llamada.
+-- debut_state: SIN_EQUIPO · DISPONIBLE · GANADO · PERDIDO.
+-- state de cada traído: ESPERANDO · PENDIENTE · PAGADO · RECHAZADO.
+-- members_needed sale del formato preferido del equipo (orientativo).
+
+CREATE OR REPLACE FUNCTION public.get_my_ambassador_overview()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_caller     uuid;
+  v_amb        public.ambassadors%ROWTYPE;
+  v_enabled    boolean := public.ambassador_program_enabled();
+  v_max        integer := coalesce((SELECT value FROM public.app_settings WHERE key = 'ambassador_max_paid_teams'), 100)::integer;
+  v_used       integer;
+  v_username   text;
+  v_own        jsonb;
+  v_eligible   jsonb;
+  v_debut      text;
+  v_counted    integer;
+  v_earned     numeric;
+  v_paid       numeric;
+  v_brought    jsonb;
+BEGIN
+  SELECT count(*) INTO v_used
+    FROM public.ambassador_rewards
+   WHERE kind = 'TEAM_BROUGHT' AND status <> 'RECHAZADO';
+
+  SELECT id, username INTO v_caller, v_username FROM public.profiles WHERE auth_user_id = auth.uid();
+  SELECT * INTO v_amb FROM public.ambassadors WHERE profile_id = v_caller;
+
+  IF v_caller IS NULL OR NOT FOUND THEN
+    RETURN jsonb_build_object('enabled', v_enabled, 'registered', false,
+                              'slots_left', greatest(v_max - v_used, 0));
+  END IF;
+
+  SELECT jsonb_build_object(
+           'team_id', t.id, 'name', t.name, 'format', t.preferred_format::text,
+           'members_now', (SELECT count(*) FROM public.team_members m WHERE m.team_id = t.id),
+           'members_needed', public.ambassador_required_members(t.preferred_format))
+    INTO v_own
+    FROM public.teams t
+   WHERE t.id = v_amb.own_team_id;
+
+  -- Equipos entre los que puede elegir (sólo mientras el propio no esté fijo).
+  IF v_amb.own_team_first_match_id IS NULL THEN
+    SELECT coalesce(jsonb_agg(jsonb_build_object('team_id', t.id, 'name', t.name) ORDER BY t.name, t.id), '[]'::jsonb)
+      INTO v_eligible
+      FROM public.teams t
+     WHERE t.id IN (SELECT public.ambassador_eligible_teams(v_caller));
+  ELSE
+    v_eligible := '[]'::jsonb;
+  END IF;
+
+  SELECT count(*) FILTER (WHERE kind = 'TEAM_BROUGHT' AND status <> 'RECHAZADO'),
+         coalesce(sum(amount) FILTER (WHERE status IN ('PENDIENTE', 'PAGADO')), 0),
+         coalesce(sum(amount) FILTER (WHERE status = 'PAGADO'), 0)
+    INTO v_counted, v_earned, v_paid
+    FROM public.ambassador_rewards
+   WHERE ambassador_profile_id = v_caller;
+
+  v_debut := CASE
+    WHEN EXISTS (SELECT 1 FROM public.ambassador_rewards
+                  WHERE ambassador_profile_id = v_caller AND kind = 'DEBUT' AND status <> 'RECHAZADO') THEN 'GANADO'
+    WHEN v_amb.own_team_first_match_id IS NOT NULL THEN 'PERDIDO'
+    WHEN v_amb.own_team_id IS NOT NULL THEN 'DISPONIBLE'
+    ELSE 'SIN_EQUIPO'
+  END;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+           'team_id', t.id, 'name', t.name, 'format', t.preferred_format::text,
+           'members_now', (SELECT count(*) FROM public.team_members m WHERE m.team_id = t.id),
+           'members_needed', public.ambassador_required_members(t.preferred_format),
+           'state', CASE WHEN r.status IS NULL THEN 'ESPERANDO' ELSE r.status END,
+           'amount', CASE WHEN r.status IN ('PENDIENTE', 'PAGADO') THEN r.amount END
+         ) ORDER BY t.created_at, t.id), '[]'::jsonb)
+    INTO v_brought
+    FROM public.teams t
+    LEFT JOIN LATERAL (
+      -- El premio vigente si lo hay; si no, el rechazado.
+      SELECT rr.status, rr.amount
+        FROM public.ambassador_rewards rr
+       WHERE rr.team_id = t.id AND rr.kind = 'TEAM_BROUGHT'
+       ORDER BY (rr.status <> 'RECHAZADO') DESC, rr.created_at DESC
+       LIMIT 1
+    ) r ON true
+   WHERE t.ambassador_profile_id = v_caller;
+
+  RETURN jsonb_build_object(
+    'enabled',          v_enabled,
+    'registered',       true,
+    'status',           v_amb.status,
+    'username',         v_username,
+    'instagram',        v_amb.instagram,
+    'show_in_ranking',  v_amb.show_in_ranking,
+    'follow_verified',  v_amb.follow_verified_at IS NOT NULL,
+    'has_payout_alias', v_amb.payout_alias IS NOT NULL,
+    'own_team',         v_own,
+    'eligible_own_teams', v_eligible,
+    'debut_state',      v_debut,
+    'teams_counted',    v_counted,
+    'next_bonus_at',    CASE WHEN v_counted < 5 THEN 5 WHEN v_counted < 10 THEN 10 END,
+    'bonus_5_earned',   EXISTS (SELECT 1 FROM public.ambassador_rewards
+                                 WHERE ambassador_profile_id = v_caller AND kind = 'BONUS_5' AND status <> 'RECHAZADO'),
+    'bonus_10_earned',  EXISTS (SELECT 1 FROM public.ambassador_rewards
+                                 WHERE ambassador_profile_id = v_caller AND kind = 'BONUS_10' AND status <> 'RECHAZADO'),
+    'earned_total',     v_earned,
+    'paid_total',       v_paid,
+    'slots_left',       greatest(v_max - v_used, 0),
+    'brought_teams',    v_brought
+  );
+END;
+$function$;
+
+COMMENT ON FUNCTION public.get_my_ambassador_overview() IS
+  'Programa de embajadores v2 (P3-14). Resumen del embajador logueado para la app: inscripción, equipo propio, estado del debut, equipos traídos y montos. Sin inscripción devuelve registered = false.';
+
+REVOKE ALL ON FUNCTION public.get_my_ambassador_overview() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_ambassador_overview() TO authenticated;
+
+
+-- ─── 3.3 public_ambassador_board (web pública) ──────────────
+-- Sólo ACTIVO con ranking público y al menos un premio no rechazado. Sin
+-- nombre, mail ni Instagram.
+
+CREATE OR REPLACE FUNCTION public.public_ambassador_board(p_limit integer DEFAULT 50)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'enabled',     public.ambassador_program_enabled(),
+    'slots_total', coalesce((SELECT value FROM public.app_settings WHERE key = 'ambassador_max_paid_teams'), 100)::integer,
+    'slots_used',  (SELECT count(*) FROM public.ambassador_rewards WHERE kind = 'TEAM_BROUGHT' AND status <> 'RECHAZADO'),
+    'ranking',     coalesce((
+      SELECT jsonb_agg(jsonb_build_object(
+               'username',   b.username,
+               'avatar_url', b.avatar_url,
+               'teams',      b.teams,
+               'earned',     b.earned
+             ) ORDER BY b.earned DESC, b.username)
+        FROM (
+          SELECT p.username, p.avatar_url,
+                 count(*) FILTER (WHERE r.kind = 'TEAM_BROUGHT') AS teams,
+                 coalesce(sum(r.amount) FILTER (WHERE r.status IN ('PENDIENTE', 'PAGADO')), 0) AS earned
+            FROM public.ambassadors a
+            JOIN public.profiles p ON p.id = a.profile_id
+            JOIN public.ambassador_rewards r ON r.ambassador_profile_id = a.profile_id AND r.status <> 'RECHAZADO'
+           WHERE a.status = 'ACTIVO' AND a.show_in_ranking
+           GROUP BY p.id, p.username, p.avatar_url
+           ORDER BY 4 DESC, p.username
+           LIMIT least(greatest(coalesce(p_limit, 50), 1), 200)
+        ) b
+    ), '[]'::jsonb)
+  );
+$function$;
+
+COMMENT ON FUNCTION public.public_ambassador_board(integer) IS
+  'Programa de embajadores v2 (P3-14). Ranking público (anon y authenticated): sólo username, avatar, equipos traídos y ganado de los ACTIVO que lo aceptaron. Máximo 200 filas.';
+
+REVOKE ALL ON FUNCTION public.public_ambassador_board(integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.public_ambassador_board(integer) TO anon, authenticated;
+
+
+-- ─── 3.4 Lecturas del dashboard ─────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.dashboard_ambassadors()
+RETURNS TABLE(
+  profile_id uuid, username text, full_name text, email text, instagram text,
+  follow_verified_at timestamptz, payout_alias text, own_team_name text, debut_state text,
+  show_in_ranking boolean, status text, accepted_at timestamptz,
+  teams_brought integer, earned numeric, paid numeric
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+BEGIN
+  PERFORM public.ambassador_require_admin();
+
+  RETURN QUERY
+  SELECT a.profile_id, p.username, p.full_name, u.email::text, a.instagram,
+         a.follow_verified_at, a.payout_alias, t.name,
+         CASE
+           WHEN EXISTS (SELECT 1 FROM public.ambassador_rewards d
+                         WHERE d.ambassador_profile_id = a.profile_id AND d.kind = 'DEBUT' AND d.status <> 'RECHAZADO') THEN 'GANADO'
+           WHEN a.own_team_first_match_id IS NOT NULL THEN 'PERDIDO'
+           WHEN a.own_team_id IS NOT NULL THEN 'DISPONIBLE'
+           ELSE 'SIN_EQUIPO'
+         END,
+         a.show_in_ranking, a.status, a.accepted_at,
+         coalesce(s.teams_brought, 0)::integer, coalesce(s.earned, 0), coalesce(s.paid, 0)
+    FROM public.ambassadors a
+    JOIN public.profiles p ON p.id = a.profile_id
+    LEFT JOIN auth.users u ON u.id = p.auth_user_id
+    LEFT JOIN public.teams t ON t.id = a.own_team_id
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE r.kind = 'TEAM_BROUGHT' AND r.status <> 'RECHAZADO') AS teams_brought,
+             sum(r.amount) FILTER (WHERE r.status IN ('PENDIENTE', 'PAGADO'))            AS earned,
+             sum(r.amount) FILTER (WHERE r.status = 'PAGADO')                           AS paid
+        FROM public.ambassador_rewards r
+       WHERE r.ambassador_profile_id = a.profile_id
+    ) s ON true
+   ORDER BY a.accepted_at DESC, a.profile_id;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.dashboard_ambassadors() IS
+  'Programa de embajadores v2 (P3-14). Un renglón por embajador para el dashboard (mail desde auth.users). Exige is_admin.';
+
+REVOKE ALL ON FUNCTION public.dashboard_ambassadors() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.dashboard_ambassadors() TO authenticated;
+
+
+-- team_name es el equipo del premio (para DEBUT, el traído rival) y
+-- rival_team_name el otro lado del partido.
+CREATE OR REPLACE FUNCTION public.dashboard_ambassador_rewards()
+RETURNS TABLE(
+  id uuid, ambassador_profile_id uuid, ambassador_username text, ambassador_full_name text,
+  instagram text, follow_verified boolean, payout_alias text, kind text,
+  team_name text, rival_team_name text, match_id uuid, finished_at timestamptz,
+  format text, counted_members integer, amount numeric, status text,
+  created_at timestamptz, paid_at timestamptz, note text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+BEGIN
+  PERFORM public.ambassador_require_admin();
+
+  RETURN QUERY
+  SELECT r.id, r.ambassador_profile_id, p.username, p.full_name,
+         a.instagram, a.follow_verified_at IS NOT NULL, a.payout_alias, r.kind,
+         t.name,
+         rv.name,
+         r.match_id, m.finished_at,
+         m.format::text, coalesce(array_length(r.counted_profile_ids, 1), 0), r.amount, r.status,
+         r.created_at, r.paid_at, r.note
+    FROM public.ambassador_rewards r
+    JOIN public.ambassadors a ON a.profile_id = r.ambassador_profile_id
+    JOIN public.profiles p ON p.id = r.ambassador_profile_id
+    JOIN public.teams t ON t.id = r.team_id
+    JOIN public.matches m ON m.id = r.match_id
+    LEFT JOIN public.teams rv ON rv.id = CASE WHEN m.team_a_id = r.team_id THEN m.team_b_id ELSE m.team_a_id END
+   ORDER BY (r.status = 'PENDIENTE') DESC, r.created_at DESC, r.id;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.dashboard_ambassador_rewards() IS
+  'Programa de embajadores v2 (P3-14). Premios con lo que hace falta para pagar (alias, follow) y para revisar (equipo, rival, partido). Pendientes primero. Exige is_admin.';
+
+REVOKE ALL ON FUNCTION public.dashboard_ambassador_rewards() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.dashboard_ambassador_rewards() TO authenticated;
+
+
+-- committed = pendiente + pagado (lo que TorneAR ya debe o pagó); paid = sólo lo pagado.
+CREATE OR REPLACE FUNCTION public.dashboard_ambassador_summary()
+RETURNS TABLE(
+  enabled boolean, slots_total integer, slots_used integer, committed numeric, paid numeric,
+  ambassadors integer, pending_follow_checks integer
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+BEGIN
+  PERFORM public.ambassador_require_admin();
+
+  RETURN QUERY
+  SELECT public.ambassador_program_enabled(),
+         coalesce((SELECT value FROM public.app_settings WHERE key = 'ambassador_max_paid_teams'), 100)::integer,
+         (SELECT count(*)::integer FROM public.ambassador_rewards WHERE kind = 'TEAM_BROUGHT' AND status <> 'RECHAZADO'),
+         (SELECT coalesce(sum(amount), 0) FROM public.ambassador_rewards WHERE status IN ('PENDIENTE', 'PAGADO')),
+         (SELECT coalesce(sum(amount), 0) FROM public.ambassador_rewards WHERE status = 'PAGADO'),
+         (SELECT count(*)::integer FROM public.ambassadors),
+         (SELECT count(*)::integer FROM public.ambassadors WHERE status = 'ACTIVO' AND follow_verified_at IS NULL);
+END;
+$function$;
+
+COMMENT ON FUNCTION public.dashboard_ambassador_summary() IS
+  'Programa de embajadores v2 (P3-14). Tarjetas del dashboard: interruptor, lugares, comprometido (pendiente + pagado), pagado, embajadores y follows por verificar. Exige is_admin.';
+
+REVOKE ALL ON FUNCTION public.dashboard_ambassador_summary() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.dashboard_ambassador_summary() TO authenticated;
+
+
+-- ─── 3.5 admin_set_ambassador_reward_status ─────────────────
+-- PAGADO exige el follow verificado. RECHAZADO exige nota. Un PAGADO no
+-- cambia; un RECHAZADO tampoco (para volver a pagarlo se genera de nuevo).
+-- Rechazar un TEAM_BROUGHT arrastra: el DEBUT pendiente del mismo partido y
+-- los bonos pendientes que ya no corresponden (nota «Bajó de N equipos»: esa
+-- frase inicial la usa ambassador_bonus_allowed para volver a generarlos).
+-- Toma el mismo lock que el barrido para no cruzarse con una corrida.
+
+CREATE OR REPLACE FUNCTION public.admin_set_ambassador_reward_status(
+  p_id     uuid,
+  p_status text,
+  p_note   text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_admin  uuid;
+  v_r      public.ambassador_rewards%ROWTYPE;
+  v_note   text := nullif(btrim(coalesce(p_note, '')), '');
+  v_count  integer;
+BEGIN
+  v_admin := public.ambassador_require_admin();
+
+  IF p_status IS NULL OR p_status NOT IN ('PAGADO', 'RECHAZADO') THEN
+    RAISE EXCEPTION 'INVALID_STATUS: el estado debe ser PAGADO o RECHAZADO';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('sweep_ambassador_rewards'));
+
+  SELECT * INTO v_r FROM public.ambassador_rewards WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'REWARD_NOT_FOUND: premio inexistente';
+  END IF;
+  IF v_r.status = 'PAGADO' THEN
+    RAISE EXCEPTION 'ALREADY_PAID: el premio ya está pagado';
+  END IF;
+  IF v_r.status = 'RECHAZADO' THEN
+    RAISE EXCEPTION 'ALREADY_REJECTED: el premio ya está rechazado';
+  END IF;
+
+  IF p_status = 'PAGADO' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.ambassadors
+                    WHERE profile_id = v_r.ambassador_profile_id AND follow_verified_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'FOLLOW_NOT_VERIFIED: falta verificar que sigue a @tornear.app';
+    END IF;
+    UPDATE public.ambassador_rewards
+       SET status = 'PAGADO', paid_at = now(), paid_by = v_admin, note = coalesce(v_note, note)
+     WHERE id = p_id;
+    RETURN;
+  END IF;
+
+  IF v_note IS NULL THEN
+    RAISE EXCEPTION 'NOTE_REQUIRED: rechazar un premio exige una nota';
+  END IF;
+
+  UPDATE public.ambassador_rewards SET status = 'RECHAZADO', note = v_note WHERE id = p_id;
+
+  IF v_r.kind = 'TEAM_BROUGHT' THEN
+    -- El debut de ese mismo partido contra ese traído cae con él.
+    UPDATE public.ambassador_rewards
+       SET status = 'RECHAZADO', note = 'Se rechazó el equipo traído del mismo partido'
+     WHERE ambassador_profile_id = v_r.ambassador_profile_id
+       AND kind = 'DEBUT' AND status = 'PENDIENTE'
+       AND match_id = v_r.match_id AND team_id = v_r.team_id;
+
+    SELECT count(*) INTO v_count
+      FROM public.ambassador_rewards
+     WHERE ambassador_profile_id = v_r.ambassador_profile_id
+       AND kind = 'TEAM_BROUGHT' AND status <> 'RECHAZADO';
+
+    -- Un bono ya PAGADO se mantiene: sólo bajan los PENDIENTE.
+    IF v_count < 10 THEN
+      UPDATE public.ambassador_rewards SET status = 'RECHAZADO', note = 'Bajó de 10 equipos'
+       WHERE ambassador_profile_id = v_r.ambassador_profile_id AND kind = 'BONUS_10' AND status = 'PENDIENTE';
+    END IF;
+    IF v_count < 5 THEN
+      UPDATE public.ambassador_rewards SET status = 'RECHAZADO', note = 'Bajó de 5 equipos'
+       WHERE ambassador_profile_id = v_r.ambassador_profile_id AND kind = 'BONUS_5' AND status = 'PENDIENTE';
+    END IF;
+  END IF;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.admin_set_ambassador_reward_status(uuid, text, text) IS
+  'Programa de embajadores v2 (P3-14). Marca un premio PAGADO (exige follow verificado) o RECHAZADO (exige nota). Rechazar un TEAM_BROUGHT rechaza el DEBUT pendiente del mismo partido y los bonos pendientes que ya no alcanzan (nota «Bajó de N equipos»). Exige is_admin.';
+
+REVOKE ALL ON FUNCTION public.admin_set_ambassador_reward_status(uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_ambassador_reward_status(uuid, text, text) TO authenticated;
+
+
+-- ─── 3.6 admin_verify_ambassador_follow ─────────────────────
+
+CREATE OR REPLACE FUNCTION public.admin_verify_ambassador_follow(p_profile_id uuid, p_verified boolean)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_admin uuid;
+BEGIN
+  v_admin := public.ambassador_require_admin();
+
+  UPDATE public.ambassadors
+     SET follow_verified_at = CASE WHEN coalesce(p_verified, false) THEN now() END,
+         follow_verified_by = CASE WHEN coalesce(p_verified, false) THEN v_admin END
+   WHERE profile_id = p_profile_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'AMBASSADOR_NOT_FOUND: embajador inexistente';
+  END IF;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.admin_verify_ambassador_follow(uuid, boolean) IS
+  'Programa de embajadores v2 (P3-14). Marca (o desmarca) que el embajador sigue a @tornear.app; sin eso el dashboard no deja pagarle. Exige is_admin.';
+
+REVOKE ALL ON FUNCTION public.admin_verify_ambassador_follow(uuid, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_verify_ambassador_follow(uuid, boolean) TO authenticated;
+
+
+-- ─── 3.7 admin_set_ambassador_status ────────────────────────
+-- ACTIVO / SUSPENDIDO. Al volver de SUSPENDIDO a ACTIVO se anota
+-- reactivated_at: el barrido no paga lo jugado durante la suspensión (R10).
+
+CREATE OR REPLACE FUNCTION public.admin_set_ambassador_status(p_profile_id uuid, p_status text, p_note text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_old text;
+BEGIN
+  PERFORM public.ambassador_require_admin();
+
+  IF p_status IS NULL OR p_status NOT IN ('ACTIVO', 'SUSPENDIDO') THEN
+    RAISE EXCEPTION 'INVALID_STATUS: el estado debe ser ACTIVO o SUSPENDIDO';
+  END IF;
+
+  SELECT status INTO v_old FROM public.ambassadors WHERE profile_id = p_profile_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'AMBASSADOR_NOT_FOUND: embajador inexistente';
+  END IF;
+
+  UPDATE public.ambassadors
+     SET status         = p_status,
+         status_note    = nullif(btrim(coalesce(p_note, '')), ''),
+         reactivated_at = CASE WHEN v_old = 'SUSPENDIDO' AND p_status = 'ACTIVO' THEN now() ELSE reactivated_at END
+   WHERE profile_id = p_profile_id;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.admin_set_ambassador_status(uuid, text, text) IS
+  'Programa de embajadores v2 (P3-14). Suspende o reactiva a un embajador. Al reactivar anota reactivated_at (el barrido no paga lo jugado durante la suspensión). Exige is_admin.';
+
+REVOKE ALL ON FUNCTION public.admin_set_ambassador_status(uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_ambassador_status(uuid, text, text) TO authenticated;
+
+
+-- ─── 3.8 Canal «embajador» para /d/<canal> ──────────────────
+-- Mismo cambio que 20261012120000 hizo para `meta`: la restricción de
+-- link_clicks, log_link_click y dashboard_link_clicks. La misma lista vive en
+-- dashboard/app/d/[canal]/route.ts.
+
+ALTER TABLE public.link_clicks DROP CONSTRAINT IF EXISTS link_clicks_channel_check;
+ALTER TABLE public.link_clicks ADD CONSTRAINT link_clicks_channel_check
+  CHECK (channel IN ('dm', 'wpp', 'story', 'cancha', 'fb', 'equipo', 'x', 'ig', 'tiktok', 'meta', 'embajador'));
+
+CREATE OR REPLACE FUNCTION public.log_link_click(p_channel text, p_platform text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF p_channel IS NULL OR p_channel NOT IN ('dm', 'wpp', 'story', 'cancha', 'fb', 'equipo', 'x', 'ig', 'tiktok', 'meta', 'embajador') THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO public.link_clicks (channel, platform)
+  VALUES (p_channel, CASE WHEN p_platform IN ('ios', 'android') THEN p_platform ELSE 'otro' END);
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.dashboard_link_clicks(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
+RETURNS TABLE(channel text, clicks bigint, ios bigint, android bigint, otro bigint)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_from date;
+  v_to   date;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE auth_user_id = auth.uid() AND is_admin = true
+  ) THEN
+    RAISE EXCEPTION 'NOT_AUTHORIZED: se requiere is_admin';
+  END IF;
+
+  v_to   := COALESCE(p_to, current_date);
+  v_from := COALESCE(p_from, v_to - 29);
+
+  IF v_from > v_to THEN
+    RAISE EXCEPTION 'INVALID_RANGE: p_from debe ser anterior o igual a p_to';
+  END IF;
+
+  IF v_to - v_from > 366 THEN
+    v_from := v_to - 366;
+  END IF;
+
+  -- Todos los canales siempre, aunque tengan 0: "nadie tocó el link de la
+  -- cancha" también es un dato.
+  RETURN QUERY
+  SELECT
+    c.channel,
+    COUNT(lc.id)::bigint,
+    COUNT(lc.id) FILTER (WHERE lc.platform = 'ios')::bigint,
+    COUNT(lc.id) FILTER (WHERE lc.platform = 'android')::bigint,
+    COUNT(lc.id) FILTER (WHERE lc.platform = 'otro')::bigint
+  FROM (VALUES ('dm', 1), ('wpp', 2), ('story', 3), ('fb', 4), ('cancha', 5), ('equipo', 6), ('x', 7), ('ig', 8), ('tiktok', 9), ('meta', 10), ('embajador', 11)) AS c(channel, ord)
+  LEFT JOIN public.link_clicks lc
+    ON lc.channel = c.channel
+   AND lc.created_at::date BETWEEN v_from AND v_to
+  GROUP BY c.channel, c.ord
+  ORDER BY c.ord;
+END;
+$function$;

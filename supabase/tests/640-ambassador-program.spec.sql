@@ -28,11 +28,20 @@
 --   T-12  tope de equipos pagos, aviso único en app_logs, rechazo libera lugar.
 --   T-12b bonos por 5 y 10 equipos; regeneración sólo tras rechazo automático (R2).
 --   T-13  partidos inválidos, embajador suspendido, permisos, cron.
+--
+--   Parte 3 — lecturas y acciones de admin (perfiles 0b200000-…-401 a 560)
+--   T-14  get_my_ambassador_overview (SIN_EQUIPO, DISPONIBLE, GANADO, PERDIDO, estados de los traídos).
+--   T-15  public_ambassador_board: anon, sólo con ranking y premios, sin datos personales.
+--   T-16  dashboard_* y admin_*: NOT_AUTHORIZED, pago con follow, rechazo en cascada,
+--         bono «Bajó de N equipos» y su regeneración con la RPC real, lock del barrido.
+--   R9    el DEBUT y el BONUS_5 del TEAM_BROUGHT que llena el último lugar sí se crean.
+--   R10   sin pagos retroactivos tras una suspensión (reactivated_at).
+--   T-17  canal embajador en log_link_click.
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
 
 begin;
-select plan(126);
+select plan(202);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 -- Equipos nuevos (superuser: no pasan por las policies).
@@ -694,6 +703,369 @@ select results_eq(
   $$ select schedule, command from cron.job where jobname = 'ambassador-rewards-sweep' $$,
   $$ values ('30 * * * *'::text, 'SELECT public.sweep_ambassador_rewards()'::text) $$,
   'T-13: el cron ambassador-rewards-sweep corre a los :30');
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PARTE 3 — lecturas (app, web pública, dashboard) y acciones de admin
+-- ════════════════════════════════════════════════════════════════════════════
+create function tests.amb_a(n int) returns uuid language sql immutable
+  as $$ select ('0a200000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
+-- id del premio de un equipo (los tests de admin corren como authenticated).
+create function tests.amb_rw(p_team int, p_kind text default 'TEAM_BROUGHT') returns uuid
+  language sql security definer as $$
+  select id from public.ambassador_rewards
+   where team_id = tests.amb_t(p_team) and kind = p_kind order by created_at limit 1 $$;
+
+create function tests.amb_used() returns int language sql security definer as $$
+  select count(*)::int from public.ambassador_rewards where kind = 'TEAM_BROUGHT' and status <> 'RECHAZADO' $$;
+-- Lo que debería decir dashboard_ambassador_summary (comprometido = pendiente + pagado).
+create function tests.amb_exp() returns table(slots_used int, committed numeric, paid numeric, ambs int, pending int)
+  language sql security definer as $$
+  select tests.amb_used(),
+         (select coalesce(sum(amount), 0) from public.ambassador_rewards where status <> 'RECHAZADO'),
+         (select coalesce(sum(amount), 0) from public.ambassador_rewards where status = 'PAGADO'),
+         (select count(*)::int from public.ambassadors),
+         (select count(*)::int from public.ambassadors where status = 'ACTIVO' and follow_verified_at is null) $$;
+
+-- Perfiles 401..560: 401 admin, 402 sin inscribir, 403 inscripto común.
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+                        raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+                        confirmation_token, recovery_token, email_change, email_change_token_new)
+select '00000000-0000-0000-0000-000000000000', tests.amb_a(g),
+       'authenticated', 'authenticated', 'amb.p' || g || '@test.local', '', now(),
+       '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', ''
+  from generate_series(401, 560) g;
+insert into public.profiles (id, auth_user_id, username, full_name, zone)
+select tests.amb_p(g), tests.amb_a(g), 'amb_p' || g, 'Jugador ' || g, 'Palermo'
+  from generate_series(401, 560) g;
+update public.profiles set is_admin = true where id = tests.amb_p(401);
+
+-- ── T-14: get_my_ambassador_overview ────────────────────────────────────────
+select tests.authenticate_as_profile(tests.amb_a(402));
+select is((public.get_my_ambassador_overview()->>'registered')::boolean, false,
+  'T-14: un no inscripto → registered = false');
+select is((public.get_my_ambassador_overview()->>'enabled')::boolean, true,
+  'T-14: enabled = true con el programa prendido');
+select tests.authenticate_as_profile(tests.amb_a(62));
+select is(public.get_my_ambassador_overview()->>'debut_state', 'SIN_EQUIPO',
+  'T-14: embajador sin equipo propio → debut_state SIN_EQUIPO');
+select is(jsonb_typeof(public.get_my_ambassador_overview()->'own_team'), 'null',
+  'T-14: sin equipo propio, own_team es null');
+select results_eq(
+  $$ select (o->>'teams_counted')::int, (o->>'earned_total')::numeric, (o->>'paid_total')::numeric, (o->>'next_bonus_at')::int
+       from (select public.get_my_ambassador_overview() o) s $$,
+  $$ values (1, 5000::numeric, 0::numeric, 5) $$,
+  'T-14: contadores del embajador sin equipo propio');
+select tests.authenticate_as_profile(tests.amb_a(1));
+select results_eq(
+  $$ select o->>'debut_state', (o->>'earned_total')::numeric, o->'own_team'->>'name',
+            (o->'own_team'->>'members_now')::int, (o->'own_team'->>'members_needed')::int,
+            o->>'username', o->>'instagram', (o->>'has_payout_alias')::boolean, (o->>'follow_verified')::boolean
+       from (select public.get_my_ambassador_overview() o) s $$,
+  $$ values ('GANADO'::text, 10000::numeric, 'Propio A1'::text, 7, 7, 'amb_p1'::text, 'amb1'::text, false, false) $$,
+  'T-14: tras T-7, debut GANADO, $10.000 y datos del equipo propio');
+select results_eq(
+  $$ select e->>'name', e->>'state', (e->>'amount')::numeric, (e->>'members_now')::int, (e->>'members_needed')::int
+       from jsonb_array_elements(public.get_my_ambassador_overview()->'brought_teams') e $$,
+  $$ values ('Traído B1'::text, 'PENDIENTE'::text, 5000::numeric, 7, 7) $$,
+  'T-14: el traído B1 está PENDIENTE con $5.000');
+select is((public.get_my_ambassador_overview()->>'slots_left')::int, 100 - tests.amb_used(),
+  'T-14: slots_left = tope - ocupados');
+select tests.authenticate_as_profile(tests.amb_a(41));
+select is(public.get_my_ambassador_overview()->>'debut_state', 'PERDIDO', 'T-14: tras T-9, debut PERDIDO');
+select tests.authenticate_as_profile(tests.amb_a(134));
+select is(
+  (select e->>'state' from jsonb_array_elements(public.get_my_ambassador_overview()->'brought_teams') e
+    where e->>'team_id' = tests.amb_t(19)::text),
+  'RECHAZADO', 'T-14: un traído con premio rechazado figura RECHAZADO');
+select tests.authenticate_as_profile(tests.amb_a(300));
+select results_eq(
+  $$ select o->>'debut_state', jsonb_array_length(o->'brought_teams'),
+            (select e->>'state' from jsonb_array_elements(o->'brought_teams') e where e->>'name' = 'Traído B11'),
+            (select (e->>'amount') is null from jsonb_array_elements(o->'brought_teams') e where e->>'name' = 'Traído B11'),
+            (o->'eligible_own_teams') @> jsonb_build_array(jsonb_build_object('team_id', '0c200000-0000-0000-0000-000000000050', 'name', 'Propio A11'))
+       from (select public.get_my_ambassador_overview() o) s $$,
+  $$ values ('DISPONIBLE'::text, 4, 'ESPERANDO'::text, true, true) $$,
+  'T-14: con equipo propio sin partido, DISPONIBLE; un traído que no jugó está ESPERANDO sin monto');
+select tests.clear_auth();
+
+-- ── T-15: tablero público ───────────────────────────────────────────────────
+set local role anon;
+select is(jsonb_array_length(public.public_ambassador_board()->'ranking'), 0,
+  'T-15: anon ejecuta el tablero; con show_in_ranking = false no sale nadie');
+reset role;
+update public.ambassadors set show_in_ranking = true
+ where profile_id in (tests.amb_p(1), tests.amb_p(20), tests.amb_p(62), tests.amb_p(300), tests.amb_p(340));
+set local role anon;
+select results_eq(
+  $$ select e->>'username' from jsonb_array_elements(public.public_ambassador_board()->'ranking') with ordinality t(e, o)
+      order by o $$,
+  $$ values ('amb_p1'), ('amb_p20'), ('amb_p62') $$,
+  'T-15: sólo ACTIVO con ranking y con premios, por ganado desc y usuario (sin E300 ni el suspendido)');
+select is(
+  (select array(select k from jsonb_object_keys(public.public_ambassador_board()->'ranking'->0) k order by k)),
+  array['avatar_url', 'earned', 'teams', 'username'],
+  'T-15: cada fila sólo trae username, avatar_url, teams y earned (sin nombre, mail ni Instagram)');
+select results_eq(
+  $$ select (b->'ranking'->0->>'teams')::int, (b->'ranking'->0->>'earned')::numeric,
+            (b->>'slots_total')::int, (b->>'enabled')::boolean
+       from (select public.public_ambassador_board() b) s $$,
+  $$ values (1, 10000::numeric, 100, true) $$,
+  'T-15: E1 figura con 1 equipo y $10.000; el tablero trae el tope');
+select is(jsonb_array_length(public.public_ambassador_board(1)->'ranking'), 1, 'T-15: p_limit recorta');
+reset role;
+select ok(
+  has_function_privilege('anon', 'public.public_ambassador_board(integer)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.public_ambassador_board(integer)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.get_my_ambassador_overview()', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.get_my_ambassador_overview()', 'EXECUTE'),
+  'T-15: el tablero es público; el resumen propio sólo para authenticated');
+
+-- ── T-16: admin ─────────────────────────────────────────────────────────────
+select tests.authenticate_as_profile(tests.amb_a(403));
+select throws_matching($$ select * from public.dashboard_ambassadors() $$, '^NOT_AUTHORIZED', 'T-16: dashboard_ambassadors exige is_admin');
+select throws_matching($$ select * from public.dashboard_ambassador_rewards() $$, '^NOT_AUTHORIZED', 'T-16: dashboard_ambassador_rewards exige is_admin');
+select throws_matching($$ select * from public.dashboard_ambassador_summary() $$, '^NOT_AUTHORIZED', 'T-16: dashboard_ambassador_summary exige is_admin');
+select throws_matching($$ select public.admin_set_ambassador_reward_status(gen_random_uuid(), 'PAGADO', null) $$, '^NOT_AUTHORIZED', 'T-16: admin_set_ambassador_reward_status exige is_admin');
+select throws_matching($$ select public.admin_verify_ambassador_follow(gen_random_uuid(), true) $$, '^NOT_AUTHORIZED', 'T-16: admin_verify_ambassador_follow exige is_admin');
+select throws_matching($$ select public.admin_set_ambassador_status(gen_random_uuid(), 'SUSPENDIDO', null) $$, '^NOT_AUTHORIZED', 'T-16: admin_set_ambassador_status exige is_admin');
+select tests.clear_auth();
+select ok(
+  not has_function_privilege('anon', 'public.dashboard_ambassadors()', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.dashboard_ambassador_rewards()', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.dashboard_ambassador_summary()', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.admin_set_ambassador_reward_status(uuid,text,text)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.admin_verify_ambassador_follow(uuid,boolean)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.admin_set_ambassador_status(uuid,text,text)', 'EXECUTE'),
+  'T-16: anon no ejecuta ninguna función de admin');
+
+-- Lecturas del dashboard.
+select tests.authenticate_as_profile(tests.amb_a(401));
+select results_eq(
+  $$ select email, instagram, own_team_name, debut_state, teams_brought, earned, paid, status, show_in_ranking
+       from public.dashboard_ambassadors() where profile_id = tests.amb_p(1) $$,
+  $$ values ('amb.p1@test.local'::text, 'amb1'::text, 'Propio A1'::text, 'GANADO'::text, 1, 10000::numeric, 0::numeric, 'ACTIVO'::text, true) $$,
+  'T-16: dashboard_ambassadors trae mail, equipo propio, debut y montos');
+select results_eq(
+  $$ select kind, team_name, rival_team_name, format, counted_members, amount, status, follow_verified
+       from public.dashboard_ambassador_rewards()
+      where ambassador_profile_id = tests.amb_p(1) and kind = 'TEAM_BROUGHT' $$,
+  $$ values ('TEAM_BROUGHT'::text, 'Traído B1'::text, 'Propio A1'::text, 'FUTBOL_7'::text, 7, 5000::numeric, 'PENDIENTE'::text, false) $$,
+  'T-16: dashboard_ambassador_rewards trae equipo, rival, formato y conteo');
+select is((select status from public.dashboard_ambassador_rewards() limit 1), 'PENDIENTE',
+  'T-16: los pendientes van primero');
+select tests.clear_auth();
+
+-- Pagar.
+select tests.authenticate_as_profile(tests.amb_a(401));
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(2), 'PAGADO', null) $$,
+  'FOLLOW_NOT_VERIFIED', 'T-16: PAGADO sin follow verificado → FOLLOW_NOT_VERIFIED');
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(2), 'XX', null) $$,
+  'INVALID_STATUS', 'T-16: estado inválido → INVALID_STATUS');
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(gen_random_uuid(), 'PAGADO', null) $$,
+  'REWARD_NOT_FOUND', 'T-16: premio inexistente → REWARD_NOT_FOUND');
+select lives_ok($$ select public.admin_verify_ambassador_follow(tests.amb_p(1), true) $$, 'T-16: verificar el follow');
+select lives_ok(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(2), 'PAGADO', 'MP 21/10') $$,
+  'T-16: con follow verificado, PAGADO');
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(2), 'RECHAZADO', 'me arrepentí') $$,
+  'ALREADY_PAID', 'T-16: PAGADO → RECHAZADO → ALREADY_PAID');
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(2), 'PAGADO', null) $$,
+  'ALREADY_PAID', 'T-16: PAGADO → PAGADO → ALREADY_PAID');
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(4, 'DEBUT'), 'RECHAZADO', null) $$,
+  'NOTE_REQUIRED', 'T-16: rechazo sin nota → NOTE_REQUIRED');
+select throws_matching(
+  $$ select public.admin_set_ambassador_reward_status(tests.amb_rw(4, 'DEBUT'), 'RECHAZADO', '   ') $$,
+  'NOTE_REQUIRED', 'T-16: rechazo con nota en blanco → NOTE_REQUIRED');
+select tests.clear_auth();
+select results_eq(
+  $$ select status, paid_at is not null, paid_by, note from public.ambassador_rewards where id = tests.amb_rw(2) $$,
+  $$ values ('PAGADO'::text, true, tests.amb_p(401), 'MP 21/10'::text) $$,
+  'T-16: el pago deja paid_at, paid_by y la nota');
+select ok((select follow_verified_at is not null and follow_verified_by = tests.amb_p(401)
+             from public.ambassadors where profile_id = tests.amb_p(1)),
+  'T-16: el follow queda verificado por el admin');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select lives_ok($$ select public.admin_verify_ambassador_follow(tests.amb_p(1), false) $$, 'T-16: sacar la verificación');
+select tests.clear_auth();
+select ok((select follow_verified_at is null and follow_verified_by is null
+             from public.ambassadors where profile_id = tests.amb_p(1)), 'T-16: sin verificación queda en null');
+
+-- Rechazo en cascada (end-to-end con la RPC real y el barrido).
+-- E410 (sin equipo propio) con 6 traídos de 7 que juegan contra X (team 60).
+select tests.amb_team(60, 'Rival X13', tests.amb_r(411, 417));
+select tests.amb_team(60 + k, 'Cas_' || k, tests.amb_r(418 + 7 * (k - 1), 424 + 7 * (k - 1)), 410)
+  from generate_series(1, 6) k;
+select tests.amb_add(410, null, 'alias.e410', true);
+select tests.amb_match(60 + k, 60 + k, 60, 20 - k) from generate_series(1, 5) k;
+select is(public.sweep_ambassador_rewards(), 6, 'T-16: 5 traídos → 5 TEAM_BROUGHT + BONUS_5');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select lives_ok($$ select public.admin_set_ambassador_reward_status(tests.amb_rw(62), 'RECHAZADO', 'Jugadores falsos') $$,
+  'T-16: rechazar uno de los 5');
+select tests.clear_auth();
+select results_eq(
+  $$ select status, note from public.ambassador_rewards where ambassador_profile_id = tests.amb_p(410) and kind = 'BONUS_5' $$,
+  $$ values ('RECHAZADO'::text, 'Bajó de 5 equipos'::text) $$,
+  'T-16: el BONUS_5 pendiente se rechaza junto con nota «Bajó de 5 equipos»');
+select is(tests.amb_n(410, 'TEAM_BROUGHT'), 4, 'T-16: quedan 4 TEAM_BROUGHT no rechazados');
+select is(public.sweep_ambassador_rewards(), 0, 'T-16: el rechazado no vuelve a cobrar y 4 no dan bono (R1)');
+select tests.amb_match(66, 66, 60, 10);
+select is(public.sweep_ambassador_rewards(), 2, 'T-16: un sexto traído válido → TEAM_BROUGHT + un BONUS_5 nuevo');
+select is(tests.amb_n(410, 'BONUS_5'), 1, 'T-16: hay un solo BONUS_5 vigente');
+select is(tests.amb_n(410, 'BONUS_5', true), 2, 'T-16: el rechazado automático queda de historial');
+select tests.authenticate_as_profile(tests.amb_a(410));
+select results_eq(
+  $$ select (o->>'teams_counted')::int, (o->>'bonus_5_earned')::boolean, (o->>'bonus_10_earned')::boolean, (o->>'next_bonus_at')::int,
+            (select e->>'state' from jsonb_array_elements(o->'brought_teams') e where e->>'name' = 'Cas_2')
+       from (select public.get_my_ambassador_overview() o) s $$,
+  $$ values (5, true, false, 10, 'RECHAZADO'::text) $$,
+  'T-16: el resumen refleja el bono nuevo y el traído rechazado');
+select tests.clear_auth();
+
+-- Rechazar un TEAM_BROUGHT rechaza el DEBUT del mismo partido.
+-- E460 con equipo propio (team 70) y un traído (team 71) que se enfrentan.
+select tests.amb_team(70, 'Propio A14', tests.amb_r(460, 466));
+select tests.amb_team(71, 'Traído B14', tests.amb_r(467, 473), 460);
+select tests.amb_add(460, 70);
+select tests.amb_match(70, 70, 71, 30);
+select is(public.sweep_ambassador_rewards(), 2, 'T-16: TEAM_BROUGHT + DEBUT de E460');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select lives_ok($$ select public.admin_set_ambassador_reward_status(tests.amb_rw(71), 'RECHAZADO', 'Mismo grupo') $$,
+  'T-16: rechazar el TEAM_BROUGHT del partido del debut');
+select tests.clear_auth();
+select is(tests.amb_n(460, null), 0, 'T-16: el DEBUT del mismo partido se rechaza también');
+select is(public.sweep_ambassador_rewards(), 0, 'T-16: ni el debut ni el traído se regeneran');
+
+-- Los bonos pendientes bajan solos con el conteo; uno ya pagado se mantiene.
+-- E480: 10 TEAM_BROUGHT + BONUS_5 + BONUS_10 pendientes. E490: 5 + BONUS_5 pagado.
+select tests.amb_team(79 + k, 'Viejo E480_' || k, array[]::int[], 480) from generate_series(1, 10) k;
+select tests.amb_team(89 + k, 'Viejo E490_' || k, array[]::int[], 490) from generate_series(1, 5) k;
+select tests.amb_add(480);
+select tests.amb_add(490);
+insert into public.ambassador_rewards (ambassador_profile_id, kind, team_id, match_id, amount)
+select tests.amb_p(480), 'TEAM_BROUGHT', tests.amb_t(79 + k), tests.amb_m(17), 5000 from generate_series(1, 10) k
+union all
+select tests.amb_p(490), 'TEAM_BROUGHT', tests.amb_t(89 + k), tests.amb_m(17), 5000 from generate_series(1, 5) k;
+insert into public.ambassador_rewards (ambassador_profile_id, kind, team_id, match_id, amount, status) values
+  (tests.amb_p(480), 'BONUS_5',  tests.amb_t(84), tests.amb_m(17), 5000, 'PENDIENTE'),
+  (tests.amb_p(480), 'BONUS_10', tests.amb_t(89), tests.amb_m(17), 5000, 'PENDIENTE'),
+  (tests.amb_p(490), 'BONUS_5',  tests.amb_t(94), tests.amb_m(17), 5000, 'PAGADO');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select public.admin_set_ambassador_reward_status(tests.amb_rw(80), 'RECHAZADO', 'Prueba');
+select tests.clear_auth();
+select results_eq(
+  $$ select kind, status, note from public.ambassador_rewards
+      where ambassador_profile_id = tests.amb_p(480) and kind like 'BONUS%' order by kind $$,
+  $$ values ('BONUS_10'::text, 'RECHAZADO'::text, 'Bajó de 10 equipos'::text), ('BONUS_5'::text, 'PENDIENTE'::text, null::text) $$,
+  'T-16: con 9 baja el BONUS_10 («Bajó de 10 equipos») y el BONUS_5 sigue');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select public.admin_set_ambassador_reward_status(tests.amb_rw(80 + k), 'RECHAZADO', 'Prueba') from generate_series(1, 5) k;
+select public.admin_set_ambassador_reward_status(tests.amb_rw(90), 'RECHAZADO', 'Prueba');
+select tests.clear_auth();
+select results_eq(
+  $$ select status, note from public.ambassador_rewards where ambassador_profile_id = tests.amb_p(480) and kind = 'BONUS_5' $$,
+  $$ values ('RECHAZADO'::text, 'Bajó de 5 equipos'::text) $$,
+  'T-16: con 3 baja también el BONUS_5 («Bajó de 5 equipos»)');
+select is((select status from public.ambassador_rewards where ambassador_profile_id = tests.amb_p(490) and kind = 'BONUS_5'),
+  'PAGADO', 'T-16: un bono ya PAGADO se mantiene');
+
+-- Concurrencia: mismo lock que el barrido.
+select ok(
+  pg_get_functiondef('public.admin_set_ambassador_reward_status(uuid,text,text)'::regprocedure)
+    like '%pg_advisory_xact_lock(hashtext(''sweep_ambassador_rewards''))%',
+  'T-16: admin_set_ambassador_reward_status toma el lock del barrido');
+
+-- ── R9: el DEBUT del partido que llena el último lugar sí se crea ───────────
+-- E500: propio A (team 100) y traídos 101 y 102; rival 103. Quedan 2 lugares.
+select tests.amb_team(100, 'Propio A15', tests.amb_r(500, 506));
+select tests.amb_team(101, 'Traído B15a', tests.amb_r(507, 513), 500);
+select tests.amb_team(102, 'Traído B15b', tests.amb_r(514, 520), 500);
+select tests.amb_team(103, 'Rival X15', tests.amb_r(521, 527));
+select tests.amb_add(500, 100);
+update public.app_settings
+   set value = (select count(*) from public.ambassador_rewards
+                 where kind = 'TEAM_BROUGHT' and status <> 'RECHAZADO') + 2
+ where key = 'ambassador_max_paid_teams';
+select tests.amb_match(100, 101, 103, 15);
+select tests.amb_match(101, 100, 102, 14);   -- su primer partido, contra el 2º traído (llena el tope)
+select is(public.sweep_ambassador_rewards(), 3, 'R9: TEAM_BROUGHT + TEAM_BROUGHT + DEBUT con el tope recién llenado');
+select results_eq(
+  $$ select kind, team_id, amount from public.ambassador_rewards
+      where ambassador_profile_id = tests.amb_p(500) and match_id = tests.amb_m(101) order by kind $$,
+  $$ values ('DEBUT'::text, tests.amb_t(102), 5000::numeric), ('TEAM_BROUGHT'::text, tests.amb_t(102), 5000::numeric) $$,
+  'R9: el partido del último lugar paga $10.000 (TEAM_BROUGHT + DEBUT)');
+select is((select count(*)::int from public.ambassador_rewards where kind = 'TEAM_BROUGHT' and status <> 'RECHAZADO'),
+  (select value::int from public.app_settings where key = 'ambassador_max_paid_teams'), 'R9: el tope quedó exacto');
+
+-- R9b: un BONUS_5 disparado por el TEAM_BROUGHT que llena el último lugar sí se crea.
+-- E530 ya tiene 4; su 5º traído (team 114) llena el tope.
+select tests.amb_team(109 + k, 'Viejo E530_' || k, array[]::int[], 530) from generate_series(1, 4) k;
+select tests.amb_team(114, 'Traído E530_5', tests.amb_r(531, 537), 530);
+select tests.amb_add(530);
+insert into public.ambassador_rewards (ambassador_profile_id, kind, team_id, match_id, amount, status)
+select tests.amb_p(530), 'TEAM_BROUGHT', tests.amb_t(109 + k), tests.amb_m(17), 5000, 'PAGADO' from generate_series(1, 4) k;
+update public.app_settings
+   set value = (select count(*) from public.ambassador_rewards
+                 where kind = 'TEAM_BROUGHT' and status <> 'RECHAZADO') + 1
+ where key = 'ambassador_max_paid_teams';
+select tests.amb_match(110, 114, 103, 13);
+select is(public.sweep_ambassador_rewards(), 2, 'R9: el 5º traído llena el tope → TEAM_BROUGHT + BONUS_5');
+select is(tests.amb_n(530, 'BONUS_5'), 1, 'R9: el BONUS_5 del último lugar se crea');
+update public.app_settings set value = 100 where key = 'ambassador_max_paid_teams';
+
+-- ── R10: sin pagos retroactivos tras una suspensión ─────────────────────────
+-- E540 (suspendido) con equipo propio (team 120) y un traído (team 121); rival 122.
+select tests.amb_team(120, 'Propio A16', tests.amb_r(540, 546));
+select tests.amb_team(121, 'Traído B16', tests.amb_r(547, 553), 540);
+select tests.amb_team(122, 'Rival X16', tests.amb_r(554, 560));
+select tests.amb_add(540, 120, null, false, 'SUSPENDIDO');
+select tests.amb_match(120, 121, 122, 10);   -- el traído juega su primer partido
+select tests.amb_match(121, 120, 121, 9);    -- el propio juega contra el traído
+select is(public.sweep_ambassador_rewards(), 0, 'R10: suspendido, el barrido no paga');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select throws_matching($$ select public.admin_set_ambassador_status(tests.amb_p(540), 'BORRADO', null) $$,
+  'INVALID_STATUS', 'R10: estado inválido → INVALID_STATUS');
+select throws_matching($$ select public.admin_set_ambassador_status(gen_random_uuid(), 'ACTIVO', null) $$,
+  'AMBASSADOR_NOT_FOUND', 'R10: embajador inexistente → AMBASSADOR_NOT_FOUND');
+select lives_ok($$ select public.admin_set_ambassador_status(tests.amb_p(540), 'ACTIVO', 'Aclaró el malentendido') $$,
+  'R10: reactivar');
+select tests.clear_auth();
+select ok((select status = 'ACTIVO' and reactivated_at is not null and status_note = 'Aclaró el malentendido'
+             from public.ambassadors where profile_id = tests.amb_p(540)),
+  'R10: reactivar deja status ACTIVO, reactivated_at y la nota');
+select is(public.sweep_ambassador_rewards(), 0, 'R10: lo jugado durante la suspensión no se paga al reactivar');
+select is((select own_team_first_match_id from public.ambassadors where profile_id = tests.amb_p(540)),
+  null::uuid, 'R10: un partido de la suspensión no fija el primer partido del propio');
+select tests.amb_match(122, 120, 121, 0);    -- ya reactivado
+select is(public.sweep_ambassador_rewards(), 2, 'R10: un partido posterior válido paga (TEAM_BROUGHT + DEBUT)');
+select is((select own_team_first_match_id from public.ambassadors where profile_id = tests.amb_p(540)),
+  tests.amb_m(122), 'R10: el primer partido del propio es el posterior');
+select tests.authenticate_as_profile(tests.amb_a(401));
+select lives_ok($$ select public.admin_set_ambassador_status(tests.amb_p(540), 'SUSPENDIDO', 'Cuenta dudosa') $$,
+  'R10: suspender');
+select tests.clear_auth();
+select ok((select status = 'SUSPENDIDO' and status_note = 'Cuenta dudosa' from public.ambassadors where profile_id = tests.amb_p(540)),
+  'R10: suspender deja SUSPENDIDO y el motivo');
+
+-- Resumen del dashboard (al final: ya hay de todo).
+select tests.authenticate_as_profile(tests.amb_a(401));
+select results_eq(
+  $$ select enabled, slots_total, slots_used, committed, paid, ambassadors, pending_follow_checks from public.dashboard_ambassador_summary() $$,
+  $$ select true, 100, e.slots_used, e.committed, e.paid, e.ambs, e.pending from tests.amb_exp() e $$,
+  'T-16: dashboard_ambassador_summary: tope, ocupados, comprometido, pagado, embajadores y follows por verificar');
+select tests.clear_auth();
+
+-- ── T-17: canal embajador en /d/<canal> ─────────────────────────────────────
+set local role anon;
+select lives_ok($$ select public.log_link_click('embajador', 'ios') $$, 'T-17: anon registra el canal embajador');
+reset role;
+select is((select count(*)::int from public.link_clicks where channel = 'embajador'), 1, 'T-17: el click del canal embajador queda guardado');
 
 select * from finish();
 rollback;
