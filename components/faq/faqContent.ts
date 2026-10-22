@@ -55,7 +55,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
         answer:
           'Para verificar que estás realmente en la cancha. Si el partido se juega en un complejo del catálogo, mandar tu ubicación es obligatorio: antes se podía saltear el control simplemente no enviándola, y eso se cerró.\n\nSi estás fuera del radio, el error te dice la distancia exacta a la que estás. Antes de mandar tu posición, la app además descarta los datos de GPS que no sirven.',
         facts: [
-          { label: 'Radio máximo', value: '150 m del complejo' },
+          { label: 'Radio máximo', value: '500 m del complejo' },
           { label: 'Precisión mínima del GPS', value: '100 m' },
           { label: 'Espera máxima del GPS', value: '15 segundos' },
         ],

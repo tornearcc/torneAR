@@ -11,12 +11,12 @@ import { Logger } from '@/lib/logger';
  *      nunca: el botón quedaba en "Presentando lista…" para siempre, sin salida
  *      ni forma de reintentar.
  *   2. Sin control de precisión. Un fix con ±500 m de error entraba igual que
- *      uno de ±5 m. Con un radio de 150 m, eso vuelve el geofence decorativo.
+ *      uno de ±5 m. Con el radio de entonces (150 m; hoy 500 m), eso volvía el geofence decorativo.
  *   3. Sin mirar `mocked`. Android expone si la posición viene de una app de
  *      ubicación simulada y el dato se descartaba.
  */
 
-/** Precisión mínima aceptable, en metros. Por encima, el fix no sirve para un radio de 150 m. */
+/** Precisión mínima aceptable, en metros. Por encima, el fix no sirve para el radio de 500 m (app_settings.checkin_geofence_radius_m). */
 const MAX_ACCURACY_M = 100;
 
 /** Corte duro de espera del GPS. */
