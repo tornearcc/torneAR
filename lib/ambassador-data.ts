@@ -1,0 +1,436 @@
+import { supabase } from '@/lib/supabase';
+import { Logger } from '@/lib/logger';
+import { ambassadorOverviewSchema, type AmbassadorOverview } from '@/lib/schemas/ambassador';
+import type { TeamRole } from '@/lib/team-options';
+
+export type { AmbassadorOverview } from '@/lib/schemas/ambassador';
+
+/** Resultado de `upsert_ambassador`, más `rpc_error` si falló la llamada. */
+export type UpsertAmbassadorOutcome =
+  | 'created'
+  | 'updated'
+  | 'noop_disabled'
+  | 'noop_terms'
+  | 'noop_instagram'
+  | 'noop_suspended'
+  | 'rpc_error';
+
+/** Resultado de `set_ambassador_own_team`, más `rpc_error` si falló la llamada. */
+export type OwnTeamOutcome =
+  | 'applied'
+  | 'noop_disabled'
+  | 'noop_not_ambassador'
+  | 'noop_not_member'
+  | 'noop_team_brought'
+  | 'noop_team_taken'
+  | 'noop_excluded'
+  | 'noop_locked'
+  | 'rpc_error';
+
+export type PayoutAliasOutcome = 'applied' | 'noop_not_ambassador' | 'noop_invalid' | 'rpc_error';
+
+const UPSERT_OUTCOMES: readonly UpsertAmbassadorOutcome[] = [
+  'created',
+  'updated',
+  'noop_disabled',
+  'noop_terms',
+  'noop_instagram',
+  'noop_suspended',
+];
+
+const OWN_TEAM_OUTCOMES: readonly OwnTeamOutcome[] = [
+  'applied',
+  'noop_disabled',
+  'noop_not_ambassador',
+  'noop_not_member',
+  'noop_team_brought',
+  'noop_team_taken',
+  'noop_excluded',
+  'noop_locked',
+];
+
+/** Resultado de `set_team_ambassador`, más `rpc_error` si falló la llamada. */
+export type TeamAmbassadorOutcome =
+  | 'applied'
+  | 'noop_disabled'
+  | 'noop_not_captain'
+  | 'noop_invalid'
+  | 'noop_self'
+  | 'noop_already_set'
+  | 'noop_ambassador_member'
+  | 'noop_excluded'
+  | 'noop_is_own_team'
+  | 'noop_too_late'
+  | 'rpc_error';
+
+const TEAM_AMBASSADOR_OUTCOMES: readonly TeamAmbassadorOutcome[] = [
+  'applied',
+  'noop_disabled',
+  'noop_not_captain',
+  'noop_invalid',
+  'noop_self',
+  'noop_already_set',
+  'noop_ambassador_member',
+  'noop_excluded',
+  'noop_is_own_team',
+  'noop_too_late',
+];
+
+const PAYOUT_ALIAS_OUTCOMES: readonly PayoutAliasOutcome[] = ['applied', 'noop_not_ambassador', 'noop_invalid'];
+
+/** Base del link de invitación. Misma que `lib/referral-link.ts`. */
+const INVITE_BASE_URL = 'https://tornear.vercel.app/i';
+
+/** Quita el `@` inicial y los espacios, y pasa a minúsculas (lo mismo que hace la RPC). */
+export function normalizeInstagramHandle(raw: string): string {
+  return raw.trim().replace(/^@+/, '').trim().toLowerCase();
+}
+
+/** Devuelve `value` si es uno de los estados conocidos de la RPC, o `null`. */
+function asOutcome<T extends string>(value: unknown, known: readonly T[]): T | null {
+  return typeof value === 'string' && (known as readonly string[]).includes(value) ? (value as T) : null;
+}
+
+/**
+ * Lee el resumen del embajador logueado. Devuelve `null` ante un error de red
+ * o una forma inesperada del JSON (se avisa con `Logger.warn`): la pantalla
+ * decide cómo mostrarlo, esto nunca tira.
+ */
+export async function fetchAmbassadorOverview(): Promise<AmbassadorOverview | null> {
+  try {
+    const { data, error } = await supabase.rpc('get_my_ambassador_overview');
+    if (error) {
+      Logger.warn('No se pudo leer el resumen del embajador', {
+        scope: 'ambassador-data.fetchAmbassadorOverview',
+        event: 'ambassador.overview',
+        status: 'rpc_error',
+        error,
+      });
+      return null;
+    }
+
+    const parsed = ambassadorOverviewSchema.safeParse(data);
+    if (!parsed.success) {
+      Logger.warn('El resumen del embajador llegó con una forma inesperada', {
+        scope: 'ambassador-data.fetchAmbassadorOverview',
+        event: 'ambassador.overview',
+        status: 'invalid_shape',
+        issues: parsed.error.issues.slice(0, 5),
+      });
+      return null;
+    }
+    return parsed.data;
+  } catch (error) {
+    Logger.warn('Falló la lectura del resumen del embajador', {
+      scope: 'ambassador-data.fetchAmbassadorOverview',
+      event: 'ambassador.overview',
+      status: 'rpc_error',
+      error,
+    });
+    return null;
+  }
+}
+
+/**
+ * `app_settings.ambassador_program_enabled === 1`. Cualquier error o fila
+ * ausente cuenta como apagado: ante la duda, no se muestra el programa.
+ */
+export async function fetchAmbassadorProgramEnabled(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'ambassador_program_enabled')
+      .maybeSingle();
+    if (error) {
+      Logger.warn('No se pudo leer si el programa de embajadores está activo', {
+        scope: 'ambassador-data.fetchAmbassadorProgramEnabled',
+        event: 'ambassador.enabled',
+        status: 'rpc_error',
+        error,
+      });
+      return false;
+    }
+    return Number(data?.value) === 1;
+  } catch (error) {
+    Logger.warn('Falló la lectura del interruptor del programa de embajadores', {
+      scope: 'ambassador-data.fetchAmbassadorProgramEnabled',
+      event: 'ambassador.enabled',
+      status: 'rpc_error',
+      error,
+    });
+    return false;
+  }
+}
+
+/** Inscribe o edita al embajador. Nunca tira. */
+export async function upsertAmbassador(input: {
+  instagram: string;
+  showInRanking: boolean;
+  acceptTerms: boolean;
+  confirmAdult: boolean;
+}): Promise<UpsertAmbassadorOutcome> {
+  try {
+    const { data, error } = await supabase.rpc('upsert_ambassador', {
+      p_instagram: normalizeInstagramHandle(input.instagram),
+      p_show_in_ranking: input.showInRanking,
+      p_accept_terms: input.acceptTerms,
+      p_confirm_adult: input.confirmAdult,
+    });
+    const status = error ? null : asOutcome(data, UPSERT_OUTCOMES);
+    if (!status) {
+      Logger.warn('No se pudo inscribir al embajador', {
+        scope: 'ambassador-data.upsertAmbassador',
+        event: 'ambassador.upsert',
+        status: 'rpc_error',
+        error,
+        response: error ? undefined : data,
+      });
+      return 'rpc_error';
+    }
+    Logger.info('Inscripción de embajador procesada', {
+      scope: 'ambassador-data.upsertAmbassador',
+      event: 'ambassador.upsert',
+      status,
+    });
+    return status;
+  } catch (error) {
+    Logger.warn('Falló la inscripción del embajador', {
+      scope: 'ambassador-data.upsertAmbassador',
+      event: 'ambassador.upsert',
+      status: 'rpc_error',
+      error,
+    });
+    return 'rpc_error';
+  }
+}
+
+/** Elige (o con `null`, saca) el equipo propio del embajador. Nunca tira. */
+export async function setAmbassadorOwnTeam(teamId: string | null): Promise<OwnTeamOutcome> {
+  try {
+    // `null` saca el equipo propio. El tipo generado de `p_team_id` es `string`
+    // (no modela los NULL de los argumentos), pero la RPC lo acepta en runtime.
+    const { data, error } = await supabase.rpc('set_ambassador_own_team', { p_team_id: teamId as string });
+    const status = error ? null : asOutcome(data, OWN_TEAM_OUTCOMES);
+    if (!status) {
+      Logger.warn('No se pudo guardar el equipo propio del embajador', {
+        scope: 'ambassador-data.setAmbassadorOwnTeam',
+        event: 'ambassador.own_team',
+        status: 'rpc_error',
+        teamId,
+        error,
+        response: error ? undefined : data,
+      });
+      return 'rpc_error';
+    }
+    Logger.info('Equipo propio del embajador procesado', {
+      scope: 'ambassador-data.setAmbassadorOwnTeam',
+      event: 'ambassador.own_team',
+      status,
+      teamId,
+    });
+    return status;
+  } catch (error) {
+    Logger.warn('Falló el guardado del equipo propio del embajador', {
+      scope: 'ambassador-data.setAmbassadorOwnTeam',
+      event: 'ambassador.own_team',
+      status: 'rpc_error',
+      teamId,
+      error,
+    });
+    return 'rpc_error';
+  }
+}
+
+/** Guarda el alias o CBU de cobro. Nunca tira ni registra el alias. */
+export async function setAmbassadorPayoutAlias(alias: string): Promise<PayoutAliasOutcome> {
+  try {
+    const { data, error } = await supabase.rpc('set_ambassador_payout_alias', { p_alias: alias.trim() });
+    const status = error ? null : asOutcome(data, PAYOUT_ALIAS_OUTCOMES);
+    if (!status) {
+      Logger.warn('No se pudo guardar el alias de cobro', {
+        scope: 'ambassador-data.setAmbassadorPayoutAlias',
+        event: 'ambassador.payout_alias',
+        status: 'rpc_error',
+        error,
+        response: error ? undefined : data,
+      });
+      return 'rpc_error';
+    }
+    Logger.info('Alias de cobro procesado', {
+      scope: 'ambassador-data.setAmbassadorPayoutAlias',
+      event: 'ambassador.payout_alias',
+      status,
+    });
+    return status;
+  } catch (error) {
+    Logger.warn('Falló el guardado del alias de cobro', {
+      scope: 'ambassador-data.setAmbassadorPayoutAlias',
+      event: 'ambassador.payout_alias',
+      status: 'rpc_error',
+      error,
+    });
+    return 'rpc_error';
+  }
+}
+
+/**
+ * Usuario del embajador que invitó al capitán, para precargar «¿Quién los
+ * invitó?» al crear un equipo. `null` si no hay o ante cualquier error.
+ */
+export async function fetchTeamCreateAmbassadorPrefill(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.rpc('get_team_create_ambassador_prefill');
+    if (error) {
+      Logger.warn('No se pudo leer el embajador sugerido para el equipo', {
+        scope: 'ambassador-data.fetchTeamCreateAmbassadorPrefill',
+        event: 'ambassador.team_prefill',
+        status: 'rpc_error',
+        error,
+      });
+      return null;
+    }
+    return typeof data === 'string' && data.trim() ? data.trim() : null;
+  } catch (error) {
+    Logger.warn('Falló la lectura del embajador sugerido para el equipo', {
+      scope: 'ambassador-data.fetchTeamCreateAmbassadorPrefill',
+      event: 'ambassador.team_prefill',
+      status: 'rpc_error',
+      error,
+    });
+    return null;
+  }
+}
+
+/** Vincula el equipo recién creado con el embajador que lo trajo. Nunca tira. */
+export async function setTeamAmbassador(teamId: string, username: string): Promise<TeamAmbassadorOutcome> {
+  const trimmed = username.trim();
+  if (!trimmed) return 'noop_invalid';
+  try {
+    const { data, error } = await supabase.rpc('set_team_ambassador', { p_team_id: teamId, p_username: trimmed });
+    const status = error ? null : asOutcome(data, TEAM_AMBASSADOR_OUTCOMES);
+    if (!status) {
+      Logger.warn('No se pudo vincular el equipo con el embajador', {
+        scope: 'ambassador-data.setTeamAmbassador',
+        event: 'ambassador.team_link',
+        status: 'rpc_error',
+        teamId,
+        error,
+        response: error ? undefined : data,
+      });
+      return 'rpc_error';
+    }
+    Logger.info('Vínculo equipo-embajador procesado', {
+      scope: 'ambassador-data.setTeamAmbassador',
+      event: 'ambassador.team_link',
+      status,
+      teamId,
+    });
+    return status;
+  } catch (error) {
+    Logger.warn('Falló el vínculo equipo-embajador', {
+      scope: 'ambassador-data.setTeamAmbassador',
+      event: 'ambassador.team_link',
+      status: 'rpc_error',
+      teamId,
+      error,
+    });
+    return 'rpc_error';
+  }
+}
+
+/**
+ * Mensaje para el capitán cuando `set_team_ambassador` no vinculó al
+ * embajador; `null` si quedó vinculado. Lo usan la creación y la gestión del
+ * equipo.
+ */
+export function teamAmbassadorOutcomeMessage(outcome: TeamAmbassadorOutcome): string | null {
+  switch (outcome) {
+    case 'applied':
+      return null;
+    case 'noop_invalid':
+      return 'No encontramos un embajador con ese usuario.';
+    case 'noop_ambassador_member':
+      return 'Un embajador no puede traer un equipo del que forma parte.';
+    case 'noop_too_late':
+      return 'Ya pasaron las 24 horas desde que se creó el equipo o ya jugaron un partido.';
+    default:
+      return 'No se pudo vincular al embajador.';
+  }
+}
+
+/** Lo que hace falta del equipo para saber si todavía se puede cargar «¿Quién los invitó?». */
+export type TeamAmbassadorLinkInfo = {
+  createdAt: string;
+  ambassadorProfileId: string | null;
+  hasFinishedMatch: boolean;
+};
+
+/** Ventana de `set_team_ambassador`: 24 h desde que se creó el equipo. */
+const TEAM_AMBASSADOR_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Espejo de las reglas de `set_team_ambassador` que se pueden saber de
+ * antemano: programa prendido, capitán, equipo sin embajador, creado hace
+ * menos de 24 h y sin partidos FINALIZADO. El servidor vuelve a validar todo.
+ */
+export function canSetTeamAmbassador(
+  team: TeamAmbassadorLinkInfo & { programEnabled: boolean; role: TeamRole | null },
+  now: Date,
+): boolean {
+  if (!team.programEnabled || team.role !== 'CAPITAN') return false;
+  if (team.ambassadorProfileId !== null || team.hasFinishedMatch) return false;
+  const created = Date.parse(team.createdAt);
+  if (Number.isNaN(created)) return false;
+  return now.getTime() - created < TEAM_AMBASSADOR_WINDOW_MS;
+}
+
+/** Lee lo que necesita `canSetTeamAmbassador`. `null` ante cualquier error; nunca tira. */
+export async function fetchTeamAmbassadorLinkInfo(teamId: string): Promise<TeamAmbassadorLinkInfo | null> {
+  try {
+    const [teamRes, matchesRes] = await Promise.all([
+      supabase.from('teams').select('created_at, ambassador_profile_id').eq('id', teamId).maybeSingle(),
+      supabase
+        .from('matches')
+        .select('id')
+        .eq('status', 'FINALIZADO')
+        .or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`)
+        .limit(1),
+    ]);
+    if (teamRes.error || matchesRes.error || !teamRes.data) {
+      if (teamRes.error || matchesRes.error) {
+        Logger.warn('No se pudo leer si el equipo puede cargar a su embajador', {
+          scope: 'ambassador-data.fetchTeamAmbassadorLinkInfo',
+          event: 'ambassador.team_link_info',
+          status: 'rpc_error',
+          teamId,
+          error: teamRes.error ?? matchesRes.error,
+        });
+      }
+      return null;
+    }
+    return {
+      createdAt: teamRes.data.created_at,
+      ambassadorProfileId: teamRes.data.ambassador_profile_id,
+      hasFinishedMatch: (matchesRes.data ?? []).length > 0,
+    };
+  } catch (error) {
+    Logger.warn('Falló la lectura del vínculo equipo-embajador', {
+      scope: 'ambassador-data.fetchTeamAmbassadorLinkInfo',
+      event: 'ambassador.team_link_info',
+      status: 'rpc_error',
+      teamId,
+      error,
+    });
+    return null;
+  }
+}
+
+/** Mensaje para compartir: link con `?emb=1` e instrucción para el capitán del equipo nuevo. */
+export function buildAmbassadorInviteMessage(username: string): string {
+  return [
+    '¿Querés ganar plata jugando al fútbol? Sumate a TorneAR.',
+    `Creá tu equipo y en "¿Quién los invitó?" poné mi usuario ${username}`,
+    `${INVITE_BASE_URL}/${encodeURIComponent(username)}?emb=1`,
+  ].join('\n');
+}

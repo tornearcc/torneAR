@@ -1,13 +1,13 @@
 -- ============================================================
 -- 590-download-link-clicks — clicks en los links de descarga (pgTAP)
 -- ============================================================
--- Cubre 20260929150000, 20260929160000 (canal fb), 20260930130000 (canal equipo), 20260930140000 (canal x), 20261001120000 (canales ig y tiktok) y 20261012120000 (canal meta) (#37). El capitán de Tigres (auth …0004) hace de admin
+-- Cubre 20260929150000, 20260929160000 (canal fb), 20260930130000 (canal equipo), 20260930140000 (canal x), 20261001120000 (canales ig y tiktok) y 20261012120000 (canal meta) y 20261021120000 (canal embajador) (#37). El capitán de Tigres (auth …0004) hace de admin
 -- sólo dentro de esta transacción.
 --
 --   L-1..L-3  log_link_click registra un canal de la lista (también como
 --             anon), normaliza la plataforma e ignora un canal desconocido.
 --   L-4       nadie lee ni escribe link_clicks directo desde la API.
---   L-5..L-6  dashboard_link_clicks devuelve los diez canales con sus
+--   L-5..L-6  dashboard_link_clicks devuelve los once canales con sus
 --             conteos y exige is_admin.
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
@@ -30,17 +30,18 @@ select public.log_link_click('x', 'android');
 select public.log_link_click('ig', 'ios');
 select public.log_link_click('tiktok', 'android');
 select public.log_link_click('meta', 'ios');
+select public.log_link_click('embajador', 'android');
 select public.log_link_click('snapchat', 'ios');
 select public.log_link_click(null, 'ios');
 reset role;
 
 select results_eq(
   $$ select channel, platform from link_clicks order by id $$,
-  $$ values ('wpp', 'ios'), ('wpp', 'android'), ('story', 'otro'), ('fb', 'android'), ('equipo', 'ios'), ('x', 'android'), ('ig', 'ios'), ('tiktok', 'android'), ('meta', 'ios') $$,
+  $$ values ('wpp', 'ios'), ('wpp', 'android'), ('story', 'otro'), ('fb', 'android'), ('equipo', 'ios'), ('x', 'android'), ('ig', 'ios'), ('tiktok', 'android'), ('meta', 'ios'), ('embajador', 'android') $$,
   'L-2: se guardan canal y plataforma, y una plataforma desconocida queda como otro');
 
 select is(
-  (select count(*)::int from link_clicks where channel not in ('dm', 'wpp', 'story', 'cancha', 'fb', 'equipo', 'x', 'ig', 'tiktok', 'meta')),
+  (select count(*)::int from link_clicks where channel not in ('dm', 'wpp', 'story', 'cancha', 'fb', 'equipo', 'x', 'ig', 'tiktok', 'meta', 'embajador')),
   0,
   'L-3: un canal fuera de la lista (o nulo) no se registra');
 
@@ -65,8 +66,9 @@ select results_eq(
             ('x', 1::bigint, 0::bigint, 1::bigint, 0::bigint),
             ('ig', 1::bigint, 1::bigint, 0::bigint, 0::bigint),
             ('tiktok', 1::bigint, 0::bigint, 1::bigint, 0::bigint),
-            ('meta', 1::bigint, 1::bigint, 0::bigint, 0::bigint) $$,
-  'L-5: el resumen trae los diez canales, también los que tienen 0');
+            ('meta', 1::bigint, 1::bigint, 0::bigint, 0::bigint),
+            ('embajador', 1::bigint, 0::bigint, 1::bigint, 0::bigint) $$,
+  'L-5: el resumen trae los once canales, también los que tienen 0');
 select tests.clear_auth();
 
 select tests.authenticate_as_profile('aaaaaaaa-0000-0000-0000-000000000001');

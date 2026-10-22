@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Share, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { buildReferralMessage } from '@/lib/referral-link';
 import { shareActivityType, trackShareIntent } from '@/lib/share-analytics';
 import { Logger } from '@/lib/logger';
+import { fetchAmbassadorProgramEnabled } from '@/lib/ambassador-data';
 
 type ProfileInviteCardProps = {
   /** `profiles.id` del usuario actual, para la instrumentación del compartido. */
@@ -18,7 +20,7 @@ type ProfileInviteCardProps = {
    * lib/referral-link.ts): el apellido nunca sale del teléfono.
    */
   displayName: string | null;
-  /** Ya tiene la insignia Embajador: cambia el copy de "meta" a "logro". */
+  /** Ya tiene la insignia Reclutador (slug `embajador`): cambia el copy de "meta" a "logro". */
   isEmbajador: boolean;
   onError: (message: string) => void;
 };
@@ -30,7 +32,7 @@ const COPIED_FEEDBACK_MS = 1800;
  * Invitación de referidos dentro del perfil.
  *
  * Va justo debajo de las insignias a propósito: la recompensa de invitar es
- * precisamente una insignia (Embajador, a los 3 jugadores — ver
+ * precisamente una insignia (Reclutador, a los 3 jugadores — ver
  * `20260817181000_embajador_badge.sql`), así que la tarjeta queda leyéndose
  * como la continuación natural de esa sección en vez de como un banner suelto.
  *
@@ -48,6 +50,18 @@ export function ProfileInviteCard({
 }: ProfileInviteCardProps) {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Fila de entrada al programa de embajadores: sólo si está encendido.
+  const [ambassadorEnabled, setAmbassadorEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetchAmbassadorProgramEnabled().then((enabled) => {
+      if (active) setAmbassadorEnabled(enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // El timeout se guarda en una ref para poder limpiarlo: sin esto, salir del
   // perfil dentro de la ventana de feedback dejaba un setState apuntando a un
@@ -119,8 +133,8 @@ export function ProfileInviteCard({
           <Text className="font-uiBold text-sm text-neutral-on-surface">Invitá amigos</Text>
           <Text className="font-ui mt-0.5 text-xs leading-4 text-neutral-on-surface-variant">
             {isEmbajador
-              ? 'Ya sos Embajador. Seguí sumando jugadores a la liga.'
-              : 'Invitá a 3 jugadores y ganás la insignia Embajador.'}
+              ? 'Ya sos Reclutador. Seguí sumando jugadores a la liga.'
+              : 'Invitá a 3 jugadores y ganás la insignia Reclutador.'}
           </Text>
         </View>
         {isEmbajador && (
@@ -174,6 +188,20 @@ export function ProfileInviteCard({
           Compartir invitación
         </Text>
       </TouchableOpacity>
+
+      {ambassadorEnabled && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push('/ambassador')}
+          accessibilityRole="button"
+          className="mt-3 flex-row items-center justify-between rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-4 py-3"
+        >
+          <Text className="font-uiBold flex-1 text-xs text-brand-gold">
+            Sé embajador: ganá $5.000 por equipo
+          </Text>
+          <AppIcon family="material-community" name="chevron-right" size={18} color="#FABD32" />
+        </TouchableOpacity>
+      )}
 
       <Text className="font-ui mt-2 text-center text-[10px] leading-4 text-neutral-outline">
         Quien use tu código queda vinculado a vos al crear la cuenta.

@@ -57,7 +57,7 @@ export type ShareAnalyticsTarget = 'instagram' | 'generic';
  * la que agrupa `dashboard_share_summary`: un literal nuevo acá tiene que
  * existir también en esa RPC, o el panel lo cuenta como desconocido.
  */
-export type ShareContentType = 'match' | 'team_invite' | 'referral';
+export type ShareContentType = 'match' | 'team_invite' | 'referral' | 'ambassador';
 
 /**
  * `message` de `app_logs` para cada destino.
