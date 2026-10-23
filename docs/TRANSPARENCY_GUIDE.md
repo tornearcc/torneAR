@@ -286,7 +286,7 @@ Cuando **los dos equipos** quedan sellados, el partido pasa solo a **EN VIVO**.
 ### 3.4 La validación por ubicación (geocerca)
 
 ```
-Radio máximo: 150 metros del complejo   ← ajustable
+Radio máximo: 500 metros del complejo   ← ajustable (era 150 m hasta el 10/08/2026)
 Método:       distancia real sobre la superficie terrestre (fórmula de Haversine)
 ```
 
@@ -295,7 +295,7 @@ ubicación es obligatorio**. No es opcional ni se puede omitir: antes se podía
 saltear el control simplemente no enviando las coordenadas, y eso se cerró.
 
 Si estás fuera del radio, el error te dice **la distancia exacta**:
-*«Estás a 340 m de la cancha, el máximo es 150 m.»*
+*«Estás a 740 m de la cancha, el máximo es 500 m.»*
 
 **Antes de mandar tu posición, la app la filtra:**
 
@@ -306,7 +306,7 @@ Si estás fuera del radio, el error te dice **la distancia exacta**:
 | Precisión mínima del fix | **100 metros** | *«La señal de GPS es demasiado imprecisa para validar el check-in.»* |
 | Ubicación simulada | Se detecta | Se **registra**, no se bloquea (ver abajo) |
 
-Sobre la precisión: con un radio de 150 m, aceptar un fix con ±500 m de error
+Sobre la precisión: con un radio de 500 m, aceptar un fix con ±1 km de error
 volvería la geocerca decorativa. Por eso se descarta. Si tu teléfono no informa la
 precisión (pasa en algunos iPhone), se deja pasar: bloquear por un dato ausente
 dejaría sin check-in a gente honesta.
@@ -325,7 +325,7 @@ ese dato queda del lado de torneAR.
 | **Hay cancha con coordenadas y negás el permiso** | ❌ El check-in **no se hace**. Se te explica por qué. |
 | **Hay cancha y el GPS no responde en 15 s** | ❌ No se hace. Podés reintentar tantas veces como quieras. |
 | **Hay cancha y la señal es imprecisa (> 100 m)** | ❌ No se hace. Podés reintentar. |
-| **Hay cancha y estás a más de 150 m** | ❌ No se hace, y ves a cuántos metros estás. |
+| **Hay cancha y estás a más de 500 m** | ❌ No se hace, y ves a cuántos metros estás. |
 
 En ningún caso un fallo de GPS te penaliza automáticamente: **no perdés el
 partido por no poder hacer check-in en ese instante**. Lo que pasa es que tu
@@ -842,7 +842,7 @@ creer que no te postulaste.
 | Ventana de check-in | 2 h antes → 1 h después | No (app y servidor) |
 | Lugares de invitado al confirmar un partido | 1 | ✅ Sí |
 | Cambios de zona de un equipo por temporada | 1 (excepciones sólo de un admin) | No |
-| Radio de la geocerca | **150 m** | ✅ Sí |
+| Radio de la geocerca | **500 m** | ✅ Sí |
 | Precisión mínima del GPS | 100 m | No |
 | Espera máxima del GPS | 15 s | No |
 | Quórum de presentación | Según formato (4 a 7) | ✅ Sí |
