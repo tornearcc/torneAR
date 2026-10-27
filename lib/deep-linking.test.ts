@@ -5,6 +5,7 @@ import {
   isOAuthCallback,
   isPasswordRecoveryLink,
   isProtectedDeepLink,
+  isReferralLinkSystemPath,
   resolveDeepLink,
 } from './deep-linking';
 
@@ -448,5 +449,35 @@ describe('resolveDeepLink · Recuperación de contraseña', () => {
     // después del login — es decir, nunca, porque el usuario no puede loguearse
     // (a eso vino). Y para entonces el link ya habría vencido.
     expect(isProtectedDeepLink('tornear://reset-password')).toBe(false);
+  });
+});
+
+describe('isReferralLinkSystemPath · lo que app/+native-intent le saca a expo-router', () => {
+  // expo-router escucha las mismas URLs que el _layout e intenta abrir `/i/<usuario>`
+  // como ruta. No hay `app/i/`, así que mostraba «Unmatched Route» encima de la
+  // pantalla a la que el _layout sí había navegado.
+  it('reconoce la invitación a un equipo tal como la entrega el SO', () => {
+    expect(
+      isReferralLinkSystemPath('https://tornear.vercel.app/i/nikitoakd?n=Nico&e=90951D4C&t=Furbol'),
+    ).toBe(true);
+  });
+
+  it('reconoce el referido y el link de embajador', () => {
+    expect(isReferralLinkSystemPath('https://tornear.vercel.app/i/agussala')).toBe(true);
+    expect(isReferralLinkSystemPath('https://tornear.vercel.app/i/fedemar?emb=1')).toBe(true);
+  });
+
+  it('reconoce la forma con el scheme propio que muestra el error', () => {
+    expect(isReferralLinkSystemPath('tornear:///i/nikitoakd?n=Nico&e=90951D4C&t=Furbol')).toBe(true);
+    expect(isReferralLinkSystemPath('tornear://i/agussala')).toBe(true);
+    expect(isReferralLinkSystemPath('/i/agussala')).toBe(true);
+  });
+
+  it('deja pasar todo lo demás: esas rutas sí existen en la app', () => {
+    expect(isReferralLinkSystemPath('tornear://match-detail?id=1')).toBe(false);
+    expect(isReferralLinkSystemPath('tornear://team-join?code=90951D4C')).toBe(false);
+    expect(isReferralLinkSystemPath('https://tornear.vercel.app/')).toBe(false);
+    expect(isReferralLinkSystemPath('https://tornear.vercel.app/i/')).toBe(false);
+    expect(isReferralLinkSystemPath('https://otro.com/i/agussala')).toBe(false);
   });
 });
