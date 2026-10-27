@@ -155,6 +155,25 @@ function normalizeUniversalLink(url: string): string {
 }
 
 /**
+ * Reconoce un link de referido, de embajador o de invitación a un equipo
+ * (`/i/<username>`) en la forma en que expo-router lo recibe del SO: URL
+ * `https://tornear.vercel.app/...`, `tornear://...` o solo el path.
+ *
+ * Lo usa `app/+native-intent.tsx` para que expo-router NO intente abrir
+ * `/i/<username>` como ruta: no existe `app/i/`, y mostraba «Unmatched Route»
+ * encima de la pantalla a la que el `_layout` ya había navegado con
+ * `resolveDeepLink`. Regex y no `Linking.parse` a propósito: corre antes de
+ * montar la app y no puede tirar.
+ */
+const REFERRAL_SYSTEM_PATH = new RegExp(
+  `^(?:https://${UNIVERSAL_LINK_HOST.replace(/\./g, '\\.')}/|${APP_SCHEME}:///?|/)${REFERRAL_UNIVERSAL_LINK_PREFIX}[^/?#]+`,
+);
+
+export function isReferralLinkSystemPath(path: string): boolean {
+  return REFERRAL_SYSTEM_PATH.test(path);
+}
+
+/**
  * Reconoce la URL de callback de OAuth. Compara sobre la URL sin query ni
  * fragment porque Supabase vuelve con los tokens colgados ahí
  * (`...#access_token=…` en implicit, `...?code=…` en PKCE).
