@@ -317,5 +317,14 @@ export function extractDeepLinkUrl(response: NotificationResponseLike): string |
       return url;
     }
   }
+
+  // MENSAJE_NUEVO (trigger del Mercado, 20260711035014) trae solo el
+  // `conversation_id`: sin esto, tocar la push abría la app y no el chat.
+  if (data && typeof data === 'object' && 'conversation_id' in data) {
+    const conversationId = (data as { conversation_id?: unknown }).conversation_id;
+    if (typeof conversationId === 'string' && conversationId.length > 0) {
+      return `${APP_SCHEME}://market-chats/${encodeURIComponent(conversationId)}`;
+    }
+  }
   return null;
 }

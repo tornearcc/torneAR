@@ -12,6 +12,7 @@ import { NotificationsViewData, NotificationItem } from '@/components/notificati
 import { NotificationsListSection } from '@/components/notifications/NotificationsListSection';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { Logger } from '@/lib/logger';
+import { deepLinkToHref } from '@/lib/deep-linking';
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -134,9 +135,19 @@ export default function NotificationsScreen() {
       // incluida SOLICITUD_UNION_ACEPTADA, que justamente le pide al jugador
       // confirmar el traspaso — se marcaba como leída y no hacía nada, dejando
       // al usuario sin forma de llegar a la acción que la notificación pedía.
-      const maybeData = (item.data ?? {}) as { team_id?: unknown; match_id?: unknown; kind?: unknown };
+      const maybeData = (item.data ?? {}) as {
+        team_id?: unknown;
+        match_id?: unknown;
+        kind?: unknown;
+        url?: unknown;
+        conversation_id?: unknown;
+      };
       const teamId = typeof maybeData.team_id === 'string' ? maybeData.team_id : null;
       const matchId = typeof maybeData.match_id === 'string' ? maybeData.match_id : null;
+      const conversationId =
+        typeof maybeData.conversation_id === 'string' && maybeData.conversation_id
+          ? maybeData.conversation_id
+          : null;
 
       // M2: una postulación ACEPTADA a un post de EQUIPO ahora deja una
       // solicitud de unión que el jugador tiene que confirmar (ver M1), y el
@@ -196,6 +207,12 @@ export default function NotificationsScreen() {
           router.push('/market-chats');
           break;
 
+        case 'MENSAJE_NUEVO':
+          // Mensaje del Mercado: el trigger manda el `conversation_id`. Caía en
+          // el default y no navegaba (app_logs 27/10: la tocaban varias veces).
+          router.push(conversationId ? `/market-chats/${conversationId}` as any : '/market-chats');
+          break;
+
         case 'ANUNCIO':
           // Un aviso general se lee acá mismo: no tiene pantalla de destino, y
           // no es un tipo "sin ruta" que haya que registrar como el default.
@@ -204,8 +221,13 @@ export default function NotificationsScreen() {
           // gestión del equipo, donde está el botón para invitar. Y el aviso de
           // premio del programa de embajadores (`kind: 'ambassador_reward'`,
           // sweep_ambassador_rewards) lleva a la pantalla del embajador.
+          // Los avisos a cuentas nuevas sin equipo (`kind: 'new_profile_nudge'`,
+          // nudge_new_profiles) traen su destino en `url`.
           if (maybeData.kind === 'ambassador_reward') router.push('/ambassador');
-          else if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
+          else if (maybeData.kind === 'new_profile_nudge') {
+            const href = typeof maybeData.url === 'string' ? deepLinkToHref(maybeData.url) : null;
+            if (href) router.push(href);
+          } else if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
           break;
 
         case 'TEMPORADA_INICIADA':

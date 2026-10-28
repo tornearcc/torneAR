@@ -4,15 +4,22 @@ import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal } from 'r
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
+/** Botón opcional para que el aviso no sea un callejón sin salida (ej.: «Crear equipo»). */
+export interface AlertAction {
+  label: string;
+  onPress: () => void;
+}
+
 interface CustomAlertProps {
   visible: boolean;
   title: string;
   message: string;
   onClose: () => void;
   type?: AlertType;
+  action?: AlertAction;
 }
 
-export default function CustomAlert({ visible, title, message, onClose, type = 'info' }: CustomAlertProps) {
+export default function CustomAlert({ visible, title, message, onClose, type = 'info', action }: CustomAlertProps) {
   useEffect(() => {
     if (!visible) return;
     switch (type) {
@@ -60,15 +67,35 @@ export default function CustomAlert({ visible, title, message, onClose, type = '
             <Text className="font-display mb-2 text-xl text-neutral-on-surface">{title}</Text>
             <Text className="font-ui mb-6 text-base leading-6 text-neutral-on-surface-variant">{message}</Text>
 
-            <TouchableOpacity
-              onPress={onClose}
-              activeOpacity={0.9}
-              className="w-full rounded-xl bg-brand-primary py-3 items-center"
-            >
-              <Text className="font-display text-base uppercase tracking-wider text-[#003914]">
-                Aceptar
-              </Text>
-            </TouchableOpacity>
+            {action ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => {
+                    onClose();
+                    action.onPress();
+                  }}
+                  activeOpacity={0.9}
+                  className="w-full rounded-xl bg-brand-primary py-3 items-center"
+                >
+                  <Text className="font-display text-base uppercase tracking-wider text-[#003914]">
+                    {action.label}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="mt-3 w-full py-2 items-center">
+                  <Text className="font-ui text-base text-neutral-on-surface-variant">Ahora no</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity
+                onPress={onClose}
+                activeOpacity={0.9}
+                className="w-full rounded-xl bg-brand-primary py-3 items-center"
+              >
+                <Text className="font-display text-base uppercase tracking-wider text-[#003914]">
+                  Aceptar
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableWithoutFeedback>
       </View>

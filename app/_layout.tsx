@@ -24,6 +24,7 @@ import { supabase } from '@/lib/supabase';
 import { useDeepLinkStore } from '@/stores/deepLinkStore';
 import { useSignupGateStore } from '@/stores/signupGateStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useDailyOpenLog } from '@/hooks/useDailyOpenLog';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { UIProvider } from '../context/UIContext';
 import { ImageViewerProvider } from '@/components/ui/image-viewer/ImageViewerProvider';
@@ -154,6 +155,9 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
   // Push notifications: configura handler, ataja el tap (→ deepLinkStore / Auth
   // Gating) y refresca el expo_push_token del perfil. Se auto-gatea por sesión.
   usePushNotifications();
+
+  // Una fila por cuenta y día en app_logs, con la OTA que corre el celular.
+  useDailyOpenLog(session?.user.id ?? null);
 
   // El intro se cuenta desde que el splash NATIVO se fue, no desde el montaje.
   //
@@ -329,7 +333,11 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         }
       }
 
-      if (inAuthGroup || inOnboarding) {
+      // Recién terminó el onboarding (y no trajo un link pendiente): una sola
+      // vez, «¿Qué venís a hacer?» en vez del inicio. Ver app/welcome.tsx.
+      if (inOnboarding) {
+        router.replace('/welcome');
+      } else if (inAuthGroup) {
         router.replace('/(tabs)');
       }
     }
@@ -375,6 +383,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="onboarding" />
+        <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
         <Stack.Screen name="profile-stats" />
         <Stack.Screen name="faq" />
         <Stack.Screen name="ambassador" />

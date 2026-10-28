@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { imageIndexFromId, isUrgentPost, filterPostsByDay, sortPostsByNearest, filterActiveTeamPostsBySchedule, isTeamPostScheduleActive, resolveApplicantTeam, getInitials } from './market-utils';
+import { imageIndexFromId, isUrgentPost, filterPostsByDay, sortPostsByNearest, filterActiveTeamPostsBySchedule, isTeamPostScheduleActive, resolveApplicantTeam, getInitials, captainOnlyNotice } from './market-utils';
 import type { ManagedTeam, MarketTeamPost } from './market-api';
 
 describe('imageIndexFromId', () => {
@@ -178,5 +178,21 @@ describe('isTeamPostScheduleActive (M8)', () => {
 
   it('acepta un post sin fecha: no hay agenda que vencer', () => {
     expect(isTeamPostScheduleActive({ match_date: null, match_time: null }, now)).toBe(true);
+  });
+});
+
+describe('captainOnlyNotice', () => {
+  // app_logs 27/10: gente sin equipo tocaba «Contactar» varias veces seguidas y
+  // el aviso no le ofrecía ninguna salida.
+  it('sin equipo: invita a crear uno', () => {
+    const notice = captainOnlyNotice(false);
+    expect(notice.title).toBe('Necesitás un equipo');
+    expect(notice.offerCreateTeam).toBe(true);
+  });
+
+  it('con equipo pero sin ser capitán ni subcapitán: no ofrece crear otro', () => {
+    const notice = captainOnlyNotice(true);
+    expect(notice.offerCreateTeam).toBe(false);
+    expect(notice.message).toContain('capitán');
   });
 });
