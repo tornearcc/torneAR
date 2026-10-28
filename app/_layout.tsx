@@ -333,7 +333,11 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         }
       }
 
-      if (inAuthGroup || inOnboarding) {
+      // Recién terminó el onboarding (y no trajo un link pendiente): una sola
+      // vez, «¿Qué venís a hacer?» en vez del inicio. Ver app/welcome.tsx.
+      if (inOnboarding) {
+        router.replace('/welcome');
+      } else if (inAuthGroup) {
         router.replace('/(tabs)');
       }
     }
@@ -379,6 +383,7 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="onboarding" />
+        <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
         <Stack.Screen name="profile-stats" />
         <Stack.Screen name="faq" />
         <Stack.Screen name="ambassador" />
