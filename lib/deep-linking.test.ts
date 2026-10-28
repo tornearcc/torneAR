@@ -87,6 +87,25 @@ describe('extractDeepLinkUrl', () => {
   it('devuelve null cuando data es undefined', () => {
     expect(extractDeepLinkUrl(pushResponse(undefined))).toBeNull();
   });
+
+  // MENSAJE_NUEVO (trigger del Mercado) viaja solo con `conversation_id`, sin
+  // `url`: tocar la push abría la app y no llevaba al chat (app_logs, 27/10).
+  it('arma el link al chat cuando data trae conversation_id y no url', () => {
+    expect(extractDeepLinkUrl(pushResponse({ conversation_id: 'abc-123' }))).toBe(
+      'tornear://market-chats/abc-123',
+    );
+  });
+
+  it('prefiere data.url si viene junto con conversation_id', () => {
+    expect(
+      extractDeepLinkUrl(pushResponse({ url: 'tornear://market', conversation_id: 'abc-123' })),
+    ).toBe('tornear://market');
+  });
+
+  it('ignora un conversation_id vacío o que no es string', () => {
+    expect(extractDeepLinkUrl(pushResponse({ conversation_id: '' }))).toBeNull();
+    expect(extractDeepLinkUrl(pushResponse({ conversation_id: 42 }))).toBeNull();
+  });
 });
 
 describe('resolveDeepLink · Ignore (URLs inválidas / scheme desconocido)', () => {

@@ -24,6 +24,7 @@ import { supabase } from '@/lib/supabase';
 import { useDeepLinkStore } from '@/stores/deepLinkStore';
 import { useSignupGateStore } from '@/stores/signupGateStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useDailyOpenLog } from '@/hooks/useDailyOpenLog';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { UIProvider } from '../context/UIContext';
 import { ImageViewerProvider } from '@/components/ui/image-viewer/ImageViewerProvider';
@@ -154,6 +155,9 @@ function RootNavigation({ fontsLoaded }: { fontsLoaded: boolean }) {
   // Push notifications: configura handler, ataja el tap (→ deepLinkStore / Auth
   // Gating) y refresca el expo_push_token del perfil. Se auto-gatea por sesión.
   usePushNotifications();
+
+  // Una fila por cuenta y día en app_logs, con la OTA que corre el celular.
+  useDailyOpenLog(session?.user.id ?? null);
 
   // El intro se cuenta desde que el splash NATIVO se fue, no desde el montaje.
   //

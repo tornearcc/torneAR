@@ -1,11 +1,12 @@
 import React, { createContext, ReactNode, useContext, useMemo, useState } from 'react';
-import CustomAlert from '@/components/ui/CustomAlert';
+import CustomAlert, { type AlertAction } from '@/components/ui/CustomAlert';
 import { GlobalLoader } from '@/components/GlobalLoader';
 
 type AlertConfig = {
   visible: boolean;
   title: string;
   message: string;
+  action?: AlertAction;
 };
 
 type LoaderConfig = {
@@ -14,7 +15,7 @@ type LoaderConfig = {
 };
 
 interface UIContextType {
-  showAlert: (title: string, message: string) => void;
+  showAlert: (title: string, message: string, action?: AlertAction) => void;
   showLoader: (label: string) => void;
   hideLoader: () => void;
 }
@@ -32,8 +33,8 @@ export function UIProvider({ children }: { children: ReactNode }) {
     label: '',
   });
 
-  const showAlert = (title: string, message: string) => {
-    setAlertConfig({ visible: true, title, message });
+  const showAlert = (title: string, message: string, action?: AlertAction) => {
+    setAlertConfig({ visible: true, title, message, action });
   };
 
   const hideAlert = () => {
@@ -61,6 +62,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
         title={alertConfig.title}
         message={alertConfig.message}
         onClose={hideAlert}
+        action={alertConfig.action}
       />
       {loaderConfig.visible && <GlobalLoader label={loaderConfig.label} />}
     </UIContext.Provider>

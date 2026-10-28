@@ -134,9 +134,18 @@ export default function NotificationsScreen() {
       // incluida SOLICITUD_UNION_ACEPTADA, que justamente le pide al jugador
       // confirmar el traspaso — se marcaba como leída y no hacía nada, dejando
       // al usuario sin forma de llegar a la acción que la notificación pedía.
-      const maybeData = (item.data ?? {}) as { team_id?: unknown; match_id?: unknown; kind?: unknown };
+      const maybeData = (item.data ?? {}) as {
+        team_id?: unknown;
+        match_id?: unknown;
+        kind?: unknown;
+        conversation_id?: unknown;
+      };
       const teamId = typeof maybeData.team_id === 'string' ? maybeData.team_id : null;
       const matchId = typeof maybeData.match_id === 'string' ? maybeData.match_id : null;
+      const conversationId =
+        typeof maybeData.conversation_id === 'string' && maybeData.conversation_id
+          ? maybeData.conversation_id
+          : null;
 
       // M2: una postulación ACEPTADA a un post de EQUIPO ahora deja una
       // solicitud de unión que el jugador tiene que confirmar (ver M1), y el
@@ -194,6 +203,12 @@ export default function NotificationsScreen() {
 
         case 'POSTULACION_RECIBIDA':
           router.push('/market-chats');
+          break;
+
+        case 'MENSAJE_NUEVO':
+          // Mensaje del Mercado: el trigger manda el `conversation_id`. Caía en
+          // el default y no navegaba (app_logs 27/10: la tocaban varias veces).
+          router.push(conversationId ? `/market-chats/${conversationId}` as any : '/market-chats');
           break;
 
         case 'ANUNCIO':
