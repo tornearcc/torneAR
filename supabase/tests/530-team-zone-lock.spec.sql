@@ -17,17 +17,30 @@
 --   Z-11..Z-12 la RPC de admin exige is_admin y motivo.
 --   Z-13..Z-14 renombrar una zona la propaga a los equipos sin contar como
 --             mudanza.
+--   Z-15..Z-18 (20261028120000) mientras el equipo no jugó ningún partido
+--             finalizado cambia de zona libremente, y esos cambios no gastan
+--             el de la temporada. ZNL_A jugó uno ayer: Z-1..Z-3 prueban la
+--             regla de siempre.
 -- Todo en BEGIN…ROLLBACK.
 -- ============================================================
 
 begin;
-select plan(14);
+select plan(18);
 
 -- ── Setup (postgres) ────────────────────────────────────────────────────────
 insert into teams (id, name, category, zone, preferred_format) values
-  ('53000000-0000-0000-0000-0000000000a1', 'ZNL_A', 'HOMBRES', 'Palermo', 'FUTBOL_5');
+  ('53000000-0000-0000-0000-0000000000a1', 'ZNL_A', 'HOMBRES', 'Palermo', 'FUTBOL_5'),
+  ('53000000-0000-0000-0000-0000000000b1', 'ZNL_B', 'HOMBRES', 'Almagro', 'FUTBOL_5'),
+  ('53000000-0000-0000-0000-0000000000c1', 'ZNL_R', 'HOMBRES', 'Palermo', 'FUTBOL_5');
 insert into team_members (team_id, profile_id, role) values
-  ('53000000-0000-0000-0000-0000000000a1', '33333333-3333-3333-3333-000000000001', 'CAPITAN');
+  ('53000000-0000-0000-0000-0000000000a1', '33333333-3333-3333-3333-000000000001', 'CAPITAN'),
+  ('53000000-0000-0000-0000-0000000000b1', '33333333-3333-3333-3333-000000000001', 'CAPITAN');
+
+insert into matches (id, team_a_id, team_b_id, match_type, status, scheduled_at, finished_at, season_id)
+values ('53000000-0000-0000-0000-0000000000d1', '53000000-0000-0000-0000-0000000000a1',
+        '53000000-0000-0000-0000-0000000000c1', 'RANKING', 'FINALIZADO',
+        now() - interval '1 day', now() - interval '1 day',
+        (select id from seasons where is_active order by starts_at desc limit 1));
 
 update profiles set is_admin = true where id = '33333333-3333-3333-3333-000000000004';
 
@@ -112,6 +125,37 @@ select throws_matching(
   $$ select public.admin_set_team_zone('53000000-0000-0000-0000-0000000000a1', 'Almagro', '  ') $$,
   '^REASON_REQUIRED',
   'Z-12: la excepción exige motivo');
+select tests.clear_auth();
+
+-- ── Z-15..Z-18. Libre hasta el primer partido ───────────────────────────────
+select tests.authenticate_as_profile('aaaaaaaa-0000-0000-0000-000000000001');
+select lives_ok(
+  $$ update teams set zone = 'Caballito' where id = '53000000-0000-0000-0000-0000000000b1' $$,
+  'Z-15: un equipo que todavía no jugó cambia de zona');
+select lives_ok(
+  $$ update teams set zone = 'Almagro' where id = '53000000-0000-0000-0000-0000000000b1' $$,
+  'Z-16: y la puede volver a cambiar (se había equivocado al crearlo)');
+select tests.clear_auth();
+
+-- En la transacción `now()` no avanza: se corren las mudanzas de Z-15/Z-16 a
+-- antes del partido, que es como pasa de verdad.
+update team_zone_changes set created_at = now() - interval '2 hours'
+ where team_id = '53000000-0000-0000-0000-0000000000b1';
+
+insert into matches (id, team_a_id, team_b_id, match_type, status, scheduled_at, finished_at, season_id)
+values ('53000000-0000-0000-0000-0000000000d2', '53000000-0000-0000-0000-0000000000b1',
+        '53000000-0000-0000-0000-0000000000c1', 'RANKING', 'FINALIZADO',
+        now() - interval '1 hour', now() - interval '1 hour',
+        (select id from seasons where is_active order by starts_at desc limit 1));
+
+select tests.authenticate_as_profile('aaaaaaaa-0000-0000-0000-000000000001');
+select lives_ok(
+  $$ update teams set zone = 'Caballito' where id = '53000000-0000-0000-0000-0000000000b1' $$,
+  'Z-17: después del primer partido, los cambios de antes no gastaron el de la temporada');
+select throws_matching(
+  $$ update teams set zone = 'Almagro' where id = '53000000-0000-0000-0000-0000000000b1' $$,
+  '^ZONE_LOCKED',
+  'Z-18: y el segundo cambio después del primer partido se rechaza');
 select tests.clear_auth();
 
 -- ── Z-13..Z-14. Renombrar una zona ──────────────────────────────────────────

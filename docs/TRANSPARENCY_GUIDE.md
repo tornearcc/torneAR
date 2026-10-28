@@ -533,7 +533,9 @@ una decisión administrativa, no automática**.
   entre temporadas.
 - Los partidos todavía abiertos se traspasan a la temporada nueva.
 - **Un equipo puede cambiar de zona una vez por temporada.** El segundo cambio se
-  rechaza hasta que empiece la próxima. Si un equipo se muda de verdad, un
+  rechaza hasta que empiece la próxima. Mientras el equipo no jugó ningún partido
+  finalizado, la zona es libre: puede corregirla las veces que haga falta y esos
+  cambios no cuentan. Si un equipo se muda de verdad, un
   administrador puede hacer una excepción, que queda registrada con su motivo. La
   regla existe porque la zona de cada equipo queda congelada al cierre de la
   temporada, y sin límite un equipo podría mudarse a la zona que va ganando.
@@ -841,7 +843,7 @@ creer que no te postulaste.
 |---|---|:---:|
 | Ventana de check-in | 2 h antes → 1 h después | No (app y servidor) |
 | Lugares de invitado al confirmar un partido | 1 | ✅ Sí |
-| Cambios de zona de un equipo por temporada | 1 (excepciones sólo de un admin) | No |
+| Cambios de zona de un equipo por temporada | 1 desde su primer partido; libres antes (excepciones sólo de un admin) | No |
 | Radio de la geocerca | **500 m** | ✅ Sí |
 | Precisión mínima del GPS | 100 m | No |
 | Espera máxima del GPS | 15 s | No |
