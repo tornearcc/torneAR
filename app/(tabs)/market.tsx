@@ -14,7 +14,7 @@ import { useUI } from '@/context/UIContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { fetchMarketViewData } from '@/lib/market-data';
 import { togglePostStatus } from '@/lib/market-api';
-import { filterPostsByDay, resolveApplicantTeam } from '@/lib/market-utils';
+import { captainOnlyNotice, filterPostsByDay, resolveApplicantTeam } from '@/lib/market-utils';
 import { useDistanceResolver } from '@/hooks/useDistanceResolver';
 import { useTabBarInset } from '@/hooks/useTabBarInset';
 import { MarketViewData, TabType, type MarketModerationTarget } from '@/components/market/types';
@@ -130,12 +130,22 @@ export default function MarketScreen() {
     void loadMarketData(false);
   };
 
+  const showCaptainOnlyNotice = () => {
+    // `activeTeamId` existe si es integrante de algún equipo, con cualquier rol.
+    const notice = captainOnlyNotice(activeTeamId !== null);
+    showAlert(
+      notice.title,
+      notice.message,
+      notice.offerCreateTeam ? { label: 'Crear equipo', onPress: () => router.push('/team-create') } : undefined,
+    );
+  };
+
   const handleCreatePost = () => {
     const isTeamCreationFlow = activeTab === 'TEAMS_LOOKING';
     const canCreateTeamPost = (viewData?.managedTeams?.length ?? 0) > 0;
 
     if (isTeamCreationFlow && !canCreateTeamPost) {
-      showAlert('Acceso restringido', 'Debes ser Capitan o Subcapitan de un equipo para crear esta publicacion.');
+      showCaptainOnlyNotice();
       return;
     }
 
@@ -235,7 +245,7 @@ export default function MarketScreen() {
         activeCaptainTeamId,
         managedTeamsCount: viewData.managedTeams.length,
       });
-      showAlert('Sin equipos', 'Debes ser Capitan o Subcapitan de un equipo para contactar jugadores.');
+      showCaptainOnlyNotice();
       return;
     }
 

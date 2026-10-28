@@ -169,3 +169,28 @@ export function resolveApplicantTeam(
     managedTeams[0]
   );
 }
+
+/**
+ * Aviso para las acciones del Mercado que exigen ser CAPITAN o SUBCAPITAN
+ * (contactar a un jugador, publicar como equipo). Quien no tiene equipo recibe
+ * la salida de crear uno: antes el aviso era un callejón sin salida y lo
+ * tocaban varias veces seguidas (app_logs, 27/10).
+ */
+export function captainOnlyNotice(hasTeam: boolean): {
+  title: string;
+  message: string;
+  offerCreateTeam: boolean;
+} {
+  if (!hasTeam) {
+    return {
+      title: 'Necesitás un equipo',
+      message: 'Para contactar jugadores y publicar como equipo tenés que tener uno. Armalo en un minuto y sumá a tus amigos.',
+      offerCreateTeam: true,
+    };
+  }
+  return {
+    title: 'Solo capitanes',
+    message: 'Esto lo puede hacer el capitán o el subcapitán de tu equipo. Pedile que te nombre subcapitán desde la gestión del equipo.',
+    offerCreateTeam: false,
+  };
+}
