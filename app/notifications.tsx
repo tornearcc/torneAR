@@ -12,6 +12,7 @@ import { NotificationsViewData, NotificationItem } from '@/components/notificati
 import { NotificationsListSection } from '@/components/notifications/NotificationsListSection';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { Logger } from '@/lib/logger';
+import { deepLinkToHref } from '@/lib/deep-linking';
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -138,6 +139,7 @@ export default function NotificationsScreen() {
         team_id?: unknown;
         match_id?: unknown;
         kind?: unknown;
+        url?: unknown;
         conversation_id?: unknown;
       };
       const teamId = typeof maybeData.team_id === 'string' ? maybeData.team_id : null;
@@ -219,8 +221,13 @@ export default function NotificationsScreen() {
           // gestión del equipo, donde está el botón para invitar. Y el aviso de
           // premio del programa de embajadores (`kind: 'ambassador_reward'`,
           // sweep_ambassador_rewards) lleva a la pantalla del embajador.
+          // Los avisos a cuentas nuevas sin equipo (`kind: 'new_profile_nudge'`,
+          // nudge_new_profiles) traen su destino en `url`.
           if (maybeData.kind === 'ambassador_reward') router.push('/ambassador');
-          else if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
+          else if (maybeData.kind === 'new_profile_nudge') {
+            const href = typeof maybeData.url === 'string' ? deepLinkToHref(maybeData.url) : null;
+            if (href) router.push(href);
+          } else if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
           break;
 
         case 'TEMPORADA_INICIADA':
