@@ -24,7 +24,7 @@
 --   T-8   el traído ya cobró → sólo DEBUT.
 --   T-9   primer partido del propio contra un no traído → el debut se pierde.
 --   T-10  embajador sin equipo propio.
---   T-11  jugadores repetidos no cuentan; el embajador en el traído (R8).
+--   T-11  jugadores repetidos no cuentan; un traído con alguien que ya jugó con otro equipo no paga (v2); el embajador en el traído (R8).
 --   T-12  tope de equipos pagos, aviso único en app_logs, rechazo libera lugar.
 --   T-12b bonos por 5 y 10 equipos; regeneración sólo tras rechazo automático (R2).
 --   T-13  partidos inválidos, embajador suspendido, permisos, cron.
@@ -83,7 +83,7 @@ select tests.clear_auth();
 select results_eq(
   $$ select instagram, own_team_id, follow_verified_at, show_in_ranking, status, terms_version
        from public.ambassadors where profile_id = '0b000000-0000-0000-0000-000000000010' $$,
-  $$ values ('juan.perez'::text, null::uuid, null::timestamptz, true, 'ACTIVO'::text, 1) $$,
+  $$ values ('juan.perez'::text, null::uuid, null::timestamptz, true, 'ACTIVO'::text, 2) $$,
   'T-2: Instagram normalizado, sin equipo propio ni follow verificado, ranking y versión de bases guardados');
 
 -- Crea un equipo (primer equipo) → queda como propio.
@@ -372,11 +372,12 @@ create function tests.amb_match(p_id int, p_a int, p_b int, p_hours_ago int,
                                 p_checkin_b boolean default true)
 returns void language sql as $$
   insert into public.matches (id, team_a_id, team_b_id, status, format, finished_at,
-                              checkin_team_a_at, checkin_team_b_at)
+                              checkin_team_a_at, checkin_team_b_at, match_type)
   values (tests.amb_m(p_id), tests.amb_t(p_a), tests.amb_t(p_b), p_status, p_format,
           now() - make_interval(hours => p_hours_ago),
           now() - make_interval(hours => p_hours_ago + 2),
-          case when p_checkin_b then now() - make_interval(hours => p_hours_ago + 2) end);
+          case when p_checkin_b then now() - make_interval(hours => p_hours_ago + 2) end,
+          'RANKING');
 $$;
 
 create function tests.amb_add(p int, p_own int default null, p_alias text default null,
@@ -384,7 +385,8 @@ create function tests.amb_add(p int, p_own int default null, p_alias text defaul
 returns void language sql as $$
   insert into public.ambassadors (profile_id, instagram, terms_version, own_team_id, own_team_set_at,
                                   payout_alias, follow_verified_at, status)
-  values (tests.amb_p(p), 'amb' || p, 1,
+  values (tests.amb_p(p), 'amb' || p,
+          (select value::int from public.app_settings where key = 'ambassador_terms_version'),
           case when p_own is null then null else tests.amb_t(p_own) end,
           case when p_own is null then null else now() - interval '20 days' end,
           p_alias, case when p_follow then now() end, p_status);
@@ -532,14 +534,13 @@ insert into public.team_members (team_id, profile_id, role, joined_at) values
   (tests.amb_t(15), tests.amb_p(107), 'JUGADOR', now() - interval '50 hours'),
   (tests.amb_t(15), tests.amb_p(108), 'JUGADOR', now() - interval '50 hours');
 select tests.amb_match(11, 15, 13, 40);
-select is(public.sweep_ambassador_rewards(), 1, 'T-11: C5 con 2 nuevos en otro partido válido → 1');
-select is(
-  (select array(select unnest(counted_profile_ids) order by 1) from public.ambassador_rewards
-    where team_id = tests.amb_t(15) and kind = 'TEAM_BROUGHT'),
-  array(select tests.amb_p(g) from generate_series(102, 108) g order by 1),
-  'T-11: counted_profile_ids de C5 sin los 2 ya contados en D5');
-select is((select match_id from public.ambassador_rewards where team_id = tests.amb_t(15)),
-  tests.amb_m(11), 'T-11: el premio de C5 es del partido posterior');
+-- Bases v2 (art. 5): p95 y p96 ya jugaron con D5, así que C5 no es «nuevo»
+-- y no paga nunca, aunque sume jugadores.
+select is(public.sweep_ambassador_rewards(), 0, 'T-11: C5 con 2 jugadores que ya jugaron con D5 → 0 aunque sume 2 nuevos');
+select is((select count(*)::int from public.ambassador_rewards where team_id = tests.amb_t(15)), 0,
+  'T-11: C5 no tiene premio (bases v2: no es un equipo nuevo)');
+select ok(public.ambassador_played_with_other_team(tests.amb_p(95), tests.amb_t(15), now()),
+  'T-11: p95 figura como jugador que ya jugó con otro equipo (D5)');
 -- R8: el embajador es integrante de su traído G5 al partido → no paga.
 select tests.amb_match(12, 16, 13, 39);
 select is(public.sweep_ambassador_rewards(), 0, 'T-11: el embajador es integrante de G5 → 0 (R8)');

@@ -61,6 +61,8 @@ const registeredSchema = z.object({
   paid_total: z.number(),
   slots_left: z.number(),
   brought_teams: z.array(ambassadorBroughtTeamSchema),
+  /** Se inscribió con bases anteriores: tiene que aceptar las vigentes para seguir sumando. */
+  terms_outdated: z.boolean().default(false),
 });
 
 export const ambassadorOverviewSchema = z.discriminatedUnion('registered', [

@@ -63,7 +63,7 @@ export function AmbassadorSignupForm({ fullName, email, submitting, onSubmit }: 
           ¿Querés ganar plata jugando al fútbol?
         </Text>
         <Text className="font-ui mt-2 text-sm leading-5 text-neutral-on-surface-variant">
-          Ganás $5.000 por cada equipo que traés a TorneAR, apenas juega su primer partido.
+          Ganás $5.000 por cada equipo nuevo que traés a TorneAR, apenas juega su primer partido por ranking.
         </Text>
       </View>
 
