@@ -29,6 +29,8 @@ export type OwnTeamOutcome =
 
 export type PayoutAliasOutcome = 'applied' | 'noop_not_ambassador' | 'noop_invalid' | 'rpc_error';
 
+export type AcceptTermsOutcome = 'applied' | 'noop_not_ambassador' | 'noop_already_current' | 'rpc_error';
+
 const UPSERT_OUTCOMES: readonly UpsertAmbassadorOutcome[] = [
   'created',
   'updated',
@@ -77,6 +79,8 @@ const TEAM_AMBASSADOR_OUTCOMES: readonly TeamAmbassadorOutcome[] = [
 ];
 
 const PAYOUT_ALIAS_OUTCOMES: readonly PayoutAliasOutcome[] = ['applied', 'noop_not_ambassador', 'noop_invalid'];
+
+const ACCEPT_TERMS_OUTCOMES: readonly AcceptTermsOutcome[] = ['applied', 'noop_not_ambassador', 'noop_already_current'];
 
 /** Base del link de invitación. Misma que `lib/referral-link.ts`. */
 const INVITE_BASE_URL = 'https://tornear.vercel.app/i';
@@ -267,6 +271,38 @@ export async function setAmbassadorPayoutAlias(alias: string): Promise<PayoutAli
     Logger.warn('Falló el guardado del alias de cobro', {
       scope: 'ambassador-data.setAmbassadorPayoutAlias',
       event: 'ambassador.payout_alias',
+      status: 'rpc_error',
+      error,
+    });
+    return 'rpc_error';
+  }
+}
+
+/** Acepta la versión vigente de las bases (para quien se inscribió con una anterior). Nunca tira. */
+export async function acceptAmbassadorTerms(): Promise<AcceptTermsOutcome> {
+  try {
+    const { data, error } = await supabase.rpc('accept_ambassador_terms');
+    const status = error ? null : asOutcome(data, ACCEPT_TERMS_OUTCOMES);
+    if (!status) {
+      Logger.warn('No se pudieron aceptar las bases de embajadores', {
+        scope: 'ambassador-data.acceptAmbassadorTerms',
+        event: 'ambassador.accept_terms',
+        status: 'rpc_error',
+        error,
+        response: error ? undefined : data,
+      });
+      return 'rpc_error';
+    }
+    Logger.info('Bases de embajadores aceptadas', {
+      scope: 'ambassador-data.acceptAmbassadorTerms',
+      event: 'ambassador.accept_terms',
+      status,
+    });
+    return status;
+  } catch (error) {
+    Logger.warn('Falló la aceptación de las bases de embajadores', {
+      scope: 'ambassador-data.acceptAmbassadorTerms',
+      event: 'ambassador.accept_terms',
       status: 'rpc_error',
       error,
     });

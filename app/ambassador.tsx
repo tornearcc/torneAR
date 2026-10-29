@@ -15,9 +15,11 @@ import { AmbassadorDebutCard } from '@/components/ambassador/AmbassadorDebutCard
 import { AmbassadorTeamsList } from '@/components/ambassador/AmbassadorTeamsList';
 import { AmbassadorSettingsCard } from '@/components/ambassador/AmbassadorSettingsCard';
 import { AmbassadorNotice } from '@/components/ambassador/AmbassadorNotice';
+import { AmbassadorTermsCard } from '@/components/ambassador/AmbassadorTermsCard';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import {
+  acceptAmbassadorTerms,
   fetchAmbassadorOverview,
   setAmbassadorOwnTeam,
   setAmbassadorPayoutAlias,
@@ -130,6 +132,19 @@ export default function AmbassadorScreen() {
     [busy, load, showAlert],
   );
 
+  const handleAcceptTerms = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    const outcome = await acceptAmbassadorTerms();
+    if (outcome === 'applied' || outcome === 'noop_already_current') {
+      await load();
+      showAlert('¡Listo!', 'Aceptaste las bases nuevas. Seguí invitando equipos.');
+    } else {
+      showAlert('No pudimos guardar tu aceptación', GENERIC_ERROR);
+    }
+    setBusy(false);
+  }, [busy, load, showAlert]);
+
   const handleSettings = useCallback(
     async (input: { instagram: string; showInRanking: boolean }) => {
       if (busy) return;
@@ -201,6 +216,9 @@ export default function AmbassadorScreen() {
         {suspended && <AmbassadorNotice message={SUSPENDED_NOTICE} />}
         {!overview.enabled && <AmbassadorNotice message={PAUSED_NOTICE} />}
         {slotsExhausted && <AmbassadorNotice message={SLOTS_EXHAUSTED_NOTICE} />}
+        {overview.terms_outdated && !suspended && (
+          <AmbassadorTermsCard saving={busy} onAccept={() => void handleAcceptTerms()} />
+        )}
         <AmbassadorEarningsHeader
           earnedTotal={overview.earned_total}
           paidTotal={overview.paid_total}

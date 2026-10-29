@@ -46,7 +46,7 @@ export function AmbassadorTeamsList({ teams }: AmbassadorTeamsListProps) {
               </View>
               {team.state === 'ESPERANDO' && (
                 <Text className="font-ui mt-1 text-[11px] text-neutral-on-surface-variant">
-                  Falta que jueguen su primer partido
+                  Falta que jueguen su primer partido por ranking
                 </Text>
               )}
               {missing && (

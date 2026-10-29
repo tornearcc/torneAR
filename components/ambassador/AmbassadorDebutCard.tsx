@@ -98,7 +98,7 @@ export function AmbassadorDebutCard({
       ) : (
         <>
           <Text className="font-ui text-sm leading-5 text-neutral-on-surface">
-            Sumá $5.000 extra: armá tu equipo y que su primer partido sea contra uno que trajiste
+            Sumá $5.000 extra: armá tu equipo y que su primer partido por ranking sea contra uno que trajiste
           </Text>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -115,8 +115,8 @@ export function AmbassadorDebutCard({
     body = (
       <>
         <Text className="font-ui text-sm leading-5 text-neutral-on-surface">
-          Tu equipo: <Text className="font-uiBold">{ownTeam?.name ?? '-'}</Text>. Si su primer partido es contra un
-          equipo que trajiste, sumás $5.000 extra
+          Tu equipo: <Text className="font-uiBold">{ownTeam?.name ?? '-'}</Text>. Si su primer partido por ranking es
+          contra un equipo que trajiste, sumás $5.000 extra
         </Text>
         {canChange && !changing && (
           <TouchableOpacity
