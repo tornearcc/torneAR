@@ -61,6 +61,11 @@ returns setof text language sql as $$
      and (n.data->>'stage')::int = p_stage
 $$;
 
+-- Los perfiles del seed quedan fuera de la ventana: si la base local se cargó
+-- hace más de 24 h, también serían «cuentas nuevas sin equipo».
+update public.profiles set created_at = '2026-10-01 12:00-03'
+ where id::text not like '0c650000-%';
+
 -- ── N-1..N-5. Aviso 1 ───────────────────────────────────────────────────────
 select is(public.nudge_new_profiles(), 3, 'N-1: aviso 1 a las tres cuentas de 25 h sin equipo');
 

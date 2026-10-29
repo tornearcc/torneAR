@@ -2019,6 +2019,46 @@ export type Database = {
           },
         ]
       }
+      profile_nudges: {
+        Row: {
+          profile_id: string
+          sent_at: string
+          stage: number
+        }
+        Insert: {
+          profile_id: string
+          sent_at?: string
+          stage: number
+        }
+        Update: {
+          profile_id?: string
+          sent_at?: string
+          stage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_nudges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_nudges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_nudges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           auth_user_id: string
@@ -3488,6 +3528,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_ambassador_terms: { Args: never; Returns: string }
       accept_challenge: { Args: { p_challenge_id: string }; Returns: Json }
       admin_connect_instagram_account: {
         Args: {
@@ -3570,6 +3611,10 @@ export type Database = {
       ambassador_eligible_teams: {
         Args: { p_profile_id: string }
         Returns: string[]
+      }
+      ambassador_played_with_other_team: {
+        Args: { p_before: string; p_profile_id: string; p_team_id: string }
+        Returns: boolean
       }
       ambassador_program_enabled: { Args: never; Returns: boolean }
       ambassador_require_admin: { Args: never; Returns: string }
@@ -4341,6 +4386,7 @@ export type Database = {
         Returns: string
       }
       normalize_for_filter: { Args: { p_text: string }; Returns: string }
+      nudge_new_profiles: { Args: never; Returns: number }
       nudge_solo_team_captains: { Args: never; Returns: number }
       public_ambassador_board: { Args: { p_limit?: number }; Returns: Json }
       recalculate_team_fps: { Args: { p_team_id: string }; Returns: undefined }

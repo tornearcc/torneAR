@@ -34,7 +34,7 @@ const INTENTS: readonly WelcomeIntent[] = [
   {
     id: 'ambassador',
     title: 'Ser embajador',
-    description: 'Cobrá $5.000 por cada equipo que traigas y juegue su primer partido.',
+    description: 'Cobrá $5.000 por cada equipo nuevo que traigas y juegue su primer partido por ranking.',
     icon: 'cash-multiple',
     href: '/ambassador',
   },

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createQueryBuilder } from './test-utils/supabase-mock';
 import {
+  acceptAmbassadorTerms,
   buildAmbassadorInviteMessage,
   canSetTeamAmbassador,
   fetchTeamAmbassadorLinkInfo,
@@ -180,6 +181,28 @@ describe('setAmbassadorPayoutAlias', () => {
   it('devuelve rpc_error ante un error', async () => {
     supabaseMock.rpc.mockResolvedValue({ data: null, error: { message: 'x' } });
     expect(await setAmbassadorPayoutAlias('mi.alias.mp')).toBe('rpc_error');
+  });
+});
+
+describe('acceptAmbassadorTerms', () => {
+  it('llama a la RPC y devuelve el estado', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: 'applied', error: null });
+    expect(await acceptAmbassadorTerms()).toBe('applied');
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('accept_ambassador_terms');
+  });
+
+  it('devuelve noop_already_current', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: 'noop_already_current', error: null });
+    expect(await acceptAmbassadorTerms()).toBe('noop_already_current');
+  });
+
+  it('devuelve rpc_error ante error, estado desconocido o si la llamada tira', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: { message: 'x' } });
+    expect(await acceptAmbassadorTerms()).toBe('rpc_error');
+    supabaseMock.rpc.mockResolvedValue({ data: 'otra_cosa', error: null });
+    expect(await acceptAmbassadorTerms()).toBe('rpc_error');
+    supabaseMock.rpc.mockRejectedValue(new Error('network'));
+    expect(await acceptAmbassadorTerms()).toBe('rpc_error');
   });
 });
 
