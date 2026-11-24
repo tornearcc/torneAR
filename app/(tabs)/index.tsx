@@ -27,6 +27,8 @@ import { CensusEntryCard } from '@/components/home/CensusEntryCard';
 import { SoloTeamInviteCard } from '@/components/home/SoloTeamInviteCard';
 import { shareTeamInvite } from '@/lib/share-team-invite';
 import { MiniRankingCard } from '@/components/home/MiniRankingCard';
+import { SuggestedRivalsCard } from '@/components/rival/SuggestedRivalsCard';
+import { fetchSuggestedRivals, type SuggestedRival } from '@/lib/rival-posts-api';
 import { PendingActionsCard } from '@/components/home/PendingActionsCard';
 import { UpcomingMatchesSection } from '@/components/home/UpcomingMatchesSection';
 import { MyTeamsRankingSection } from '@/components/home/MyTeamsRankingSection';
@@ -76,6 +78,9 @@ export default function HomeScreen() {
   const [miniRanking, setMiniRanking] = useState<MiniRankingEntry[]>([]);
   const [miniRankingContext, setMiniRankingContext] = useState<MiniRankingContext | null>(null);
   const [miniRankingLoading, setMiniRankingLoading] = useState(true);
+  const [suggestedRivals, setSuggestedRivals] = useState<SuggestedRival[]>([]);
+  const [suggestedLoading, setSuggestedLoading] = useState(true);
+  const [suggestionsTeamId, setSuggestionsTeamId] = useState<string | null>(null);
 
   // ─── Guía inicial ──────────────────────────────────────────────────────────
   // `null` = todavía no sabemos qué dice AsyncStorage. Distinguirlo de `false`
@@ -145,6 +150,25 @@ export default function HomeScreen() {
         activeTeamId && data.myTeams.some((team) => team.id === activeTeamId)
           ? activeTeamId
           : (data.myTeams[0]?.id ?? null);
+
+      // «Rivales para vos» (P3-19): sale en paralelo con el mini-ranking y con
+      // su propio catch; si falla, la tarjeta simplemente no aparece.
+      const suggestionsPromise = rankedTeamId
+        ? fetchSuggestedRivals(rankedTeamId, 3).catch((suggestionsError: unknown) => {
+            Logger.warn('No se pudieron cargar los rivales sugeridos del inicio', {
+              scope: 'tabs.index.loadSuggestedRivals',
+              profileId,
+              teamId: rankedTeamId,
+              error: suggestionsError,
+            });
+            return [] as SuggestedRival[];
+          })
+        : Promise.resolve([] as SuggestedRival[]);
+      setSuggestionsTeamId(rankedTeamId);
+      void suggestionsPromise.then((rows) => {
+        setSuggestedRivals(rows);
+        setSuggestedLoading(false);
+      });
 
       if (!rankedTeamId) {
         setMiniRanking([]);
@@ -419,8 +443,18 @@ export default function HomeScreen() {
     });
   };
 
-  const handleGoToRanking = () => {
-    router.navigate('/(tabs)/ranking');
+  // «Buscar rival» abre Mercado › Buscan rival. `ts` hace que la tab la
+  // re-aplique aunque ya se haya entrado antes con el mismo param.
+  const handleFindRival = () => {
+    router.navigate({ pathname: '/(tabs)/market', params: { tab: 'rivales', ts: String(Date.now()) } });
+  };
+
+  const handleSeeMoreRivals = () => {
+    router.navigate({ pathname: '/(tabs)/ranking', params: { mode: 'rivales', ts: String(Date.now()) } });
+  };
+
+  const handleSuggestedRivalPress = (teamId: string) => {
+    router.push({ pathname: '/team-stats', params: { teamId, viewerTeamId: suggestionsTeamId ?? '' } });
   };
 
   const handleGoToMarket = () => {
@@ -655,6 +689,13 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
 
+          <SuggestedRivalsCard
+            rivals={suggestedRivals}
+            loading={suggestedLoading}
+            onPressRival={handleSuggestedRivalPress}
+            onSeeMore={handleSeeMoreRivals}
+          />
+
           {/* ── TAREA 2 — Mini-ranking de la categoría de mi equipo ───────── */}
           <MiniRankingCard
             entries={miniRanking}
@@ -675,7 +716,7 @@ export default function HomeScreen() {
           />
 
           <QuickActionsSection
-            onGoToRanking={handleGoToRanking}
+            onFindRival={handleFindRival}
             onGoToMarket={handleGoToMarket}
             onManageTeam={handleManageTeam}
           />

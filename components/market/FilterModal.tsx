@@ -128,8 +128,8 @@ export function FilterModal({
           />
         </View>
 
-        {/* Day Section — only for TEAMS_LOOKING */}
-        {activeTab === 'TEAMS_LOOKING' && (
+        {/* Day Section — publicaciones de equipo y Buscan rival */}
+        {activeTab !== 'PLAYERS_LOOKING' && (
           <View className="px-5 mb-6">
             <Text className="text-neutral-on-surface-variant text-sm font-medium mb-3 uppercase tracking-wider">
               Día del partido

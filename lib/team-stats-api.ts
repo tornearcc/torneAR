@@ -389,7 +389,9 @@ export async function fetchTeamBadges(teamId: string): Promise<TeamBadgeItem[]> 
     { p_team_id: teamId },
   );
   if (error) throw error;
-  return ((data ?? []) as {
+  // `as unknown`: el nombre va casteado a la unión de todas las RPCs, así que
+  // el tipo inferido de `data` cambia cada vez que se suma una función.
+  return ((data ?? []) as unknown as {
     id: string; slug: string; name: string;
     criteria_description: string; icon_url: string;
     entity_type: string; is_earned: boolean;
