@@ -21,6 +21,8 @@ import { TeamH2HSection } from '@/components/team-stats/TeamH2HSection';
 import { ChallengeButton } from '@/components/ranking/ChallengeButton';
 import { getActiveChallengeWithTeam } from '@/lib/challenge-actions';
 import { Logger } from '@/lib/logger';
+import { fetchTeamRivalPost, type RivalPost } from '@/lib/rival-posts-api';
+import { RivalPostBanner } from '@/components/rival/RivalPostBanner';
 
 export default function TeamStatsScreen() {
   const router = useRouter();
@@ -37,6 +39,7 @@ export default function TeamStatsScreen() {
   const [alreadyChallenged, setAlreadyChallenged] = useState(false);
   const [teamBadges, setTeamBadges] = useState<TeamBadgeItem[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [rivalPost, setRivalPost] = useState<RivalPost | null>(null);
 
   const isRival = Boolean(viewerTeamId && viewerTeamId !== teamId);
   // Se extrae el id antes del callback: con `profile?.id` directo en el array
@@ -60,17 +63,28 @@ export default function TeamStatsScreen() {
       // Los tres `.catch` de abajo degradan a vacío a propósito (una sección
       // secundaria no debe tumbar la pantalla), pero sin telemetría eran
       // indistinguibles de "este equipo no tiene insignias / historial".
-      const badges = await fetchTeamBadges(teamId).catch((error: unknown) => {
-        Logger.warn('No se pudieron cargar las insignias del equipo; se muestra vacío', {
-          scope: 'team-stats.loadData',
-          teamId,
-          error,
-        });
-        return [];
-      });
+      const [badges, rivalPost] = await Promise.all([
+        fetchTeamBadges(teamId).catch((error: unknown) => {
+          Logger.warn('No se pudieron cargar las insignias del equipo; se muestra vacío', {
+            scope: 'team-stats.loadData',
+            teamId,
+            error,
+          });
+          return [];
+        }),
+        // «Busca rival» (P3-19): si el equipo publicó, se avisa arriba de todo.
+        fetchTeamRivalPost(teamId, viewerTeamId ?? null).catch((error: unknown) => {
+          Logger.warn('No se pudo cargar la publicación de Buscan rival; se omite', {
+            scope: 'team-stats.loadData',
+            teamId,
+            error,
+          });
+          return null;
+        }),
+      ]);
 
       if (!isRival || !viewerTeamId) {
-        return { data, badges, h2h: [] as H2HMatch[], challenged: false };
+        return { data, badges, rivalPost, h2h: [] as H2HMatch[], challenged: false };
       }
 
       const [h2h, challenged] = await Promise.all([
@@ -96,13 +110,14 @@ export default function TeamStatsScreen() {
         }),
       ]);
 
-      return { data, badges, h2h: h2h as H2HMatch[], challenged: challenged as boolean };
+      return { data, badges, rivalPost, h2h: h2h as H2HMatch[], challenged: challenged as boolean };
     };
 
     return fetchAll()
-      .then(({ data, badges, h2h, challenged }) => {
+      .then(({ data, badges, rivalPost, h2h, challenged }) => {
         setViewData(data);
         setTeamBadges(badges);
+        setRivalPost(rivalPost);
         setH2hMatches(h2h);
         setAlreadyChallenged(challenged);
       })
@@ -186,6 +201,7 @@ export default function TeamStatsScreen() {
       />
       <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 16, paddingBottom: 114 }}>
         <TeamHeader header={viewData.header} />
+        {rivalPost ? <RivalPostBanner post={rivalPost} /> : null}
         <TeamEloChart history={viewData.eloHistory} currentElo={viewData.header.prRating} />
         <TeamFormAndSeason form={viewData.form} season={viewData.season} />
         <TeamRecentMatches matches={viewData.recentMatches} />

@@ -2254,6 +2254,157 @@ export type Database = {
           },
         ]
       }
+      rival_post_alerts: {
+        Row: {
+          recipient_team_id: string
+          sent_at: string
+          source_team_id: string
+        }
+        Insert: {
+          recipient_team_id: string
+          sent_at?: string
+          source_team_id: string
+        }
+        Update: {
+          recipient_team_id?: string
+          sent_at?: string
+          source_team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rival_post_alerts_recipient_team_id_fkey"
+            columns: ["recipient_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_post_alerts_recipient_team_id_fkey"
+            columns: ["recipient_team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_post_alerts_source_team_id_fkey"
+            columns: ["source_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_post_alerts_source_team_id_fkey"
+            columns: ["source_team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rival_posts: {
+        Row: {
+          alerted_count: number
+          closed_at: string | null
+          created_by: string
+          days: number[]
+          expires_at: string
+          format: Database["public"]["Enums"]["team_format"]
+          match_date: string | null
+          match_time: string | null
+          match_type_pref: string
+          note: string | null
+          published_at: string
+          team_id: string
+          time_slots: string[]
+          venue_id: string | null
+          zone: string
+        }
+        Insert: {
+          alerted_count?: number
+          closed_at?: string | null
+          created_by: string
+          days?: number[]
+          expires_at: string
+          format: Database["public"]["Enums"]["team_format"]
+          match_date?: string | null
+          match_time?: string | null
+          match_type_pref?: string
+          note?: string | null
+          published_at?: string
+          team_id: string
+          time_slots?: string[]
+          venue_id?: string | null
+          zone: string
+        }
+        Update: {
+          alerted_count?: number
+          closed_at?: string | null
+          created_by?: string
+          days?: number[]
+          expires_at?: string
+          format?: Database["public"]["Enums"]["team_format"]
+          match_date?: string | null
+          match_time?: string | null
+          match_type_pref?: string
+          note?: string | null
+          published_at?: string
+          team_id?: string
+          time_slots?: string[]
+          venue_id?: string | null
+          zone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rival_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_player_stats"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "rival_posts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_posts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "v_team_ranking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_posts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "v_venues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_posts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       season_standings: {
         Row: {
           best_format: Database["public"]["Enums"]["team_format"] | null
@@ -3604,6 +3755,7 @@ export type Database = {
         Args: { p_profile_id: string; p_verified: boolean }
         Returns: undefined
       }
+      alert_rival_post: { Args: { p_team_id: string }; Returns: number }
       ambassador_bonus_allowed: {
         Args: { p_kind: string; p_profile_id: string }
         Returns: boolean
@@ -3700,6 +3852,7 @@ export type Database = {
         }
         Returns: string
       }
+      close_rival_post: { Args: { p_team_id: string }; Returns: undefined }
       compute_stint_stats: {
         Args: {
           p_from: string
@@ -4020,6 +4173,17 @@ export type Database = {
         Returns: undefined
       }
       fair_play_absence_penalty: { Args: { p_reason: string }; Returns: number }
+      format_gap: {
+        Args: {
+          p_a: Database["public"]["Enums"]["team_format"]
+          p_b: Database["public"]["Enums"]["team_format"]
+        }
+        Returns: number
+      }
+      geo_distance_km: {
+        Args: { p_lat1: number; p_lat2: number; p_lng1: number; p_lng2: number }
+        Returns: number
+      }
       get_disputed_matches: {
         Args: never
         Returns: {
@@ -4239,6 +4403,60 @@ export type Database = {
           zone: string
         }[]
       }
+      get_rival_post_team_ids: { Args: never; Returns: string[] }
+      get_rival_posts: {
+        Args: {
+          p_format?: Database["public"]["Enums"]["team_format"]
+          p_only_team_id?: string
+          p_viewer_team_id?: string
+          p_zone?: string
+        }
+        Returns: {
+          alerted_count: number
+          category: Database["public"]["Enums"]["team_category"]
+          days: number[]
+          distance_km: number
+          elo_rating: number
+          expires_at: string
+          format: Database["public"]["Enums"]["team_format"]
+          is_own: boolean
+          match_date: string
+          match_time: string
+          match_type_pref: string
+          matches_played: number
+          member_count: number
+          note: string
+          post_zone: string
+          published_at: string
+          shield_url: string
+          team_id: string
+          team_name: string
+          team_zone: string
+          time_slots: string[]
+          venue_id: string
+          venue_name: string
+          when_label: string
+        }[]
+      }
+      get_suggested_rivals: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: {
+          distance_km: number
+          elo_rating: number
+          has_rival_post: boolean
+          last_active_at: string
+          matches_played: number
+          member_count: number
+          preferred_format: Database["public"]["Enums"]["team_format"]
+          reasons: string[]
+          rival_post_when: string
+          score: number
+          shield_url: string
+          team_id: string
+          team_name: string
+          zone: string
+        }[]
+      }
       get_team_badges: {
         Args: { p_team_id: string }
         Returns: {
@@ -4389,6 +4607,21 @@ export type Database = {
       nudge_new_profiles: { Args: never; Returns: number }
       nudge_solo_team_captains: { Args: never; Returns: number }
       public_ambassador_board: { Args: { p_limit?: number }; Returns: Json }
+      publish_rival_post: {
+        Args: {
+          p_days?: number[]
+          p_format: Database["public"]["Enums"]["team_format"]
+          p_match_date?: string
+          p_match_time?: string
+          p_match_type_pref?: string
+          p_note?: string
+          p_team_id: string
+          p_time_slots?: string[]
+          p_venue_id?: string
+          p_zone: string
+        }
+        Returns: Json
+      }
       recalculate_team_fps: { Args: { p_team_id: string }; Returns: undefined }
       remove_team_member: {
         Args: { p_profile_id: string; p_team_id: string }
@@ -4425,6 +4658,15 @@ export type Database = {
         Returns: undefined
       }
       retry_pending_pushes: { Args: { p_limit?: number }; Returns: number }
+      rival_post_when: {
+        Args: {
+          p_days: number[]
+          p_match_date: string
+          p_match_time: string
+          p_slots: string[]
+        }
+        Returns: string
+      }
       save_own_profile: {
         Args: {
           p_date_of_birth: string
@@ -4620,6 +4862,14 @@ export type Database = {
       verify_push_webhook_secret: {
         Args: { p_candidate: string }
         Returns: boolean
+      }
+      zone_centroids: {
+        Args: never
+        Returns: {
+          lat: number
+          lng: number
+          zone_name: string
+        }[]
       }
     }
     Enums: {

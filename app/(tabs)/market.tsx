@@ -1,11 +1,14 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { GlobalHeader } from '@/components/GlobalHeader';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { MarketTabs } from '@/components/market/MarketTabs';
 import { MarketListSection } from '@/components/market/MarketListSection';
+import { RivalPostsSection } from '@/components/rival/RivalPostsSection';
+import { fetchRivalPosts, type RivalPost } from '@/lib/rival-posts-api';
+import { filterRivalPostsByDay } from '@/lib/rival-posts-utils';
 import { FilterModal } from '@/components/market/FilterModal';
 import { UserActionsSheet } from '@/components/moderation/UserActionsSheet';
 import { ReportModal } from '@/components/reports/ReportModal';
@@ -28,6 +31,13 @@ import {
   MarketApplicationError,
 } from '@/lib/market-applications-api';
 
+/** Bajo las pestañas: qué hay en la lista activa y qué hacer con ella. */
+const TAB_HINTS: Record<TabType, { title: string; detail: string }> = {
+  TEAMS_LOOKING: { title: 'Les falta uno', detail: 'Equipos que buscan jugadores. Postulate y jugá.' },
+  PLAYERS_LOOKING: { title: 'Jugadores libres', detail: 'Gente que busca equipo. Sumalos al tuyo.' },
+  RIVALS_LOOKING: { title: 'Están para jugar', detail: 'Equipos que buscan rival. Mirá su ficha y desafialos.' },
+};
+
 export default function MarketScreen() {
   const { profile } = useAuth();
   const { showAlert, showLoader, hideLoader } = useUI();
@@ -37,6 +47,20 @@ export default function MarketScreen() {
   const activeTeamId = useTeamStore((state) => state.activeTeamId);
 
   const [activeTab, setActiveTab] = useState<TabType>('TEAMS_LOOKING');
+
+  // `?tab=rivales&ts=…` (Inicio › Buscar rival) abre la pestaña nueva. Se
+  // ajusta durante el render, una vez por nonce: los params quedan pegados a
+  // la tab, y sin `ts` una segunda entrada desde el Inicio no la reabriría.
+  const { tab: tabParam, ts: tabNonce } = useLocalSearchParams<{ tab?: string; ts?: string }>();
+  const tabParamKey = tabParam ? `${tabParam}:${tabNonce ?? ''}` : undefined;
+  const [appliedTabParam, setAppliedTabParam] = useState<string | undefined>(undefined);
+  if (tabParamKey !== appliedTabParam) {
+    setAppliedTabParam(tabParamKey);
+    if (tabParam === 'rivales') setActiveTab('RIVALS_LOOKING');
+  }
+
+  const [rivalPosts, setRivalPosts] = useState<RivalPost[]>([]);
+  const [rivalLoading, setRivalLoading] = useState(true);
 
   const [filterZone, setFilterZone] = useState<string | null>(null);
   const [filterDays, setFilterDays] = useState<string[]>([]);
@@ -125,8 +149,39 @@ export default function MarketScreen() {
     }, [loadMarketData])
   );
 
+  // Buscan rival: se pide sólo con la pestaña abierta, ordenado por cercanía
+  // al equipo activo. El filtro de zona del Mercado se aplica en el servidor.
+  const loadRivalPosts = useCallback(async () => {
+    if (!profile) return;
+    try {
+      const posts = await fetchRivalPosts(activeTeamId, { zone: filterZone });
+      setRivalPosts(posts);
+    } catch (err) {
+      Logger.error('No se pudo cargar Buscan rival', {
+        scope: 'market.loadRivalPosts',
+        profileId: profile.id,
+        activeTeamId,
+        error: err,
+      });
+      showAlert('Error', 'No se pudieron cargar los equipos que buscan rival.');
+    } finally {
+      setRivalLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [profile, activeTeamId, filterZone, showAlert]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab === 'RIVALS_LOOKING') void loadRivalPosts();
+    }, [activeTab, loadRivalPosts])
+  );
+
   const onRefresh = () => {
     setIsRefreshing(true);
+    if (activeTab === 'RIVALS_LOOKING') {
+      void loadRivalPosts();
+      return;
+    }
     void loadMarketData(false);
   };
 
@@ -140,7 +195,36 @@ export default function MarketScreen() {
     );
   };
 
+  // Buscan rival: publica el equipo activo si lo gestiona; si no, el primero
+  // que gestione (misma regla que las postulaciones, ver M7 más abajo).
+  const handlePublishRivalPost = () => {
+    const team = viewData
+      ? resolveApplicantTeam(viewData.managedTeams, activeTeamId, activeCaptainTeamId)
+      : null;
+    if (!team) {
+      showCaptainOnlyNotice();
+      return;
+    }
+    router.push({ pathname: '/(modals)/rival-post-create', params: { teamId: team.id } });
+  };
+
+  const handlePressRivalPost = (post: RivalPost) => {
+    if (post.isOwn) {
+      router.push({ pathname: '/(modals)/rival-post-create', params: { teamId: post.teamId } });
+      return;
+    }
+    router.push({
+      pathname: '/team-stats',
+      params: { teamId: post.teamId, viewerTeamId: activeTeamId ?? '' },
+    });
+  };
+
   const handleCreatePost = () => {
+    if (activeTab === 'RIVALS_LOOKING') {
+      handlePublishRivalPost();
+      return;
+    }
+
     const isTeamCreationFlow = activeTab === 'TEAMS_LOOKING';
     const canCreateTeamPost = (viewData?.managedTeams?.length ?? 0) > 0;
 
@@ -368,7 +452,9 @@ export default function MarketScreen() {
   const teamPosts = filterDays.length > 0 ? filterPostsByDay(rawTeamPosts, filterDays) : rawTeamPosts;
   const posts = activeTab === 'TEAMS_LOOKING' ? teamPosts : (viewData?.playerPosts ?? []);
   const canCreateTeamPost = (viewData?.managedTeams?.length ?? 0) > 0;
+  // En Buscan rival el + se ve siempre: sin rango, explica por qué no puede.
   const showCreateButton = activeTab === 'TEAMS_LOOKING' ? canCreateTeamPost : true;
+  const visibleRivalPosts = filterRivalPostsByDay(rivalPosts, filterDays);
 
   const hasActiveFilters = filterZone !== null || filterDays.length > 0 || filterSort !== 'recent';
 
@@ -376,9 +462,21 @@ export default function MarketScreen() {
     <View className="flex-1 bg-surface-base">
       <GlobalHeader isMarketTab />
       <View className="px-4 pt-4 pb-2 z-10">
-        <View className="flex-row items-center gap-2 mb-6">
+        {/* Con tres pestañas, compartir la fila con los botones cortaba
+            «Buscan jugador» y «Buscan equipo»: las pestañas van solas y los
+            botones bajan a la línea que explica la lista activa. */}
+        <MarketTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <View className="mb-4 mt-3 flex-row items-center gap-2">
           <View className="flex-1">
-            <MarketTabs activeTab={activeTab} onTabChange={setActiveTab} />
+            <View className="flex-row items-center gap-1.5">
+              <View className="h-2 w-2 rounded-full bg-brand-primary" />
+              <Text className="font-displayBlack text-xl uppercase leading-6 text-neutral-on-surface" numberOfLines={1}>
+                {TAB_HINTS[activeTab].title}
+              </Text>
+            </View>
+            <Text className="font-ui text-xs text-neutral-on-surface-variant" numberOfLines={2}>
+              {TAB_HINTS[activeTab].detail}
+            </Text>
           </View>
           {/* M4 — Entrada a "Mis postulaciones". El postulante no tenía dónde
               ver el estado de lo que mandó: el estado se escribía bien desde
@@ -387,7 +485,7 @@ export default function MarketScreen() {
             activeOpacity={0.8}
             onPress={() => router.push('/market-my-applications')}
             accessibilityLabel="Mis postulaciones"
-            className="h-[48px] w-[48px] items-center justify-center rounded-xl border border-transparent bg-surface-low"
+            className="h-[44px] w-[44px] items-center justify-center rounded-xl border border-transparent bg-surface-low"
           >
             <AppIcon family="material-community" name="send-check-outline" size={20} color="#BCCBB9" />
           </TouchableOpacity>
@@ -395,7 +493,8 @@ export default function MarketScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => setShowFilterModal(true)}
-            className={`h-[48px] w-[48px] items-center justify-center rounded-xl border ${hasActiveFilters ? 'border-brand-primary/30 bg-brand-primary/10' : 'border-transparent bg-surface-low'
+            accessibilityLabel="Filtros"
+            className={`h-[44px] w-[44px] items-center justify-center rounded-xl border ${hasActiveFilters ? 'border-brand-primary/30 bg-brand-primary/10' : 'border-transparent bg-surface-low'
               }`}
           >
             <AppIcon family="material-community" name="tune" size={20} color={hasActiveFilters ? '#53E076' : '#BCCBB9'} />
@@ -404,6 +503,17 @@ export default function MarketScreen() {
       </View>
 
       <View className="flex-1 px-4 z-0">
+        {activeTab === 'RIVALS_LOOKING' ? (
+          <RivalPostsSection
+            posts={visibleRivalPosts}
+            isLoading={rivalLoading && !isRefreshing}
+            isRefreshing={isRefreshing}
+            canPublish={canCreateTeamPost}
+            onRefresh={onRefresh}
+            onPressPost={handlePressRivalPost}
+            onPublish={handlePublishRivalPost}
+          />
+        ) : (
         <MarketListSection
           isLoading={loading && !isRefreshing}
           isRefreshing={isRefreshing}
@@ -422,6 +532,7 @@ export default function MarketScreen() {
           applicationCounts={applicationCounts}
           resolveDistanceLabel={distanceLabel}
         />
+        )}
       </View>
 
       {showCreateButton ? (

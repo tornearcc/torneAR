@@ -6,6 +6,8 @@ interface Props {
     entry: RivalTeamEntry;
     onPress: (teamId: string) => void;
     canChallenge: boolean;
+    /** Tiene «Buscan rival» vigente (P3-19). */
+    seekingRival?: boolean;
 }
 
 const FORMAT_SHORT: Record<string, string> = {
@@ -16,7 +18,7 @@ const CAT_SHORT: Record<string, string> = {
     HOMBRES: 'Hombres', MUJERES: 'Mujeres', MIXTO: 'Mixto',
 };
 
-export function RivalTeamCard({ entry, onPress, canChallenge }: Props) {
+export function RivalTeamCard({ entry, onPress, canChallenge, seekingRival = false }: Props) {
     return (
         <TouchableOpacity activeOpacity={0.85} onPress={() => onPress(entry.teamId)} className="mb-2.5 rounded-[18px] bg-surface-container p-3.5">
             <View className="mb-3 flex-row items-center gap-3">
@@ -37,6 +39,9 @@ export function RivalTeamCard({ entry, onPress, canChallenge }: Props) {
                     <Text className="mt-0.5 font-ui text-[11px] text-neutral-on-surface-variant">
                         {entry.zone} · {FORMAT_SHORT[entry.preferredFormat] || entry.preferredFormat} · {CAT_SHORT[entry.category] || entry.category}
                     </Text>
+                    {seekingRival ? (
+                        <Text className="mt-0.5 font-uiBold text-[11px] text-brand-primary">● Busca rival</Text>
+                    ) : null}
                 </View>
 
                 <View className="items-end">

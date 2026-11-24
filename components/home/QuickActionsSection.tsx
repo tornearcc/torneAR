@@ -10,19 +10,20 @@ interface QuickAction {
 }
 
 interface Props {
-  onGoToRanking: () => void;
+  /** Mercado › Buscan rival (P3-19). Antes era «Desafiar rival» → Ranking. */
+  onFindRival: () => void;
   onGoToMarket: () => void;
   onManageTeam: () => void;
 }
 
-export function QuickActionsSection({ onGoToRanking, onGoToMarket, onManageTeam }: Props) {
+export function QuickActionsSection({ onFindRival, onGoToMarket, onManageTeam }: Props) {
   const actions: QuickAction[] = [
     {
-      icon: 'sword-cross',
-      label: 'Desafiar\nrival',
+      icon: 'magnify',
+      label: 'Buscar\nrival',
       color: '#53E076',
       bg: '#53E07620',
-      onPress: onGoToRanking,
+      onPress: onFindRival,
     },
     {
       icon: 'store-search',
