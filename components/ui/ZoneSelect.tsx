@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { AppIcon } from '@/components/ui/AppIcon';
+import { MissingPlaceLink } from '@/components/ui/MissingPlaceLink';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
 import { useBottomInset } from '@/hooks/useBottomInset';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
@@ -389,11 +390,21 @@ export function ZoneSelectSheet({
              dejar filas en blanco al scrollear rápido. */
           removeClippedSubviews={Platform.OS === 'android'}
           ListEmptyComponent={
-            <View className="items-center justify-center px-8" style={{ height: listHeight }}>
+            <View className="justify-center gap-4 px-6" style={{ height: listHeight }}>
               <Text className="font-ui text-center text-sm text-neutral-on-surface-variant">
                 No encontramos ninguna zona con “{query.trim()}”.
               </Text>
+              {/* Antes, el que no encontraba su ciudad (sobre todo en el
+                  registro) abandonaba sin que nos enteráramos. */}
+              <MissingPlaceLink kind="zona" surface="zone_select" query={query} variant="card" />
             </View>
+          }
+          ListFooterComponent={
+            rows.length > 0 ? (
+              <View className="px-5 pb-2 pt-1">
+                <MissingPlaceLink kind="zona" surface="zone_select" query={hasQuery ? query : null} />
+              </View>
+            ) : null
           }
         />
       )}

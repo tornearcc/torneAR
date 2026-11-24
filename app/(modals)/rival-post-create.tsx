@@ -17,6 +17,7 @@ import { AppDateTimePicker } from '@/components/ui/AppDateTimePicker';
 import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { ZoneSelectSheet } from '@/components/ui/ZoneSelect';
+import { MissingPlaceLink } from '@/components/ui/MissingPlaceLink';
 import { useAuth } from '@/context/AuthContext';
 import { useUI } from '@/context/UIContext';
 import { useTeamStore } from '@/stores/teamStore';
@@ -402,9 +403,14 @@ export default function RivalPostCreateModal() {
               {loadingVenues ? (
                 <ActivityIndicator size="small" color="#53E076" style={{ alignSelf: 'flex-start' }} />
               ) : venues.length === 0 ? (
-                <Text className="font-ui text-xs text-neutral-outline">
-                  {zone ? 'No hay canchas cargadas en esta zona.' : 'Elegí una zona para ver sus canchas.'}
-                </Text>
+                <View className="gap-2">
+                  <Text className="font-ui text-xs text-neutral-outline">
+                    {zone ? 'No hay canchas cargadas en esta zona.' : 'Elegí una zona para ver sus canchas.'}
+                  </Text>
+                  {zone ? (
+                    <MissingPlaceLink kind="cancha" surface="rival_post_create" zone={zone} variant="card" />
+                  ) : null}
+                </View>
               ) : (
                 <View className="gap-2">
                   {venues.map((venue) => {
@@ -434,6 +440,7 @@ export default function RivalPostCreateModal() {
                       </TouchableOpacity>
                     );
                   })}
+                  <MissingPlaceLink kind="cancha" surface="rival_post_create" zone={zone} />
                 </View>
               )}
             </View>
