@@ -238,7 +238,8 @@ export default function TeamManageScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        // Igual que el avatar (useAvatarUpload): 0.5 para bajar el peso sin módulo nativo.
+        quality: 0.5,
       });
 
       if (result.canceled || !result.assets[0]) return;
