@@ -9,6 +9,7 @@ import { SecondaryHeader } from '@/components/ui/SecondaryHeader';
 import { HeroButton } from '@/components/ui/HeroButton';
 import { PitchSelector } from '@/components/ui/PitchSelector';
 import { ZoneSelectSheet } from '@/components/ui/ZoneSelect';
+import { MissingPlaceLink } from '@/components/ui/MissingPlaceLink';
 import { ActiveTeamSelector } from '@/components/ui/ActiveTeamSelector';
 import { useAuth } from '@/context/AuthContext';
 import { useUI } from '@/context/UIContext';
@@ -374,8 +375,11 @@ export default function MarketCreateModal() {
                   loadingVenues ? (
                     <ActivityIndicator size="small" color="#53E076" style={{ alignSelf: 'flex-start', marginTop: 4 }} />
                   ) : venues.length === 0 ? (
-                    <View className="bg-surface-high p-3 rounded-lg">
-                      <Text className="font-ui text-sm text-[#88998D]">Sin complejos registrados en esta zona</Text>
+                    <View className="gap-2">
+                      <View className="bg-surface-high p-3 rounded-lg">
+                        <Text className="font-ui text-sm text-[#88998D]">Sin complejos registrados en esta zona</Text>
+                      </View>
+                      <MissingPlaceLink kind="cancha" surface="market_create" zone={zone} variant="card" />
                     </View>
                   ) : (
                     <View className="gap-2">
@@ -417,6 +421,7 @@ export default function MarketCreateModal() {
                           </View>
                         </TouchableOpacity>
                       ))}
+                      <MissingPlaceLink kind="cancha" surface="market_create" zone={zone} />
                     </View>
                   )
                 ) : (

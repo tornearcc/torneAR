@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { MissingPlaceLink } from '@/components/ui/MissingPlaceLink';
 import { Logger } from '@/lib/logger';
 
 type ProfileSocialSectionProps = {
@@ -119,6 +120,17 @@ export function ProfileSocialSection({ onError }: ProfileSocialSectionProps) {
             </TouchableOpacity>
           ))}
         </View>
+      </View>
+
+      {/* Pedido de zona o cancha por Instagram (D-75: se cargan a mano). */}
+      <View className="mt-3">
+        <MissingPlaceLink
+          kind="zona"
+          surface="profile"
+          variant="card"
+          title="¿Falta tu ciudad o tu cancha?"
+          detail="Escribinos por Instagram y la sumamos."
+        />
       </View>
     </View>
   );
