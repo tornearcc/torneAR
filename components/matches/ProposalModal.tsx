@@ -12,6 +12,7 @@ import { AppDateTimePicker } from '@/components/ui/AppDateTimePicker';
 import { useDistanceResolver } from '@/hooks/useDistanceResolver';
 import { SafeAreaBottomSheet } from '@/components/ui/SafeAreaBottomSheet';
 import { ZoneSelectSheet, ZoneSelectTrigger } from '@/components/ui/ZoneSelect';
+import { MissingPlaceLink } from '@/components/ui/MissingPlaceLink';
 import type { ZoneOption } from '@/components/ui/ZoneSelect';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { getProposalErrorMessage } from '@/lib/match-actions';
@@ -426,10 +427,13 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
           Zona
         </Text>
         {zonesLoaded && zones.length === 0 ? (
-          <View className="mb-4 rounded-xl bg-surface-high px-4 py-3">
-            <Text className="font-ui text-sm text-neutral-on-surface-variant">
-              Todavía no hay zonas con complejos cargados.
-            </Text>
+          <View className="mb-4 gap-2">
+            <View className="rounded-xl bg-surface-high px-4 py-3">
+              <Text className="font-ui text-sm text-neutral-on-surface-variant">
+                Todavía no hay zonas con complejos cargados.
+              </Text>
+            </View>
+            <MissingPlaceLink kind="cancha" surface="proposal" variant="card" />
           </View>
         ) : (
           <View className="mb-4">
@@ -511,6 +515,7 @@ export function ProposalModal({ visible, matchType = 'RANKING', onClose, onSubmi
                 ))}
               </View>
             )}
+            <MissingPlaceLink kind="cancha" surface="proposal" zone={selectedZoneName} />
             <View className="mb-4" />
           </>
         )}
