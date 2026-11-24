@@ -25,6 +25,8 @@ import { RivalSearchBar } from '@/components/ranking/RivalSearchBar';
 import { RivalTeamCard } from '@/components/ranking/RivalTeamCard';
 import { PlayerLeaderboard } from '@/components/ranking/PlayerLeaderboard';
 import { RankingContextChips, buildRankingChips } from '@/components/ranking/RankingContextChips';
+import { SuggestedRivalsStrip } from '@/components/rival/SuggestedRivalsStrip';
+import { fetchRivalPostTeamIds, fetchSuggestedRivals, type SuggestedRival } from '@/lib/rival-posts-api';
 
 // Ventana de espera antes de pegarle a la BD mientras el usuario tipea. Un nombre
 // de 12 caracteres pasaba de 12 requests a 1.
@@ -38,11 +40,24 @@ export default function RankingScreen() {
   // Contexto con el que llega el usuario desde el widget del Inicio. `ts` es el
   // nonce que emite la Home: identifica CADA navegación, y es lo que permite
   // re-aplicar el contexto sin pisar los filtros que el usuario toca a mano.
-  const { zone: zoneParam, category: categoryParam, format: formatParam, ts: tsParam } =
-    useLocalSearchParams<{ zone?: string; category?: string; format?: string; ts?: string }>();
+  const { zone: zoneParam, category: categoryParam, format: formatParam, ts: tsParam, mode: modeParam } =
+    useLocalSearchParams<{ zone?: string; category?: string; format?: string; ts?: string; mode?: string }>();
 
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<RankingMode>('RANKING');
+
+  // `?mode=rivales&ts=…` (Inicio › «Rivales para vos» › Ver más) abre Buscar
+  // rival. Se aplica una vez por nonce, ajustando durante el render.
+  const [appliedModeNonce, setAppliedModeNonce] = useState<string | undefined>(undefined);
+  if (modeParam === 'rivales' && tsParam !== appliedModeNonce) {
+    setAppliedModeNonce(tsParam);
+    setMode('RIVALES');
+  }
+
+  // «Rival sugerido» y el punto verde de «Buscan rival» (P3-19, D-76).
+  const [suggestedRivals, setSuggestedRivals] = useState<SuggestedRival[]>([]);
+  const [suggestionsKey, setSuggestionsKey] = useState<string | null>(null);
+  const [seekingRivalIds, setSeekingRivalIds] = useState<Set<string>>(new Set());
 
   const [filters, setFilters] = useState<RankingFiltersState>({
     zone: null, category: null, format: null, rivalesIdeales: false,
@@ -87,8 +102,60 @@ export default function RankingScreen() {
   const searchRequestRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeRole = myTeams.find(t => t.id === activeTeamId)?.role;
+  const activeTeam = myTeams.find(t => t.id === activeTeamId);
+  const activeRole = activeTeam?.role;
   const canChallenge = activeRole === 'CAPITAN' || activeRole === 'SUBCAPITAN';
+
+  // Sugeridos: se piden al entrar a Buscar rival, una vez por equipo activo y
+  // por refresco de foco. `loading` se deriva de si la respuesta de esta clave
+  // ya llegó (las escrituras viven en los callbacks, no en el cuerpo del efecto).
+  const suggestionsRequestKey = activeTeamId ? `${activeTeamId}:${refreshToken}` : null;
+  const suggestionsLoading =
+    mode === 'RIVALES' && suggestionsRequestKey !== null && suggestionsKey !== suggestionsRequestKey;
+
+  useEffect(() => {
+    if (mode !== 'RIVALES' || !activeTeamId || !suggestionsRequestKey) return;
+    let cancelled = false;
+    fetchSuggestedRivals(activeTeamId, 10)
+      .then((rows) => {
+        if (!cancelled) setSuggestedRivals(rows);
+      })
+      .catch((error: unknown) => {
+        Logger.warn('No se pudieron cargar los rivales sugeridos; se ocultan', {
+          scope: 'ranking.suggestedRivals',
+          activeTeamId,
+          error,
+        });
+        if (!cancelled) setSuggestedRivals([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSuggestionsKey(suggestionsRequestKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, activeTeamId, suggestionsRequestKey]);
+
+  // Punto verde: equipos con «Buscan rival» vigente. Se refresca en cada foco.
+  useEffect(() => {
+    let cancelled = false;
+    fetchRivalPostTeamIds()
+      .then((ids) => {
+        if (!cancelled) setSeekingRivalIds(ids);
+      })
+      .catch((error: unknown) => {
+        Logger.warn('No se pudieron cargar los equipos que buscan rival', {
+          scope: 'ranking.seekingRivalIds',
+          error,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshToken]);
+
+  const openTeamStats = (id: string) =>
+    router.push({ pathname: '/team-stats', params: { teamId: id, viewerTeamId: activeTeamId || '' } });
 
   // ── 1) Bootstrap: temporada, zonas, ELO y filtros por defecto del equipo ─────
   // Corre UNA sola vez por `activeTeamId`. Es el unico punto que llama a
@@ -468,7 +535,8 @@ export default function RankingScreen() {
               <>
                 <RankingTable
                   entries={rankingEntries}
-                  onTeamPress={(id: string) => router.push({ pathname: '/team-stats', params: { teamId: id, viewerTeamId: activeTeamId || '' } })}
+                  seekingRivalIds={seekingRivalIds}
+                  onTeamPress={openTeamStats}
                   hasActiveFilters={hasActiveFilters}
                   onClearFilters={() => handleApplyFilters({ zone: null, category: null, format: null, rivalesIdeales: false })}
                   onSeeAll={() => openFullTable('teams')}
@@ -490,6 +558,14 @@ export default function RankingScreen() {
         {/* MODO RIVALES */}
         {mode === 'RIVALES' && (
           <>
+            {activeTeamId ? (
+              <SuggestedRivalsStrip
+                rivals={suggestedRivals}
+                loading={suggestionsLoading}
+                teamName={activeTeam?.name ?? null}
+                onPress={openTeamStats}
+              />
+            ) : null}
             <RivalSearchBar value={searchQuery} onChangeText={handleSearchQueryChange} />
 
             {searchLoading ? (
@@ -507,7 +583,8 @@ export default function RankingScreen() {
                     key={entry.teamId}
                     entry={entry}
                     canChallenge={canChallenge}
-                    onPress={(id) => router.push({ pathname: '/team-stats', params: { teamId: id, viewerTeamId: activeTeamId || '' } })}
+                    seekingRival={seekingRivalIds.has(entry.teamId)}
+                    onPress={openTeamStats}
                   />
                 ))}
               </View>

@@ -16,9 +16,11 @@ interface Props {
      * el índice y la fila 100 tardaría 5 s en aparecer.
      */
     animated?: boolean;
+    /** Tiene «Buscan rival» vigente: punto verde junto al nombre (P3-19). */
+    seekingRival?: boolean;
 }
 
-export function RankingTeamRow({ entry, onPress, index = 0, animated = true }: Props) {
+export function RankingTeamRow({ entry, onPress, index = 0, animated = true, seekingRival = false }: Props) {
     const podium = podiumColor(entry.rankPosition);
     const isTop3 = podium !== null;
     const posColor = podium ?? '#869585';
@@ -98,6 +100,7 @@ export function RankingTeamRow({ entry, onPress, index = 0, animated = true }: P
                     {entry.teamName} {entry.isMyTeam && '★'}
                 </Text>
                 <Text className="font-ui text-[10px] text-neutral-on-surface-variant" numberOfLines={1}>
+                    {seekingRival ? <Text className="font-uiBold text-brand-primary">● Busca rival · </Text> : null}
                     {entry.seasonWins}V · {entry.seasonLosses}D · {entry.seasonDraws}E
                 </Text>
             </View>

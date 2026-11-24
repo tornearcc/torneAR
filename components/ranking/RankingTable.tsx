@@ -14,9 +14,11 @@ interface Props {
     hasActiveFilters?: boolean;
     /** Abre la tabla completa. Sólo se ofrece si hay más filas que el top. */
     onSeeAll?: () => void;
+    /** Equipos con «Buscan rival» vigente (punto verde). */
+    seekingRivalIds?: Set<string>;
 }
 
-export function RankingTable({ entries, onTeamPress, topLimit = 5, onClearFilters, hasActiveFilters, onSeeAll }: Props) {
+export function RankingTable({ entries, onTeamPress, topLimit = 5, onClearFilters, hasActiveFilters, onSeeAll, seekingRivalIds }: Props) {
     if (entries.length === 0) {
         return (
             <View>
@@ -55,7 +57,13 @@ export function RankingTable({ entries, onTeamPress, topLimit = 5, onClearFilter
             <RankingColumnsHeader />
 
             {topTeams.map((entry, index) => (
-                <RankingTeamRow key={entry.teamId} entry={entry} onPress={onTeamPress} index={index} />
+                <RankingTeamRow
+                    key={entry.teamId}
+                    entry={entry}
+                    onPress={onTeamPress}
+                    index={index}
+                    seekingRival={seekingRivalIds?.has(entry.teamId) ?? false}
+                />
             ))}
 
             {isMyTeamOutsideTop && myTeam && (
@@ -67,7 +75,13 @@ export function RankingTable({ entries, onTeamPress, topLimit = 5, onClearFilter
                         </Text>
                         <View className="h-px flex-1 bg-surface-high" />
                     </View>
-                    <RankingTeamRow key={myTeam.teamId} entry={myTeam} onPress={onTeamPress} index={topTeams.length} />
+                    <RankingTeamRow
+                        key={myTeam.teamId}
+                        entry={myTeam}
+                        onPress={onTeamPress}
+                        index={topTeams.length}
+                        seekingRival={seekingRivalIds?.has(myTeam.teamId) ?? false}
+                    />
                 </View>
             )}
 

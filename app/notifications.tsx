@@ -223,8 +223,10 @@ export default function NotificationsScreen() {
           // sweep_ambassador_rewards) lleva a la pantalla del embajador.
           // Los avisos a cuentas nuevas sin equipo (`kind: 'new_profile_nudge'`,
           // nudge_new_profiles) traen su destino en `url`.
+          // «Buscan rival» (`kind: 'rival_post'`, alert_rival_post) abre la
+          // ficha del equipo que publicó, con la `url` que arma el servidor.
           if (maybeData.kind === 'ambassador_reward') router.push('/ambassador');
-          else if (maybeData.kind === 'new_profile_nudge') {
+          else if (maybeData.kind === 'new_profile_nudge' || maybeData.kind === 'rival_post') {
             const href = typeof maybeData.url === 'string' ? deepLinkToHref(maybeData.url) : null;
             if (href) router.push(href);
           } else if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });

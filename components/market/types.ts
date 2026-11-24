@@ -1,6 +1,7 @@
 import { MarketTeamPost, MarketPlayerPost, ManagedTeam } from '@/lib/market-api';
 
-export type TabType = 'TEAMS_LOOKING' | 'PLAYERS_LOOKING';
+/** RIVALS_LOOKING: «Buscan rival» (P3-19, D-76), la vidriera de equipos para jugar. */
+export type TabType = 'TEAMS_LOOKING' | 'PLAYERS_LOOKING' | 'RIVALS_LOOKING';
 
 export type MarketViewData = {
   teamPosts: MarketTeamPost[];

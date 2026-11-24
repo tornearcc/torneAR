@@ -75,6 +75,11 @@ select set_eq(
       -- borra, sus filas de ranking no le sirven a nadie (a diferencia de
       -- matches/match_results, que le pertenecen también al rival).
       ('team_rankings_team_id_fkey => CASCADE'),
+      -- «Buscan rival» (20261125120000): la publicación y sus avisos sólo
+      -- tienen sentido mientras exista el equipo.
+      ('rival_posts_team_id_fkey => CASCADE'),
+      ('rival_post_alerts_recipient_team_id_fkey => CASCADE'),
+      ('rival_post_alerts_source_team_id_fkey => CASCADE'),
       -- Las mudanzas de zona (D-55, 20260928240000) sólo sirven para el
       -- candado del propio equipo: disuelto el equipo, no hay nada que auditar.
       -- La zona al cierre de cada temporada vive aparte, en season_standings.
