@@ -67,7 +67,11 @@ export function useAvatarUpload({ profileId, authUserId, showAlert, onUploaded, 
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1], // Cuadrado
-        quality: 0.8,
+        // 0.5 y no 0.8: el picker no achica la resolución, así que la calidad es
+        // lo único que baja el peso sin un módulo nativo. Al 24/11 los avatares
+        // promediaban 441 KB (p90 1,3 MB) para mostrarse a 40-100 px. El achique
+        // real (512 px con expo-image-manipulator) necesita build nueva.
+        quality: 0.5,
       });
 
       if (!result.canceled && result.assets[0]) {
