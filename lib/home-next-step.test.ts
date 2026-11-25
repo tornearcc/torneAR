@@ -73,6 +73,14 @@ describe('resolveHomeNextStep', () => {
   it('equipo completo y nada pendiente → buscar rival', () => {
     expect(resolveHomeNextStep(data())).toEqual({ kind: 'FIND_RIVAL' });
   });
+
+  it('un jugador que no es capitán no puede desafiar: le pide al capitán (spec §8.3)', () => {
+    expect(resolveHomeNextStep(data({ myTeams: [{ ...team, role: 'JUGADOR' }] }))).toEqual({ kind: 'ASK_CAPTAIN', teamName: 'Los Pibes' });
+  });
+
+  it('el subcapitán sí desafía', () => {
+    expect(resolveHomeNextStep(data({ myTeams: [{ ...team, role: 'SUBCAPITAN' }] }))).toEqual({ kind: 'FIND_RIVAL' });
+  });
 });
 
 describe('resolveJourney', () => {

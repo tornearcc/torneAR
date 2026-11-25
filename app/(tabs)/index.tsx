@@ -201,7 +201,7 @@ export default function HomeScreen() {
 
   const nextMatch = next?.kind === 'NEXT_MATCH' ? next.match : null;
   const matchDateLabel = nextMatch ? (nextMatch.scheduledAt ? formatMatchDate(nextMatch.scheduledAt) : 'Sin fecha todavía') : undefined;
-  const showRivals = next?.kind === 'FIND_RIVAL' || next?.kind === 'NEXT_MATCH';
+  const showRivals = next?.kind === 'FIND_RIVAL' || next?.kind === 'NEXT_MATCH' || next?.kind === 'ASK_CAPTAIN';
 
   return (
     <View className="flex-1 bg-surface-base">

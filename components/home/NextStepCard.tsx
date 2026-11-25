@@ -130,6 +130,15 @@ function Body({ next, onAction, matchDateLabel }: Props) {
       );
     }
 
+    case 'ASK_CAPTAIN':
+      return (
+        <View>
+          <Title>Listos para jugar</Title>
+          <Detail>{`Los desafíos los manda el capitán de ${next.teamName}. Pedile que busque rival; mientras, mirá a quién podrían enfrentar.`}</Detail>
+          <PrimaryButton label="Ver rivales" onPress={() => onAction('find_rival')} />
+        </View>
+      );
+
     case 'FIND_RIVAL':
       return (
         <View>

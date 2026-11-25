@@ -35,7 +35,9 @@ export type HomeNextStep =
   | { kind: 'TEAM_REQUEST'; action: PendingAction }
   | { kind: 'COMPLETE_TEAM'; team: HomeIncompleteTeam }
   | { kind: 'MARKET_APPLICATION'; action: PendingAction }
-  | { kind: 'FIND_RIVAL' };
+  | { kind: 'FIND_RIVAL' }
+  /** Solo el capitán o el subcapitán desafían: el resto le pide al capitán (spec §8.3). */
+  | { kind: 'ASK_CAPTAIN'; teamName: string };
 
 type NextStepInput = Pick<HomeViewData, 'myTeams' | 'upcomingMatches' | 'pendingActions' | 'incompleteTeam'>;
 
@@ -60,6 +62,9 @@ export function resolveHomeNextStep(data: NextStepInput): HomeNextStep {
 
   const application = data.pendingActions.find((a) => a.type === 'MARKET_APPLICATION');
   if (application) return { kind: 'MARKET_APPLICATION', action: application };
+
+  const canChallenge = data.myTeams.some((t) => t.role === 'CAPITAN' || t.role === 'SUBCAPITAN');
+  if (!canChallenge) return { kind: 'ASK_CAPTAIN', teamName: data.myTeams[0].name };
 
   return { kind: 'FIND_RIVAL' };
 }
