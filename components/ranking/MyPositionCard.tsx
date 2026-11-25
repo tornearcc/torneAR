@@ -37,7 +37,7 @@ export function MyPositionCard({ entries, activeTeamName, onPress }: Props) {
           {mine ? mine.teamName : activeTeamName}
         </Text>
         <Text className="font-ui mt-1 text-[13px] text-neutral-on-surface-variant">
-          {mine ? `${mine.eloRating} puntos · ${mine.matchesPlayed} PJ` : 'Todavía no aparece en esta tabla: jugá tu primer partido por el ranking.'}
+          {mine ? `Rating ${mine.eloRating} · ${mine.matchesPlayed} PJ` : 'Todavía no aparece en esta tabla: jugá tu primer partido por el ranking.'}
         </Text>
       </View>
     </TouchableOpacity>

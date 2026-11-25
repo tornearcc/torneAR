@@ -39,9 +39,9 @@ export function getTeamFormatShortLabel(format: TeamFormat): string {
 export function getTeamRoleLabel(role: TeamRole): string {
   switch (role) {
     case 'CAPITAN':
-      return 'Capitan';
+      return 'Capitán';
     case 'SUBCAPITAN':
-      return 'Subcapitan';
+      return 'Subcapitán';
     case 'DIRECTOR_TECNICO':
       return 'DT';
     default:
