@@ -57,6 +57,8 @@ export default function MarketScreen() {
   if (tabParamKey !== appliedTabParam) {
     setAppliedTabParam(tabParamKey);
     if (tabParam === 'rivales') setActiveTab('RIVALS_LOOKING');
+    else if (tabParam === 'equipos') setActiveTab('TEAMS_LOOKING');
+    else if (tabParam === 'jugadores') setActiveTab('PLAYERS_LOOKING');
   }
 
   const [rivalPosts, setRivalPosts] = useState<RivalPost[]>([]);

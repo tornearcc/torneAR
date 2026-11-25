@@ -112,11 +112,13 @@ export default function TeamCreateScreen() {
         if (message) ambassadorNote = ` ${message}`;
       }
 
-      showAlert('Equipo creado', `Tu equipo ${teamData.name} ya está listo.${ambassadorNote}`, async () => {
+      // Rediseño, etapa 2 (spec §9): al crear, a Inicio, donde el próximo paso es
+      // «Completá tu equipo · 1 de N» con «Invitar a mis amigos».
+      showAlert('Equipo creado', `Tu equipo ${teamData.name} ya está listo. Ahora sumá a tus amigos.${ambassadorNote}`, async () => {
         if (profile?.id) {
           await fetchMyTeams(profile.id);
         }
-        router.replace({ pathname: '/team-manage', params: { teamId: teamData.id } });
+        router.replace('/(tabs)');
       });
     } catch (error: unknown) {
       Logger.error('No se pudo crear el equipo', {

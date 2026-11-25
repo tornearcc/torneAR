@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { welcomeIntents } from './welcome-intents';
 
-describe('welcomeIntents', () => {
-  it('con el programa prendido ofrece armar, sumarse y embajador, en ese orden', () => {
-    expect(welcomeIntents(true).map((intent) => intent.id)).toEqual(['create_team', 'join_team', 'ambassador']);
+describe('welcomeIntents (rediseño, etapa 2)', () => {
+  it('ofrece: me invitó un amigo, armar mi equipo, busco equipo, en ese orden', () => {
+    expect(welcomeIntents().map((intent) => intent.id)).toEqual(['join_code', 'create_team', 'find_team']);
   });
 
-  it('con el programa apagado no ofrece ser embajador', () => {
-    expect(welcomeIntents(false).map((intent) => intent.id)).toEqual(['create_team', 'join_team']);
+  it('ya no ofrece ser embajador (pasa a Perfil)', () => {
+    expect(welcomeIntents().some((intent) => (intent.id as string) === 'ambassador')).toBe(false);
   });
 
-  it('cada opción lleva a una pantalla de la app', () => {
-    const hrefs = Object.fromEntries(welcomeIntents(true).map((intent) => [intent.id, intent.href]));
+  it('cada opción lleva a una pantalla de la app; los dos caminos para sumarse van a «Sumarme a un equipo»', () => {
+    const hrefs = Object.fromEntries(welcomeIntents().map((intent) => [intent.id, intent.href]));
     expect(hrefs).toEqual({
+      join_code: '/team-join',
       create_team: '/team-create',
-      join_team: '/(tabs)/market',
-      ambassador: '/ambassador',
+      find_team: '/team-join',
     });
   });
 });
