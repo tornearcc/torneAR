@@ -554,6 +554,7 @@ export default function HomeScreen() {
           onCreateTeam={handleCreateTeam}
           onJoinTeam={handleJoinTeam}
           onGoToMarket={handleGoToMarket}
+          onGoToCensus={handleGoToCensus}
           pendingTransfers={viewData?.pendingTransfers ?? 0}
           onConfirmTransfer={() => router.push('/team-requests')}
         />

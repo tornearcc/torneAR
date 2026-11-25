@@ -71,8 +71,8 @@ export default function CensoScreen() {
   return (
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
       <SecondaryHeader
-        title="Censo del fútbol argentino"
-        subtitle="De qué cuadro es la comunidad de torneAR."
+        title="Censo de hinchas"
+        subtitle="Cada hincha que se registra suma para su club."
       />
 
       <FlatList
