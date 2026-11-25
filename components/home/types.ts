@@ -116,10 +116,27 @@ export interface HomeViewData {
    * Home. Opcional para no tocar cada armado de `HomeViewData` en los tests.
    */
   soloTeam?: HomeSoloTeam | null;
+  /** Ver `HomeIncompleteTeam`. Opcional por la misma razón que `soloTeam`. */
+  incompleteTeam?: HomeIncompleteTeam | null;
 }
 
 export interface HomeSoloTeam {
   id: string;
   name: string;
   inviteCode: string;
+}
+
+/**
+ * Equipo que el usuario capitanea (o subcapitanea) con menos jugadores que los
+ * que pide su formato (rediseño, etapa 1). Inicio lo muestra como «Completá tu
+ * equipo · n de N».
+ */
+export interface HomeIncompleteTeam {
+  id: string;
+  name: string;
+  inviteCode: string;
+  shieldUrl: string | null;
+  members: number;
+  needed: number;
+  format: TeamFormat | null;
 }
