@@ -68,7 +68,7 @@ Branching, CI/CD and Supabase environments are documented in
 - Session + incomplete profile → `/onboarding`
 - Session + complete profile → `/(tabs)`
 
-The five main tabs, in tab-bar order: Home (index), Ranking, Matches, Market, Profile.
+The five main tabs, in tab-bar order: Home (index), Matches, Ranking (center, highlighted green; P3-25), Market, Profile.
 
 ### State Management
 - **`AuthContext`** (`context/AuthContext.tsx`) — Supabase session + loaded user profile. Access via `useAuth()`.
