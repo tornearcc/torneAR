@@ -475,7 +475,7 @@ export default function MarketScreen() {
 
   return (
     <View className="flex-1 bg-surface-base">
-      <GlobalHeader isMarketTab />
+      <GlobalHeader />
       <View className="px-4 pt-4 pb-2 z-10">
         {/* Con tres pestañas, compartir la fila con los botones cortaba
             «Buscan jugador» y «Buscan equipo»: las pestañas van solas y los

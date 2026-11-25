@@ -20,6 +20,8 @@ import { CareerTimeline } from '@/components/profile/CareerTimeline';
 import { ProfileSettingsSection } from '@/components/profile/ProfileSettingsSection';
 import { ProfileFeedbackCard } from '@/components/profile/ProfileFeedbackCard';
 import { ProfileSocialSection } from '@/components/profile/ProfileSocialSection';
+import { ProfileMoreSection } from '@/components/profile/ProfileMoreSection';
+import { useUnreadChatsCount } from '@/hooks/useBadgeCounts';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { useTabBarInset } from '@/hooks/useTabBarInset';
@@ -27,6 +29,8 @@ import { Logger } from '@/lib/logger';
 
 export default function ProfileScreen() {
   const { signOut, profile } = useAuth();
+  // Perfil › Mensajes (rediseño, etapa 5): el contador que antes estaba en el header del Mercado.
+  const unreadMessages = useUnreadChatsCount(profile?.id ?? null);
   const tabBarInset = useTabBarInset();
   const { fetchMyTeams } = useTeamStore();
   const [loading, setLoading] = useState(true);
@@ -158,14 +162,6 @@ export default function ProfileScreen() {
           <AppIcon family="material-community" name="chart-timeline-variant" size={16} color="#8CCDFF" />
           <Text className="font-display text-xs uppercase tracking-wider text-info-secondary">Ver stats detalladas</Text>
         </TouchableOpacity>
-        <ProfileBadgesSection badges={viewData.badges} />
-        <ProfileInviteCard
-          profileId={viewData.profile.id}
-          username={viewData.profile.username}
-          displayName={viewData.profile.full_name}
-          isEmbajador={isEmbajador}
-          onError={(message) => showAlert('No se pudo compartir', message)}
-        />
         <ProfileTeamsSection
           teams={viewData.teams}
           onCreateTeam={() => router.push('/team-create')}
@@ -173,6 +169,20 @@ export default function ProfileScreen() {
           onOpenRequests={() => router.push('/team-requests')}
           onTeamPress={(teamId) => router.push({ pathname: '/team-manage', params: { teamId } })}
           onLeaveTeam={setTeamToLeave}
+        />
+        <ProfileMoreSection
+          unreadMessages={unreadMessages}
+          onMessages={() => router.push('/market-chats')}
+          onCensus={() => router.push('/censo')}
+          onAmbassador={() => router.push('/ambassador')}
+        />
+        <ProfileBadgesSection badges={viewData.badges} />
+        <ProfileInviteCard
+          profileId={viewData.profile.id}
+          username={viewData.profile.username}
+          displayName={viewData.profile.full_name}
+          isEmbajador={isEmbajador}
+          onError={(message) => showAlert('No se pudo compartir', message)}
         />
         <CareerTimeline profileId={viewData.profile.id} />
         {profile.is_admin && (

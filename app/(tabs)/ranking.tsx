@@ -20,6 +20,7 @@ import type { RankingFiltersState, LeaderboardStat, RankingTeamEntry, PlayerLead
 
 import { RankingFilterModal } from '@/components/ranking/RankingFilterModal';
 import { RankingTable } from '@/components/ranking/RankingTable';
+import { MyPositionCard } from '@/components/ranking/MyPositionCard';
 import { RankingRowSkeleton } from '@/components/ranking/RankingRowSkeleton';
 import { PlayerLeaderboard } from '@/components/ranking/PlayerLeaderboard';
 import { RankingContextChips, buildRankingChips } from '@/components/ranking/RankingContextChips';
@@ -29,7 +30,7 @@ import { fetchRivalPostTeamIds } from '@/lib/rival-posts-api';
 // de 12 caracteres pasaba de 12 requests a 1.
 export default function RankingScreen() {
   const { profile } = useAuth();
-  const { activeTeamId } = useTeamStore();
+  const { activeTeamId, activeTeamName } = useTeamStore();
   const { showAlert, AlertComponent } = useCustomAlert();
 
   // Contexto con el que llega el usuario desde el widget del Inicio. `ts` es el
@@ -367,7 +368,7 @@ export default function RankingScreen() {
 
   return (
     <View className="flex-1 bg-surface-base">
-      <GlobalHeader isRankingTab={true} />
+      <GlobalHeader />
 
       {/* La ultima fila de la tabla quedaba tapada por la Tab Bar: el 120 fijo
           no contemplaba el inset del dispositivo. */}
@@ -402,6 +403,11 @@ export default function RankingScreen() {
               Array.from({ length: 6 }).map((_, i) => <RankingRowSkeleton key={i} />)
             ) : (
               <>
+                <MyPositionCard
+                  entries={rankingEntries}
+                  activeTeamName={activeTeamId ? activeTeamName : null}
+                  onPress={openTeamStats}
+                />
                 <RankingTable
                   entries={rankingEntries}
                   seekingRivalIds={seekingRivalIds}
