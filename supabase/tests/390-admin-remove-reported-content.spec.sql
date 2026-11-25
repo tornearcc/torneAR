@@ -113,9 +113,9 @@ select isnt(
   'A-9: el nombre objetable se reemplaza');
 
 select ok(
-  (select shield_url is null and id is not null
+  (select shield_url = default_shield_preset(id) and id is not null
      from teams where id = 'd4d4d4d4-0000-0000-0000-000000000001'),
-  'A-10: el escudo se saca y el equipo NO se borra — su historial es compartido con los rivales');
+  'A-10: el escudo se saca (queda su prediseñado, 20261125140000) y el equipo NO se borra — su historial es compartido con los rivales');
 
 -- ── Auditoría ───────────────────────────────────────────────────────────────
 select tests.clear_auth();

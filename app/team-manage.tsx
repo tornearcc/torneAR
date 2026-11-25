@@ -25,10 +25,12 @@ import { TeamManageHistoryRequests } from '@/components/team-manage/TeamManageHi
 import { TeamMembersList } from '@/components/team-manage/TeamMembersList';
 import { MixedCompositionCard } from '@/components/team-manage/MixedCompositionCard';
 import { TeamAmbassadorLinkCard } from '@/components/team-manage/TeamAmbassadorLinkCard';
+import { ShieldPickerDialog } from '@/components/team-manage/ShieldPickerDialog';
 import { TeamManageViewData, TeamMemberRow, TeamJoinRequestRow } from '@/components/team-manage/types';
 import {
   fetchTeamManageViewData,
   uploadTeamShield,
+  setTeamShieldPreset,
   updateTeam,
   acceptJoinRequest,
   rejectJoinRequest,
@@ -82,6 +84,7 @@ export default function TeamManageScreen() {
   const [processingMemberId, setProcessingMemberId] = useState<string | null>(null);
   const [savingTeam, setSavingTeam] = useState(false);
   const [uploadingShield, setUploadingShield] = useState(false);
+  const [showShieldPicker, setShowShieldPicker] = useState(false);
 
   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
   const [showZonePicker, setShowZonePicker] = useState(false);
@@ -221,11 +224,35 @@ export default function TeamManageScreen() {
     }, [loadTeamData])
   );
 
-  const handlePickShield = useCallback(async () => {
+  // Tocar el escudo abre «Escudo del equipo»: los prediseñados (P3-26) o subir una foto.
+  const handlePickShield = useCallback(() => {
     if (!team || !teamId || !canEditTeam) {
       showAlert('Sin permisos', 'Solo capitan y subcapitan pueden actualizar el escudo.');
       return;
     }
+    setShowShieldPicker(true);
+  }, [team, teamId, canEditTeam, showAlert]);
+
+  const handleSelectShieldPreset = useCallback(async (presetPath: string) => {
+    if (!teamId) return;
+    setShowShieldPicker(false);
+    if (presetPath === team?.shield_url) return;
+    try {
+      setUploadingShield(true);
+      await setTeamShieldPreset(teamId, presetPath);
+      await loadTeamData();
+      Logger.info('Escudo prediseñado elegido', { scope: 'team-manage.handleSelectShieldPreset', teamId, presetPath });
+    } catch (error) {
+      Logger.error('Fallo elegir el escudo prediseñado', { scope: 'team-manage.handleSelectShieldPreset', teamId, presetPath, error });
+      showAlert('Error', getGenericSupabaseErrorMessage(error, 'No se pudo cambiar el escudo del equipo.'));
+    } finally {
+      setUploadingShield(false);
+    }
+  }, [teamId, team?.shield_url, loadTeamData, showAlert]);
+
+  const handleUploadShieldPhoto = useCallback(async () => {
+    setShowShieldPicker(false);
+    if (!team || !teamId || !canEditTeam) return;
 
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1158,6 +1185,14 @@ export default function TeamManageScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <ShieldPickerDialog
+        visible={showShieldPicker}
+        current={team.shield_url}
+        onClose={() => setShowShieldPicker(false)}
+        onSelectPreset={handleSelectShieldPreset}
+        onUploadPhoto={handleUploadShieldPhoto}
+      />
 
       {AlertComponent}
     </SafeAreaView>
