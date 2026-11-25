@@ -17,6 +17,8 @@ import { MatchCard } from '@/components/matches/MatchCard';
 import { LiveMatchBanner } from '@/components/matches/LiveMatchBanner';
 import { MatchSectionHeader } from '@/components/matches/MatchSectionHeader';
 import { GuestJoinModal } from '@/components/matches/GuestJoinModal';
+import { ReceivedChallengesSection } from '@/components/matches/ReceivedChallengesSection';
+import { useReceivedChallenges } from '@/hooks/useReceivedChallenges';
 import type { MatchesViewData } from '@/components/matches/types';
 
 export default function MatchesScreen() {
@@ -35,6 +37,7 @@ export default function MatchesScreen() {
   // R6: son DOS. `canManageMatches` coordina el partido (proponer, aceptar,
   // cancelar); `isMatchStaff` carga el resultado e incluye al DIRECTOR_TECNICO.
   const canManageMatches = isTeamMatchAdmin(activeRole);
+  const canRespondChallenges = activeRole === 'CAPITAN' || activeRole === 'SUBCAPITAN';
   const isMatchStaff = isTeamMatchStaff(activeRole);
 
   const [loading, setLoading] = useState(true);
@@ -104,6 +107,7 @@ export default function MatchesScreen() {
   // el usuario mira la lista, la tarjeta se actualiza sola. Antes eso sólo se
   // veía al cambiar de tab y volver.
   useTeamMatchesRealtime(activeTeamId ?? undefined, useCallback(() => { void loadData(); }, [loadData]));
+  const challenges = useReceivedChallenges(activeTeamId ?? null, showAlert);
 
   function handleCardPress(matchId: string) {
     router.push({ pathname: '/match-detail' as never, params: { matchId } });
@@ -268,6 +272,18 @@ export default function MatchesScreen() {
                 </View>
               )}
             </View>
+          )}
+
+          {/* «Te desafiaron» (rediseño, etapa 3): antes, detrás del ícono de espadas del header. */}
+          {activeTeamId && (
+            <ReceivedChallengesSection
+              challenges={challenges.received}
+              canRespond={canRespondChallenges}
+              busyId={challenges.busyId}
+              onAccept={(c) => void challenges.accept(c, () => void loadData())}
+              onDecline={(c) => void challenges.decline(c)}
+              onSeeAll={() => router.push('/challenge-inbox')}
+            />
           )}
 
           {/* Live match banner */}

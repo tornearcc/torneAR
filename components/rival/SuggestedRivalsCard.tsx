@@ -32,7 +32,7 @@ export function SuggestedRivalsCard({ rivals, loading, onPressRival, onSeeMore }
   return (
     <View className="mb-5 rounded-2xl bg-surface-container p-4">
       <View className="flex-row items-baseline justify-between">
-        <Text className="font-displayBlack text-xl uppercase text-neutral-on-surface">Rivales para vos</Text>
+        <Text className="font-displayBlack text-xl uppercase text-neutral-on-surface">Sugeridos para tu equipo</Text>
         <TouchableOpacity onPress={onSeeMore} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text className="font-uiBold text-xs text-brand-primary">Ver más</Text>
         </TouchableOpacity>

@@ -182,7 +182,7 @@ export default function HomeScreen() {
         if (next.kind === 'NEXT_MATCH') router.push({ pathname: '/match-detail', params: { matchId: next.match.id } });
         break;
       case 'find_rival':
-        router.navigate({ pathname: '/(tabs)/ranking', params: { mode: 'rivales', ts: String(Date.now()) } });
+        router.navigate({ pathname: '/(tabs)/market', params: { tab: 'rivales', ts: String(Date.now()) } });
         break;
     }
   };
@@ -235,7 +235,7 @@ export default function HomeScreen() {
                 rivals={suggestedRivals}
                 loading={suggestedLoading}
                 onPressRival={(teamId) => router.push({ pathname: '/team-stats', params: { teamId, viewerTeamId: suggestionsTeamId ?? '' } })}
-                onSeeMore={() => router.navigate({ pathname: '/(tabs)/ranking', params: { mode: 'rivales', ts: String(Date.now()) } })}
+                onSeeMore={() => router.push('/rival-search')}
               />
             </View>
           )}

@@ -148,9 +148,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="market"
         options={{
-          title: 'MERCADO',
+          title: 'BUSCAR',
           tabBarIcon: ({ color, focused }) => (
-            <AppIcon family="ionicons" name="storefront-outline" size={focused ? 26 : 24} color={color} />
+            <AppIcon family="material-community" name="magnify" size={focused ? 26 : 24} color={color} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}

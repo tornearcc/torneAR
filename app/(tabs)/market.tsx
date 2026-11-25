@@ -7,7 +7,8 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { MarketTabs } from '@/components/market/MarketTabs';
 import { MarketListSection } from '@/components/market/MarketListSection';
 import { RivalPostsSection } from '@/components/rival/RivalPostsSection';
-import { fetchRivalPosts, type RivalPost } from '@/lib/rival-posts-api';
+import { fetchRivalPosts, fetchSuggestedRivals, type RivalPost, type SuggestedRival } from '@/lib/rival-posts-api';
+import { RivalFinderLinks } from '@/components/rival/RivalFinderLinks';
 import { filterRivalPostsByDay } from '@/lib/rival-posts-utils';
 import { FilterModal } from '@/components/market/FilterModal';
 import { UserActionsSheet } from '@/components/moderation/UserActionsSheet';
@@ -33,10 +34,11 @@ import {
 
 /** Bajo las pestañas: qué hay en la lista activa y qué hacer con ella. */
 const TAB_HINTS: Record<TabType, { title: string; detail: string }> = {
+  // Un nombre por cosa (rediseño, glosario de la spec §7).
+  RIVALS_LOOKING: { title: 'Buscan rival', detail: 'Equipos que quieren jugar. Desafialos o publicá que ustedes también buscan.' },
+  PLAYERS_LOOKING: { title: 'Buscan equipo', detail: 'Jugadores sin equipo. Sumalos al tuyo.' },
   TEAMS_LOOKING: { title: 'Les falta uno', detail: 'Equipos que buscan jugadores. Postulate y jugá.' },
-  PLAYERS_LOOKING: { title: 'Jugadores libres', detail: 'Gente que busca equipo. Sumalos al tuyo.' },
-  RIVALS_LOOKING: { title: 'Están para jugar', detail: 'Equipos que buscan rival. Mirá su ficha y desafialos.' },
-};
+}
 
 export default function MarketScreen() {
   const { profile } = useAuth();
@@ -46,7 +48,10 @@ export default function MarketScreen() {
   // cambio del store.
   const activeTeamId = useTeamStore((state) => state.activeTeamId);
 
-  const [activeTab, setActiveTab] = useState<TabType>('TEAMS_LOOKING');
+  // Con equipo se arranca en «Rival»; sin equipo, en «Equipo» (les falta uno).
+  const [activeTab, setActiveTab] = useState<TabType>(() => (activeTeamId ? 'RIVALS_LOOKING' : 'TEAMS_LOOKING'));
+  const [suggestedRivals, setSuggestedRivals] = useState<SuggestedRival[]>([]);
+  const [suggestedLoading, setSuggestedLoading] = useState(true);
 
   // `?tab=rivales&ts=…` (Inicio › Buscar rival) abre la pestaña nueva. Se
   // ajusta durante el render, una vez por nonce: los params quedan pegados a
@@ -156,8 +161,16 @@ export default function MarketScreen() {
   const loadRivalPosts = useCallback(async () => {
     if (!profile) return;
     try {
+      const suggestions = activeTeamId
+        ? fetchSuggestedRivals(activeTeamId, 3).catch((suggestionsError: unknown) => {
+            Logger.warn('No se pudieron cargar los rivales sugeridos de Buscar', { scope: 'market.loadSuggestedRivals', activeTeamId, error: suggestionsError });
+            return [] as SuggestedRival[];
+          })
+        : Promise.resolve([] as SuggestedRival[]);
       const posts = await fetchRivalPosts(activeTeamId, { zone: filterZone });
       setRivalPosts(posts);
+      setSuggestedRivals(await suggestions);
+      setSuggestedLoading(false);
     } catch (err) {
       Logger.error('No se pudo cargar Buscan rival', {
         scope: 'market.loadRivalPosts',
@@ -514,6 +527,15 @@ export default function MarketScreen() {
             onRefresh={onRefresh}
             onPressPost={handlePressRivalPost}
             onPublish={handlePublishRivalPost}
+            extraHeader={
+              <RivalFinderLinks
+                hasTeam={!!activeTeamId}
+                suggestions={suggestedRivals}
+                loading={suggestedLoading}
+                onPressRival={(teamId) => router.push({ pathname: '/team-stats', params: { teamId, viewerTeamId: activeTeamId ?? '' } })}
+                onSearch={() => router.push('/rival-search')}
+              />
+            }
           />
         ) : (
         <MarketListSection
