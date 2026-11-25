@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { Colors } from '@/constants/theme';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { AppState, StyleSheet } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
@@ -114,21 +114,33 @@ export default function TabLayout() {
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
       />
       <Tabs.Screen
-        name="ranking"
-        options={{
-          title: 'RANKING',
-          tabBarIcon: ({ color, focused }) => (
-            <AppIcon family="material-community" name="trophy-outline" size={focused ? 26 : 24} color={color} />
-          ),
-        }}
-        listeners={{ tabPress: () => Haptics.selectionAsync() }}
-      />
-      <Tabs.Screen
         name="matches"
         options={{
           title: 'PARTIDOS',
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="soccer" size={focused ? 26 : 24} color={color} />
+          ),
+        }}
+        listeners={{ tabPress: () => Haptics.selectionAsync() }}
+      />
+      {/*
+        Ranking va en el CENTRO y resaltado (P3-25, idea de Juani, 25/11/2026): es
+        lo que diferencia a TorneAR, y el botón del medio en verde lo comunica
+        como el botón principal de un juego. El label queda siempre en verde.
+      */}
+      <Tabs.Screen
+        name="ranking"
+        options={{
+          title: 'RANKING',
+          tabBarActiveTintColor: Colors.dark.tint,
+          tabBarInactiveTintColor: Colors.dark.tint,
+          tabBarIcon: ({ focused }) => (
+            <View
+              className={`items-center justify-center rounded-full bg-brand-primary ${focused ? 'shadow-glow-primary' : ''}`}
+              style={{ width: 40, height: 40, marginTop: -6 }}
+            >
+              <AppIcon family="material-community" name="trophy" size={focused ? 24 : 22} color="#0E0E0E" />
+            </View>
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
