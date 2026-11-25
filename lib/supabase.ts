@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '@/types/supabase';
 import { Platform } from 'react-native';
+import { fetchWithFailureTracking } from '@/lib/http-failures';
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
@@ -45,6 +46,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     // (lib/auth-data.ts) leyendo la URL que devuelve `openAuthSessionAsync`.
     detectSessionInUrl: Platform.OS === 'web',
   },
+  // Anota el último pedido que falló (status y path, sin datos) para que
+  // Logger.error lo adjunte: los errores con cuerpo vacío llegaban sin nada.
+  global: { fetch: fetchWithFailureTracking },
 });
 
 // Las RPCs se invocan con `supabase.rpc(...)` fuertemente tipado: todas las
