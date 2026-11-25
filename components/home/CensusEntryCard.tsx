@@ -3,6 +3,8 @@ import { AppIcon } from '@/components/ui/AppIcon';
 
 interface Props {
   onPress: () => void;
+  /** Margen y ancho según dónde se use (Inicio con equipo o sin equipo). */
+  className?: string;
 }
 
 /**
@@ -13,14 +15,14 @@ interface Props {
  * contenido para mirar. Meterlo ahí lo dejaba además con una etiqueta de dos
  * líneas ilegible en el ancho de un cuarto de pantalla.
  */
-export function CensusEntryCard({ onPress }: Props) {
+export function CensusEntryCard({ onPress, className = 'mb-5' }: Props) {
   return (
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Abrir el censo del fútbol argentino"
-      className="mb-5 flex-row items-center gap-3 rounded-2xl bg-surface-container p-4"
+      accessibilityLabel="Abrir el censo de hinchas"
+      className={`${className} flex-row items-center gap-3 rounded-2xl bg-surface-container p-4`}
     >
       <View className="h-12 w-12 items-center justify-center rounded-full bg-brand-primary/15">
         <AppIcon family="material-community" name="chart-donut" size={24} color="#53E076" />
@@ -28,10 +30,10 @@ export function CensusEntryCard({ onPress }: Props) {
 
       <View className="flex-1">
         <Text className="font-displayBlack text-base uppercase tracking-wide text-neutral-on-surface">
-          Censo del fútbol argentino
+          Censo de hinchas
         </Text>
         <Text className="font-ui mt-0.5 text-xs leading-4 text-neutral-on-surface-variant">
-          Mirá de qué cuadro es la comunidad de torneAR
+          ¿Qué hinchada juega de verdad? Mirá cómo va tu club
         </Text>
       </View>
 
