@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { TAB_BAR_CONTENT_HEIGHT } from '@/hooks/useTabBarInset';
+import { useReceivedChallengesCount } from '@/hooks/useBadgeCounts';
 
 /**
  * Alto del CONTENIDO de la barra, sin el área segura.
@@ -33,6 +34,9 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const fetchMyTeams = useTeamStore((state) => state.fetchMyTeams);
+  // Desafíos recibidos: badge de Partidos (rediseño, etapa 5; antes, ícono de espadas en el header).
+  const activeTeamId = useTeamStore((state) => state.activeTeamId);
+  const receivedChallenges = useReceivedChallengesCount(activeTeamId);
 
   // Punto unico de carga de los equipos del usuario. Este layout monta una sola
   // vez para todo el grupo de tabs, asi que `myTeams` se pide una vez por sesion
@@ -117,6 +121,8 @@ export default function TabLayout() {
         name="matches"
         options={{
           title: 'PARTIDOS',
+          tabBarBadge: receivedChallenges > 0 ? (receivedChallenges > 9 ? '9+' : receivedChallenges) : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#FABD32', color: '#0E0E0E', fontSize: 11 },
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="soccer" size={focused ? 26 : 24} color={color} />
           ),
