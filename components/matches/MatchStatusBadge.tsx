@@ -17,7 +17,7 @@ interface StatusConfig {
 }
 
 const CONFIG: Record<MatchStatus, StatusConfig> = {
-  PENDIENTE:  { label: 'Falta acordar dÃ­a', className: 'bg-warning-tertiary/20', textClassName: 'text-warning-tertiary' },
+  PENDIENTE:  { label: 'Falta acordar día', className: 'bg-warning-tertiary/20', textClassName: 'text-warning-tertiary' },
   CONFIRMADO: { label: 'Confirmado', className: 'bg-info-secondary/20',   textClassName: 'text-info-secondary' },
   EN_VIVO:    { label: 'En vivo',    className: 'bg-brand-primary/15',     textClassName: 'text-brand-primary' },
   FINALIZADO: { label: 'Terminado',  className: 'bg-neutral-outline/20',   textClassName: 'text-neutral-on-surface-variant' },
