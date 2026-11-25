@@ -57,6 +57,8 @@ import { DisputeSection } from '@/components/matches/DisputeSection';
 import { ShareMatchButton } from '@/components/match-share/ShareMatchButton';
 import { ReportModal } from '@/components/reports/ReportModal';
 import type { MatchDetailViewData, MatchProposalFormData } from '@/components/matches/types';
+import { MatchStepper } from '@/components/matches/MatchStepper';
+import { MatchStatusBadge } from '@/components/matches/MatchStatusBadge';
 
 export default function MatchDetailScreen() {
   const { matchId, myTeamId: paramTeamId, openProposalModal, openResultModal } = useLocalSearchParams<{
@@ -547,40 +549,9 @@ export default function MatchDetailScreen() {
   const guestCodeExpiry = getGuestCodeExpiry(match.scheduledAt);
   const guestCodeExpired = isGuestCodeExpired(match.scheduledAt);
 
-  function renderStatusBadge() {
-    const colors: Record<string, string> = {
-      PENDIENTE: 'bg-neutral-outline/20 text-neutral-on-surface-variant',
-      CONFIRMADO: 'bg-info-secondary/20 text-info-secondary',
-      EN_VIVO: 'bg-danger-error/20 text-danger-error',
-      FINALIZADO: 'bg-brand-primary/20 text-brand-primary',
-      EN_DISPUTA: 'bg-warning-tertiary/20 text-warning-tertiary',
-      WO_A: 'bg-warning-tertiary/20 text-warning-tertiary',
-      WO_B: 'bg-warning-tertiary/20 text-warning-tertiary',
-      CANCELADO: 'bg-neutral-outline/20 text-neutral-outline',
-    };
-    const labels: Record<string, string> = {
-      PENDIENTE: 'Pendiente',
-      CONFIRMADO: 'Confirmado',
-      EN_VIVO: 'En vivo',
-      FINALIZADO: 'Finalizado',
-      EN_DISPUTA: 'En disputa',
-      WO_A: 'WO (Equipo A)',
-      WO_B: 'WO (Equipo B)',
-      CANCELADO: 'Cancelado',
-    };
-    const cls = colors[status] ?? 'bg-neutral-outline/20 text-neutral-on-surface-variant';
-    return (
-      <View className={`rounded-full px-3 py-1 ${cls.split(' ')[0]}`}>
-        <Text className={`font-uiBold text-xs uppercase tracking-widest ${cls.split(' ')[1]}`}>
-          {labels[status] ?? status}
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <View className="flex-1 bg-surface-base">
-      <SecondaryHeader title="Detalle del partido" rightSlot={renderStatusBadge()} />
+      <SecondaryHeader title="Partido" rightSlot={<MatchStatusBadge status={status} />} />
 
       <ScrollView
         className="px-4"
@@ -590,6 +561,91 @@ export default function MatchDetailScreen() {
         {/* Hero */}
         <MatchDetailHero match={match} myTeamId={myTeamId} />
 
+        {/* Chat del partido, siempre a un toque (rediseño, etapa 4). */}
+        {match.conversationId && status !== 'CANCELADO' && status !== 'FINALIZADO' && (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } })}
+            activeOpacity={0.85}
+            className="mt-3 flex-row items-center justify-center gap-2 rounded-xl bg-surface-container py-3"
+          >
+            <AppIcon family="material-community" name="chat" size={18} color="#53E076" />
+            <Text className="font-uiBold text-sm text-neutral-on-surface">Chat del partido</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* ─── PENDIENTE ─── */}
+        {status === 'PENDIENTE' && (
+          <>
+            <MatchStepper step={2}>
+            {match.activeProposal ? (
+              <ProposalSection
+                proposal={match.activeProposal}
+                myTeamId={myTeamId}
+                canManage={canManageMatch}
+                onAccept={() => void handleAcceptProposal()}
+                onReject={() => void handleRejectProposal()}
+                onCounterPropose={() => setShowProposalModal(true)}
+                onCancelProposal={() => void handleCancelProposal()}
+              />
+            ) : (
+              <View className="mt-4 rounded-2xl bg-surface-container p-4">
+                <Text className="font-ui text-center text-sm text-neutral-on-surface-variant">
+                  {canManageMatch
+                    ? 'Sin propuesta activa. Enviá una propuesta para coordinar el partido.'
+                    : 'Sin propuesta activa. Tu capitán o subcapitán tiene que coordinar la fecha, el formato y la cancha con el rival.'}
+                </Text>
+                {canManageMatch && (
+                  <TouchableOpacity
+                    onPress={() => setShowProposalModal(true)}
+                    activeOpacity={0.8}
+                    className="mt-3 rounded-xl bg-brand-primary py-3"
+                  >
+                    <Text className="font-uiBold text-center text-sm text-[#003914]">
+                      Proponer detalles
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            </MatchStepper>
+            {hasPendingCancellation && match.cancellationRequest && (
+              <CancellationRequestSection
+                request={match.cancellationRequest}
+                myTeamId={myTeamId}
+                myRole={match.myRole}
+                opponentName={opponentTeam.name}
+                onAccept={() => void handleRespondToCancellation(true)}
+                onReject={() => void handleRespondToCancellation(false)}
+              />
+            )}
+            <ActionButtons
+              onCancel={hasPendingCancellation || !canManageMatch ? undefined : () => setShowCancellationModal(true)}
+              onReport={() => setShowReportModal(true)}
+            />
+          </>
+        )}
+
+        {/* ─── CONFIRMADO ─── */}
+        {status === 'CONFIRMADO' && (
+          <>
+            <MatchStepper step={3}>
+            <MatchDetailsSection match={match} />
+            <CheckinSection
+              match={match}
+              onCheckin={() => void handleCheckin()}
+              myProfileId={profile?.id ?? null}
+              minPlayers={minPlayersToStart}
+              mixedMinPerGender={mixedMinPerGender}
+              onOpenSquadList={
+                isMatchStaff
+                  ? () =>
+                      router.push({
+                        pathname: '/match-checkin' as never,
+                        params: { matchId: match.id, myTeamId },
+                      })
+                  : undefined
+              }
+            />
         {/* Código de invitado — sólo en CONFIRMADO.
             `join_match_as_guest` únicamente admite canjes con el partido
             CONFIRMADO, pero el código se generaba y se mostraba desde que se
@@ -597,7 +653,6 @@ export default function MatchDetailScreen() {
             pactada) y seguía a la vista en EN_VIVO o FINALIZADO, cuando ya no
             sirve para nada. Mostrarlo sólo cuando se puede canjear alinea la UI
             con la regla del servidor (auditoría E2E, módulos 4.3 y 6.3). */}
-        {status === 'CONFIRMADO' && (
         <TouchableOpacity
           onPress={() => void Clipboard.setStringAsync(match.uniqueCode).then(() =>
             showAlert('¡Copiado!', 'El código del partido fue copiado al portapapeles.')
@@ -629,79 +684,7 @@ export default function MatchDetailScreen() {
             </Text>
           ) : null}
         </TouchableOpacity>
-        )}
-
-        {/* ─── PENDIENTE ─── */}
-        {status === 'PENDIENTE' && (
-          <>
-            {match.activeProposal ? (
-              <ProposalSection
-                proposal={match.activeProposal}
-                myTeamId={myTeamId}
-                canManage={canManageMatch}
-                onAccept={() => void handleAcceptProposal()}
-                onReject={() => void handleRejectProposal()}
-                onCounterPropose={() => setShowProposalModal(true)}
-                onCancelProposal={() => void handleCancelProposal()}
-              />
-            ) : (
-              <View className="mt-4 rounded-2xl bg-surface-container p-4">
-                <Text className="font-ui text-center text-sm text-neutral-on-surface-variant">
-                  {canManageMatch
-                    ? 'Sin propuesta activa. Enviá una propuesta para coordinar el partido.'
-                    : 'Sin propuesta activa. Tu capitán o subcapitán tiene que coordinar la fecha, el formato y la cancha con el rival.'}
-                </Text>
-                {canManageMatch && (
-                  <TouchableOpacity
-                    onPress={() => setShowProposalModal(true)}
-                    activeOpacity={0.8}
-                    className="mt-3 rounded-xl bg-brand-primary py-3"
-                  >
-                    <Text className="font-uiBold text-center text-sm text-[#003914]">
-                      Proponer detalles
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-            {hasPendingCancellation && match.cancellationRequest && (
-              <CancellationRequestSection
-                request={match.cancellationRequest}
-                myTeamId={myTeamId}
-                myRole={match.myRole}
-                opponentName={opponentTeam.name}
-                onAccept={() => void handleRespondToCancellation(true)}
-                onReject={() => void handleRespondToCancellation(false)}
-              />
-            )}
-            <ActionButtons
-              onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
-              onCancel={hasPendingCancellation || !canManageMatch ? undefined : () => setShowCancellationModal(true)}
-              onReport={() => setShowReportModal(true)}
-            />
-          </>
-        )}
-
-        {/* ─── CONFIRMADO ─── */}
-        {status === 'CONFIRMADO' && (
-          <>
-            <MatchDetailsSection match={match} />
-            <CheckinSection
-              match={match}
-              onCheckin={() => void handleCheckin()}
-              myProfileId={profile?.id ?? null}
-              minPlayers={minPlayersToStart}
-              mixedMinPerGender={mixedMinPerGender}
-              onOpenSquadList={
-                isMatchStaff
-                  ? () =>
-                      router.push({
-                        pathname: '/match-checkin' as never,
-                        params: { matchId: match.id, myTeamId },
-                      })
-                  : undefined
-              }
-            />
+            </MatchStepper>
             {hasPendingCancellation && match.cancellationRequest && (
               <CancellationRequestSection
                 request={match.cancellationRequest}
@@ -722,7 +705,6 @@ export default function MatchDetailScreen() {
               />
             )}
             <ActionButtons
-              onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
               onWo={myCheckinAt !== null && !match.woClaim ? () => setShowWoModal(true) : undefined}
               onCancel={hasPendingCancellation || !canManageMatch ? undefined : () => setShowCancellationModal(true)}
               onReport={() => setShowReportModal(true)}
@@ -733,6 +715,7 @@ export default function MatchDetailScreen() {
         {/* ─── EN_VIVO ─── */}
         {status === 'EN_VIVO' && (
           <>
+            <MatchStepper step={4} tone="live">
             <MatchDetailsSection match={match} />
             <ResultSection
               match={match}
@@ -762,6 +745,7 @@ export default function MatchDetailScreen() {
                 </Text>
               </View>
             ) : null}
+            </MatchStepper>
             {hasPendingWoClaim && (
               <WoClaimPendingBanner
                 match={match}
@@ -772,7 +756,6 @@ export default function MatchDetailScreen() {
               />
             )}
             <ActionButtons
-              onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
               onWo={match.woClaim ? undefined : () => setShowWoModal(true)}
               onReport={() => setShowReportModal(true)}
             />
@@ -782,6 +765,7 @@ export default function MatchDetailScreen() {
         {/* ─── FINALIZADO ─── */}
         {status === 'FINALIZADO' && (
           <>
+            <MatchStepper step="done" />
             <ResultSection match={match} />
             <View className="mt-4 flex-row items-center gap-2 rounded-xl bg-surface-container px-4 py-3">
               <AppIcon family="material-community" name="heart" size={16} color="#53E076" />
@@ -801,6 +785,7 @@ export default function MatchDetailScreen() {
         {/* ─── EN_DISPUTA ─── */}
         {status === 'EN_DISPUTA' && (
           <>
+            <MatchStepper step={4}>
             <ResultSection match={match} />
             {profile ? (
               <DisputeSection
@@ -810,8 +795,8 @@ export default function MatchDetailScreen() {
                 onVote={(teamId) => void handleVoteSubmit(teamId)}
               />
             ) : null}
+            </MatchStepper>
             <ActionButtons
-              onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
               onReport={() => setShowReportModal(true)}
             />
           </>
@@ -833,7 +818,6 @@ export default function MatchDetailScreen() {
             </View>
             <ShareMatchButton matchId={match.id} myTeamId={myTeamId} />
             <ActionButtons
-              onChat={match.conversationId ? () => router.push({ pathname: '/(modals)/chat' as never, params: { conversationId: match.conversationId!, myTeamId } }) : undefined}
               onReport={() => setShowReportModal(true)}
             />
           </>
@@ -1093,8 +1077,11 @@ interface ActionButtonsProps {
 }
 
 function ActionButtons({ onChat, onWo, onCancel, onReport }: ActionButtonsProps) {
+  // Rediseño, etapa 4: el chat está arriba; acá quedan W.O., cancelar y denunciar.
   return (
-    <View className="mt-4 flex-row flex-wrap gap-2">
+    <View className="mt-6">
+    <Text className="font-uiBold mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Más opciones</Text>
+    <View className="flex-row flex-wrap gap-2">
       {onChat && (
         <TouchableOpacity
           onPress={onChat}
@@ -1138,6 +1125,7 @@ function ActionButtons({ onChat, onWo, onCancel, onReport }: ActionButtonsProps)
           <Text className="font-uiBold text-sm text-neutral-on-surface-variant">Denunciar</Text>
         </TouchableOpacity>
       )}
+    </View>
     </View>
   );
 }
