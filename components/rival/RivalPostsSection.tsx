@@ -15,6 +15,8 @@ interface Props {
   onRefresh: () => void;
   onPressPost: (post: RivalPost) => void;
   onPublish: () => void;
+  /** Debajo de publicar: sugeridos y búsqueda por nombre (rediseño, etapa 3). */
+  extraHeader?: React.ReactElement | null;
 }
 
 function OwnPostBanner({ post, onEdit }: { post: RivalPost; onEdit: () => void }) {
@@ -53,7 +55,7 @@ function PublishPrompt({ onPublish }: { onPublish: () => void }) {
         <AppIcon family="material-community" name="bullhorn-outline" size={22} color="#53E076" />
       </View>
       <View className="flex-1">
-        <Text className="font-uiBold text-sm text-neutral-on-surface">¿Están para jugar?</Text>
+        <Text className="font-uiBold text-sm text-neutral-on-surface">Publicá que buscan rival</Text>
         <Text className="mt-0.5 font-ui text-xs leading-4 text-neutral-on-surface-variant">
           Publicalo y les avisamos a los equipos de tu zona.
         </Text>
@@ -72,6 +74,7 @@ export function RivalPostsSection({
   onRefresh,
   onPressPost,
   onPublish,
+  extraHeader = null,
 }: Props) {
   if (isLoading) {
     return (
@@ -97,7 +100,7 @@ export function RivalPostsSection({
       data={others}
       keyExtractor={(item) => item.teamId}
       renderItem={({ item, index }) => <RivalPostCard post={item} index={index} onPress={onPressPost} />}
-      ListHeaderComponent={header}
+      ListHeaderComponent={<>{header}{extraHeader}</>}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#00E65B" colors={['#00E65B']} />

@@ -8,7 +8,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { useTabBarInset } from '@/hooks/useTabBarInset';
 import {
-  fetchRankingWithFilters, searchRivalTeams, fetchPlayerLeaderboard,
+  fetchRankingWithFilters, fetchPlayerLeaderboard,
   fetchActiveSeason, fetchActiveTeamRankingInfo,
 } from '@/lib/ranking-data';
 import { Logger } from '@/lib/logger';
@@ -16,25 +16,20 @@ import {
   paramToNullable, parseCategoryParam, parseFormatParam, buildRankingFullParams,
   type RankingFullKind,
 } from '@/lib/ranking-params';
-import type { RankingFiltersState, RankingMode, LeaderboardStat, RankingTeamEntry, RivalTeamEntry, PlayerLeaderboardEntry } from '@/components/ranking/types';
+import type { RankingFiltersState, LeaderboardStat, RankingTeamEntry, PlayerLeaderboardEntry } from '@/components/ranking/types';
 
 import { RankingFilterModal } from '@/components/ranking/RankingFilterModal';
 import { RankingTable } from '@/components/ranking/RankingTable';
 import { RankingRowSkeleton } from '@/components/ranking/RankingRowSkeleton';
-import { RivalSearchBar } from '@/components/ranking/RivalSearchBar';
-import { RivalTeamCard } from '@/components/ranking/RivalTeamCard';
 import { PlayerLeaderboard } from '@/components/ranking/PlayerLeaderboard';
 import { RankingContextChips, buildRankingChips } from '@/components/ranking/RankingContextChips';
-import { SuggestedRivalsStrip } from '@/components/rival/SuggestedRivalsStrip';
-import { fetchRivalPostTeamIds, fetchSuggestedRivals, type SuggestedRival } from '@/lib/rival-posts-api';
+import { fetchRivalPostTeamIds } from '@/lib/rival-posts-api';
 
 // Ventana de espera antes de pegarle a la BD mientras el usuario tipea. Un nombre
 // de 12 caracteres pasaba de 12 requests a 1.
-const SEARCH_DEBOUNCE_MS = 300;
-
 export default function RankingScreen() {
   const { profile } = useAuth();
-  const { activeTeamId, myTeams } = useTeamStore();
+  const { activeTeamId } = useTeamStore();
   const { showAlert, AlertComponent } = useCustomAlert();
 
   // Contexto con el que llega el usuario desde el widget del Inicio. `ts` es el
@@ -44,19 +39,14 @@ export default function RankingScreen() {
     useLocalSearchParams<{ zone?: string; category?: string; format?: string; ts?: string; mode?: string }>();
 
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<RankingMode>('RANKING');
-
-  // `?mode=rivales&ts=…` (Inicio › «Rivales para vos» › Ver más) abre Buscar
-  // rival. Se aplica una vez por nonce, ajustando durante el render.
+  // `?mode=rivales` (enlaces viejos): Buscar rival se mudó a Buscar › Rival › /rival-search (rediseño, etapa 3).
   const [appliedModeNonce, setAppliedModeNonce] = useState<string | undefined>(undefined);
   if (modeParam === 'rivales' && tsParam !== appliedModeNonce) {
     setAppliedModeNonce(tsParam);
-    setMode('RIVALES');
+    router.push('/rival-search');
   }
 
-  // «Rival sugerido» y el punto verde de «Buscan rival» (P3-19, D-76).
-  const [suggestedRivals, setSuggestedRivals] = useState<SuggestedRival[]>([]);
-  const [suggestionsKey, setSuggestionsKey] = useState<string | null>(null);
+  // Punto verde de «Buscan rival» (P3-19, D-76).
   const [seekingRivalIds, setSeekingRivalIds] = useState<Set<string>>(new Set());
 
   const [filters, setFilters] = useState<RankingFiltersState>({
@@ -71,9 +61,6 @@ export default function RankingScreen() {
 
   // NUEVO: Estado para guardar las zonas de la BD
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<RivalTeamEntry[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
 
   const [leaderboardStat, setLeaderboardStat] = useState<LeaderboardStat>('goals');
   // Categoría propia de la tabla de jugadores: arranca en "Todas" y no sigue a
@@ -97,44 +84,7 @@ export default function RankingScreen() {
   // a aplicar el contexto viejo de la Home en vez de los defaults del equipo.
   const consumedNonceRef = useRef<string | null>(null);
   const isFirstFocus = useRef(true);
-  // Id incremental de request de busqueda. Solo la respuesta cuyo id coincide con
-  // el ultimo emitido puede escribir en el estado.
-  const searchRequestRef = useRef(0);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeTeam = myTeams.find(t => t.id === activeTeamId);
-  const activeRole = activeTeam?.role;
-  const canChallenge = activeRole === 'CAPITAN' || activeRole === 'SUBCAPITAN';
-
-  // Sugeridos: se piden al entrar a Buscar rival, una vez por equipo activo y
-  // por refresco de foco. `loading` se deriva de si la respuesta de esta clave
-  // ya llegó (las escrituras viven en los callbacks, no en el cuerpo del efecto).
-  const suggestionsRequestKey = activeTeamId ? `${activeTeamId}:${refreshToken}` : null;
-  const suggestionsLoading =
-    mode === 'RIVALES' && suggestionsRequestKey !== null && suggestionsKey !== suggestionsRequestKey;
-
-  useEffect(() => {
-    if (mode !== 'RIVALES' || !activeTeamId || !suggestionsRequestKey) return;
-    let cancelled = false;
-    fetchSuggestedRivals(activeTeamId, 10)
-      .then((rows) => {
-        if (!cancelled) setSuggestedRivals(rows);
-      })
-      .catch((error: unknown) => {
-        Logger.warn('No se pudieron cargar los rivales sugeridos; se ocultan', {
-          scope: 'ranking.suggestedRivals',
-          activeTeamId,
-          error,
-        });
-        if (!cancelled) setSuggestedRivals([]);
-      })
-      .finally(() => {
-        if (!cancelled) setSuggestionsKey(suggestionsRequestKey);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, activeTeamId, suggestionsRequestKey]);
 
   // Punto verde: equipos con «Buscan rival» vigente. Se refresca en cada foco.
   useEffect(() => {
@@ -388,67 +338,9 @@ export default function RankingScreen() {
     }, []),
   );
 
-  // ── 5) Busqueda de rivales ───────────────────────────────────────────────────
-  // Cada llamada toma un id incremental. Al volver la respuesta, si el id ya no
-  // es el ultimo emitido significa que el usuario siguio escribiendo (o cambio
-  // los filtros) y esa respuesta quedo obsoleta: se descarta en silencio. Sin
-  // esto, la respuesta lenta de "Bo" podia llegar despues de la de "Boca" y
-  // dejar en pantalla resultados que no correspondian al texto del input.
-  const runSearch = useCallback(
-    async (query: string, currentFilters: RankingFiltersState) => {
-      const requestId = ++searchRequestRef.current;
-      const isStale = () => requestId !== searchRequestRef.current;
-
-      try {
-        setSearchLoading(true);
-        const teamIds = useTeamStore.getState().myTeams.map(t => t.id);
-        const results = await searchRivalTeams(query, currentFilters, teamIds, activeTeamElo);
-        if (isStale()) return;
-        setSearchResults(results);
-      } catch (error: any) {
-        Logger.error('Fallo la búsqueda de rivales', {
-          scope: 'tabs.ranking.runSearch',
-          query,
-          error,
-        });
-        if (isStale()) return;
-        showAlert('Error', error?.message || 'Error en la búsqueda.');
-      } finally {
-        // Solo la request vigente puede apagar el spinner: si lo hiciera una vieja,
-        // la UI diria "listo" mientras la busqueda actual sigue en vuelo.
-        if (!isStale()) setSearchLoading(false);
-      }
-    },
-    [activeTeamElo, showAlert],
-  );
-
-  function handleSearchQueryChange(query: string) {
-    // El input se actualiza al instante; la red espera al debounce.
-    setSearchQuery(query);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    setSearchLoading(true); // feedback inmediato mientras corre la ventana
-    searchDebounceRef.current = setTimeout(() => {
-      void runSearch(query, filters);
-    }, SEARCH_DEBOUNCE_MS);
-  }
-
-  // Timer pendiente al desmontar: sin esto quedaria un setState sobre una
-  // pantalla que ya no existe.
-  useEffect(() => {
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
-  }, []);
-
   function handleApplyFilters(newFilters: RankingFiltersState) {
     // Solo movemos el estado: los efectos 2 y 3 reaccionan y recargan.
     setFilters(newFilters);
-    if (mode === 'RIVALES') {
-      // Aplicar filtros es una accion explicita: no la hacemos esperar el
-      // debounce, y cancelamos el que hubiera pendiente del tipeo.
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-      void runSearch(searchQuery, newFilters);
-    }
   }
 
   function handleStatChange(stat: LeaderboardStat) {
@@ -485,30 +377,7 @@ export default function RankingScreen() {
         <View className="mb-3">
           <View className="flex-row items-center gap-2">
 
-            {/* Tabs (Mismo diseño que Market) */}
-            <View className="flex-1 flex-row gap-2 rounded-xl bg-surface-low p-1">
-              <TouchableOpacity
-                className="flex-1 items-center rounded-lg py-3"
-                style={mode === 'RANKING' ? { backgroundColor: '#53E076' } : undefined}
-                onPress={() => setMode('RANKING')}
-                activeOpacity={0.8}
-              >
-                <Text className="font-uiBold text-sm" style={{ color: mode === 'RANKING' ? '#003914' : '#BCCBB9' }}>
-                  Ranking
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-1 items-center rounded-lg py-3"
-                style={mode === 'RIVALES' ? { backgroundColor: '#53E076' } : undefined}
-                onPress={() => setMode('RIVALES')}
-                activeOpacity={0.8}
-              >
-                <Text className="font-uiBold text-sm" style={{ color: mode === 'RIVALES' ? '#003914' : '#BCCBB9' }}>
-                  Buscar Rival
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <Text className="flex-1 font-displayBlack text-[32px] uppercase text-neutral-on-surface">Ranking</Text>
 
             {/* Botón Filtro Cuadrado */}
             <TouchableOpacity
@@ -526,8 +395,8 @@ export default function RankingScreen() {
           <RankingContextChips chips={contextChips} />
         </View>
 
-        {/* MODO RANKING */}
-        {mode === 'RANKING' && (
+        {/* Ranking (el modo «Buscar rival» se mudó a Buscar › Rival, rediseño etapa 3) */}
+        {(
           <>
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => <RankingRowSkeleton key={i} />)
@@ -555,42 +424,6 @@ export default function RankingScreen() {
           </>
         )}
 
-        {/* MODO RIVALES */}
-        {mode === 'RIVALES' && (
-          <>
-            {activeTeamId ? (
-              <SuggestedRivalsStrip
-                rivals={suggestedRivals}
-                loading={suggestionsLoading}
-                teamName={activeTeam?.name ?? null}
-                onPress={openTeamStats}
-              />
-            ) : null}
-            <RivalSearchBar value={searchQuery} onChangeText={handleSearchQueryChange} />
-
-            {searchLoading ? (
-              <View className="mt-2">
-                {Array.from({ length: 5 }).map((_, i) => <RankingRowSkeleton key={i} />)}
-              </View>
-            ) : searchResults.length === 0 ? (
-              <Text className="mt-8 text-center font-ui text-sm text-neutral-on-surface-variant">
-                {searchQuery ? 'No se encontraron equipos con ese nombre o filtros.' : 'Escribí el nombre de un equipo para buscar.'}
-              </Text>
-            ) : (
-              <View className="mt-2">
-                {searchResults.map(entry => (
-                  <RivalTeamCard
-                    key={entry.teamId}
-                    entry={entry}
-                    canChallenge={canChallenge}
-                    seekingRival={seekingRivalIds.has(entry.teamId)}
-                    onPress={openTeamStats}
-                  />
-                ))}
-              </View>
-            )}
-          </>
-        )}
       </ScrollView>
 
       <RankingFilterModal
