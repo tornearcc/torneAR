@@ -1,10 +1,17 @@
 import { View, Text, TouchableOpacity } from 'react-native';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { CensusEntryCard } from '@/components/home/CensusEntryCard';
 
 interface Props {
   onCreateTeam: () => void;
   onJoinTeam: () => void;
   onGoToMarket: () => void;
+  /**
+   * Abre el censo de hinchas. Va también acá porque el video del censo trae
+   * gente nueva que todavía no tiene equipo: sin esto, el Inicio vacío no le
+   * mostraba dónde ver a su hinchada.
+   */
+  onGoToCensus?: () => void;
   /** Solicitudes ya aprobadas por un equipo que esperan que el jugador confirme. */
   pendingTransfers?: number;
   onConfirmTransfer?: () => void;
@@ -14,6 +21,7 @@ export function HomeOnboardingState({
   onCreateTeam,
   onJoinTeam,
   onGoToMarket,
+  onGoToCensus,
   pendingTransfers = 0,
   onConfirmTransfer,
 }: Props) {
@@ -108,6 +116,8 @@ export function HomeOnboardingState({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {onGoToCensus && <CensusEntryCard onPress={onGoToCensus} className="mt-6 w-full" />}
     </View>
   );
 }

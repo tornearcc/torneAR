@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   FlatList,
   TouchableWithoutFeedback,
   StyleSheet,
 } from 'react-native';
+
+import { filterOptions } from '@/lib/option-search';
 
 interface OptionPickerDialogProps {
   visible: boolean;
@@ -16,6 +19,14 @@ interface OptionPickerDialogProps {
   onClose: () => void;
   onSelect: (value: string) => void;
   emptyLabel?: string;
+  /**
+   * Muestra un buscador arriba de la lista. Pensado para catálogos largos (los
+   * ~150 clubes del cuadro favorito); con pocas opciones no hace falta.
+   */
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  /** Texto cuando la búsqueda no encuentra nada. */
+  noResultsLabel?: string;
 }
 
 const OptionSeparator = () => <View className="h-2" />;
@@ -29,17 +40,27 @@ const OptionSeparator = () => <View className="h-2" />;
  * prop. Se usa para el cuadro favorito y sirve para cualquier catalogo cerrado
  * que venga despues.
  */
-export function OptionPickerDialog({
-  visible,
+export function OptionPickerDialog(props: OptionPickerDialogProps) {
+  // Igual que ZonePickerDialog: no montamos nada en el arbol si esta cerrado.
+  // El contenido va en otro componente para que la busqueda arranque vacia
+  // cada vez que se abre (el estado se descarta al desmontar).
+  if (!props.visible) return null;
+  return <OptionPickerContent {...props} />;
+}
+
+function OptionPickerContent({
   title,
   options,
   selected,
   onClose,
   onSelect,
   emptyLabel = 'No hay opciones disponibles.',
+  searchable = false,
+  searchPlaceholder = 'Buscar…',
+  noResultsLabel = 'No hay resultados.',
 }: OptionPickerDialogProps) {
-  // Igual que ZonePickerDialog: no montamos nada en el arbol si esta cerrado.
-  if (!visible) return null;
+  const [query, setQuery] = useState('');
+  const visibleOptions = searchable ? filterOptions(options, query) : options;
 
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 99 }]} className="flex-1">
@@ -49,12 +70,27 @@ export function OptionPickerDialog({
             <View className="w-full max-w-sm rounded-2xl border border-neutral-outline-variant/15 bg-surface-high p-4">
               <Text className="font-display mb-3 text-lg text-neutral-on-surface">{title}</Text>
 
+              {searchable ? (
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor="#869585"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  accessibilityLabel={searchPlaceholder}
+                  className="font-ui mb-3 rounded-xl border border-neutral-outline-variant bg-surface-low px-3 py-3 text-sm text-neutral-on-surface"
+                />
+              ) : null}
+
               <FlatList
-                data={options as string[]}
+                data={visibleOptions as string[]}
                 keyExtractor={(item) => item}
-                style={{ maxHeight: 320 }}
+                style={{ maxHeight: searchable ? 360 : 320 }}
                 ItemSeparatorComponent={OptionSeparator}
                 keyboardShouldPersistTaps="handled"
+                initialNumToRender={20}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     activeOpacity={0.9}
@@ -80,7 +116,9 @@ export function OptionPickerDialog({
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={() => (
-                  <Text className="py-2 text-sm text-neutral-on-surface-variant">{emptyLabel}</Text>
+                  <Text className="py-2 text-sm text-neutral-on-surface-variant">
+                    {query ? noResultsLabel : emptyLabel}
+                  </Text>
                 )}
               />
 
