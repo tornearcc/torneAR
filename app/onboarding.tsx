@@ -517,6 +517,9 @@ export default function OnboardingScreen() {
         visible={showFavoriteTeamPicker}
         title="Cuadro favorito"
         options={FAVORITE_TEAM_OPTIONS}
+        searchable
+        searchPlaceholder="Buscá tu club"
+        noResultsLabel="No encontramos ese club. Elegí «Otro / No tengo»."
         selected={selectedFavoriteTeam}
         onClose={() => setShowFavoriteTeamPicker(false)}
         onSelect={(val) => setValue('favoriteTeam', val, { shouldValidate: true })}
