@@ -12,7 +12,7 @@ interface Props {
  * Colores dinámicos del encabezado.
  *
  * Van por `style` y no por `className` condicional a propósito — ver el bloque
- * de abajo. Mismo patrón que `MiniRankingCard`, que ya resuelve así los colores
+ * de abajo. Mismo patrón que usaba el mini-ranking de Inicio para los colores
  * del podio.
  */
 const COLORS = {
@@ -91,7 +91,7 @@ function FaqEntryBlock({ entry, isLast }: { entry: FaqEntry; isLast: boolean }) 
  *      NativeWind a re-resolver estilos en cada toggle.
  *
  * Lo que queda es deliberadamente aburrido: Views comunes, clases estáticas para
- * layout, colores dinámicos por `style` (el patrón que ya usa `MiniRankingCard`)
+ * layout, colores dinámicos por `style` (el patrón que usaba el mini-ranking de Inicio)
  * y el cuerpo montado o no montado. Sin animación no hay estilo que pueda caer
  * en el nodo equivocado.
  *
