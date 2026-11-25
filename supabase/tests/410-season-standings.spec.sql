@@ -467,8 +467,8 @@ select results_eq(
      order by 1 $$,
   $$ values ('season_standings'::text, 'Equipo e5e5e5e5'::text, null::text),
             ('team_stints', 'Equipo e5e5e5e5', null),
-            ('teams', 'Equipo e5e5e5e5', null) $$,
-  'M-3: equipo vivo → nombre y escudo neutralizados en teams, season_standings y team_stints');
+            ('teams', 'Equipo e5e5e5e5', default_shield_preset('e5e5e5e5-0000-0000-0000-000000000001')) $$,
+  'M-3: equipo vivo → nombre y escudo neutralizados en teams (queda su prediseñado, 20261125140000), season_standings y team_stints');
 
 select results_eq(
   $$ select 'season_standings', team_name, shield_url from season_standings

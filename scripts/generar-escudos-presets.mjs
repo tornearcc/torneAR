@@ -2,11 +2,16 @@
 // Dibuja 15 escudos genéricos en SVG y arma el script de Playwright que los pasa a PNG 512×512.
 // Uso (desde tornear/):
 //   node scripts/generar-escudos-presets.mjs
-//   playwright-cli open && playwright-cli run-code --filename=scripts/.escudos-presets-run.js && playwright-cli close
+//   playwright-cli open && playwright-cli run-code --filename=<el path que imprime> && playwright-cli close
 // Salida: supabase/storage-seed/shields/presets/escudo-01.png … escudo-15.png (se suben al bucket
 // `shields` en la carpeta `presets/`) y supabase/storage-seed/shields/muestra-presets.png (vista previa).
+// El script de Playwright va a la carpeta temporal del sistema: no se versiona (y tocar .gitignore
+// cambia el fingerprint nativo).
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+const RUN = join(tmpdir(), 'escudos-presets-run.js');
 
 const OUT = resolve('supabase/storage-seed/shields/presets');
 mkdirSync(OUT, { recursive: true });
@@ -108,7 +113,7 @@ figcaption{color:#BCCBB9;font-size:15px;text-align:center}
 </style></head><body>${sueltos}${muestra}</body></html>`;
 
 const outJs = OUT.replace(/\\/g, '/');
-writeFileSync('scripts/.escudos-presets-run.js', `async page => {
+writeFileSync(RUN, `async page => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.setContent(${JSON.stringify(html)});
   for (const n of ${JSON.stringify(ESCUDOS.map((_, i) => id(i)))})
@@ -116,4 +121,5 @@ writeFileSync('scripts/.escudos-presets-run.js', `async page => {
   await (await page.$('#_muestra')).screenshot({ path: '${outJs}/../muestra-presets.png' });
   return 'ok';
 }`);
-console.log(`${ESCUDOS.length} escudos → ${OUT}`);
+console.log(`${ESCUDOS.length} escudos → ${OUT}
+Script de Playwright: ${RUN}`);
