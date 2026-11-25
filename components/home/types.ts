@@ -108,22 +108,9 @@ export interface HomeViewData {
    * confirme el traspaso. Se calcula incluso sin equipos: ése es justamente el
    * caso del jugador recién aceptado que aún no entró a ningún plantel.
    */
-  pendingTransfers: number;
-  /**
-   * Equipo que el usuario capitanea (o subcapitanea) y todavía tiene un solo
-   * integrante (Tanda 7). La Home muestra la tarjeta para invitar. `null` si no
-   * hay ninguno o si no se pudo calcular: la tarjeta es un extra y no frena la
-   * Home. Opcional para no tocar cada armado de `HomeViewData` en los tests.
-   */
-  soloTeam?: HomeSoloTeam | null;
-  /** Ver `HomeIncompleteTeam`. Opcional por la misma razón que `soloTeam`. */
+  pendingTransfers: number;
+  /** Ver `HomeIncompleteTeam`. Opcional para no tocar cada armado de `HomeViewData` en los tests. */
   incompleteTeam?: HomeIncompleteTeam | null;
-}
-
-export interface HomeSoloTeam {
-  id: string;
-  name: string;
-  inviteCode: string;
 }
 
 /**

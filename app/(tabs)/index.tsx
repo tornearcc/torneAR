@@ -468,7 +468,7 @@ export default function HomeScreen() {
   // Tanda 7: el mismo link que la gestión del equipo (link + código).
   const [sharingSoloInvite, setSharingSoloInvite] = useState(false);
   const handleInviteToSoloTeam = async () => {
-    const soloTeam = viewData?.soloTeam;
+    const soloTeam = viewData?.incompleteTeam;
     if (!soloTeam || sharingSoloInvite) return;
     try {
       setSharingSoloInvite(true);
@@ -569,9 +569,9 @@ export default function HomeScreen() {
             onActionPress={handlePendingAction}
           />
 
-          {viewData.soloTeam && (
+          {viewData.incompleteTeam && (
             <SoloTeamInviteCard
-              teamName={viewData.soloTeam.name}
+              teamName={viewData.incompleteTeam.name}
               sharing={sharingSoloInvite}
               onInvite={handleInviteToSoloTeam}
             />

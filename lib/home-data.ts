@@ -3,12 +3,13 @@ import { Logger } from '@/lib/logger';
 import { getSupabaseStorageUrl } from '@/lib/supabase-storage';
 import { fetchGuestMatchSides } from '@/lib/guest-matches-data';
 import { resolveBestFormatRanking, type FormatRankingRow } from '@/lib/team-ranking-format';
+import { playersNeeded } from '@/lib/home-next-step';
 import type { Database } from '@/types/supabase';
 import type {
   HomeViewData,
   HomeTeamSnapshot,
   HomeMatchEntry,
-  HomeSoloTeam,
+  HomeIncompleteTeam,
   PendingAction,
   PendingActionType,
 } from '@/components/home/types';
@@ -541,23 +542,24 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
     };
   });
 
-  const soloTeam = await fetchSoloCaptainTeam(profileId, captainTeamIds);
+  const incompleteTeam = await fetchIncompleteCaptainTeam(profileId, captainTeamIds);
 
-  return { myTeams, upcomingMatches, pendingActions, pendingTransfers, soloTeam };
+  return { myTeams, upcomingMatches, pendingActions, pendingTransfers, incompleteTeam };
 }
 
 /**
- * De los equipos que la persona capitanea o subcapitanea, el primero que
- * todavía tiene un solo integrante (Tanda 7, P1-11: al 29/09, 16 de los 17
- * equipos reales estaban así). Un fallo acá devuelve `null` y queda
- * registrado: la tarjeta es un extra, no puede tirar abajo la Home.
+ * De los equipos que la persona capitanea o subcapitanea, el que tiene menos
+ * jugadores que los que pide su formato (rediseño, etapa 1: «Completá tu
+ * equipo · n de N»). Si hay varios, el que está más cerca de completarse.
+ * Generaliza el «equipo de un solo integrante» de la Tanda 7. Un fallo acá
+ * devuelve `null` y queda registrado: es un extra, no puede tirar abajo la Home.
  *
  * Exportada para el test.
  */
-export async function fetchSoloCaptainTeam(
+export async function fetchIncompleteCaptainTeam(
   profileId: string,
   captainTeamIds: string[],
-): Promise<HomeSoloTeam | null> {
+): Promise<HomeIncompleteTeam | null> {
   if (captainTeamIds.length === 0) return null;
 
   try {
@@ -571,26 +573,37 @@ export async function fetchSoloCaptainTeam(
     for (const row of members ?? []) {
       countByTeam.set(row.team_id, (countByTeam.get(row.team_id) ?? 0) + 1);
     }
-    const soloTeamId = captainTeamIds.find((id) => countByTeam.get(id) === 1);
-    if (!soloTeamId) return null;
 
-    // Las solicitudes pendientes no se cuentan acá: ya las muestra la bandeja
-    // de acciones (TEAM_REQUEST).
-    const { data: team, error: teamError } = await supabase
+    const { data: teams, error: teamsError } = await supabase
       .from('teams')
-      .select('id, name, invite_code, is_active')
-      .eq('id', soloTeamId)
-      .maybeSingle();
-    if (teamError) throw teamError;
-    if (!team || !team.is_active) return null;
+      .select('id, name, invite_code, is_active, preferred_format, shield_url')
+      .in('id', captainTeamIds);
+    if (teamsError) throw teamsError;
 
-    return { id: team.id, name: team.name, inviteCode: team.invite_code };
+    const incompletos = (teams ?? [])
+      .filter((t) => t.is_active)
+      .map((t) => ({ t, members: countByTeam.get(t.id) ?? 0, needed: playersNeeded(t.preferred_format) }))
+      .filter((x) => x.members < x.needed)
+      .sort((x, y) => (x.needed - x.members) - (y.needed - y.members));
+    const elegido = incompletos[0];
+    if (!elegido) return null;
+
+    return {
+      id: elegido.t.id,
+      name: elegido.t.name,
+      inviteCode: elegido.t.invite_code,
+      shieldUrl: elegido.t.shield_url ? getSupabaseStorageUrl('shields', elegido.t.shield_url) : null,
+      members: elegido.members,
+      needed: elegido.needed,
+      format: elegido.t.preferred_format,
+    };
   } catch (error) {
-    Logger.warn('No se pudo calcular el equipo de un solo integrante para la Home', {
-      scope: 'home-data.fetchSoloCaptainTeam',
+    Logger.warn('No se pudo calcular el equipo incompleto para la Home', {
+      scope: 'home-data.fetchIncompleteCaptainTeam',
       profileId,
       error,
     });
     return null;
   }
 }
+

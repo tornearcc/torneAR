@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPendingActions, fetchSoloCaptainTeam } from './home-data';
+import { buildPendingActions, fetchIncompleteCaptainTeam } from './home-data';
 import { supabase } from '@/lib/supabase';
 import { createQueryBuilder } from '@/lib/test-utils/supabase-mock';
 
@@ -81,42 +81,52 @@ describe('buildPendingActions (D12)', () => {
   });
 });
 
-describe('fetchSoloCaptainTeam (Tanda 7)', () => {
+describe('fetchIncompleteCaptainTeam (rediseño etapa 1)', () => {
   const from = vi.mocked(supabase.from);
+  const fila = (id: string, format: string, extra: Record<string, unknown> = {}) => ({
+    id, name: `Equipo ${id}`, invite_code: 'AB12CD34', is_active: true, preferred_format: format, shield_url: null, ...extra,
+  });
 
-  function mockTables(members: { team_id: string }[], team: unknown, teamError: unknown = null) {
+  function mockTables(members: { team_id: string }[], teams: unknown, teamError: unknown = null) {
     from.mockImplementation(((table: string) =>
       table === 'team_members'
         ? createQueryBuilder({ data: members, error: null })
-        : createQueryBuilder({ data: team, error: teamError })) as never);
+        : createQueryBuilder({ data: teams, error: teamError })) as never);
   }
 
-  it('sin equipos que gestione, ni consulta', async () => {
+  it('sin equipos que gestione (solo jugador), ni consulta', async () => {
     from.mockClear();
-    expect(await fetchSoloCaptainTeam('p1', [])).toBeNull();
+    expect(await fetchIncompleteCaptainTeam('p1', [])).toBeNull();
     expect(from).not.toHaveBeenCalled();
   });
 
-  it('devuelve el primer equipo que gestiona con un solo integrante', async () => {
+  it('un F5 con 3 jugadores está incompleto: 3 de 5', async () => {
+    mockTables([{ team_id: 't1' }, { team_id: 't1' }, { team_id: 't1' }], [fila('t1', 'FUTBOL_5')]);
+    expect(await fetchIncompleteCaptainTeam('p1', ['t1'])).toEqual({
+      id: 't1', name: 'Equipo t1', inviteCode: 'AB12CD34', shieldUrl: null, members: 3, needed: 5, format: 'FUTBOL_5',
+    });
+  });
+
+  it('con 5 o más en un F5, no está incompleto', async () => {
+    mockTables(Array.from({ length: 6 }, () => ({ team_id: 't1' })), [fila('t1', 'FUTBOL_5')]);
+    expect(await fetchIncompleteCaptainTeam('p1', ['t1'])).toBeNull();
+  });
+
+  it('un equipo dado de baja no cuenta', async () => {
+    mockTables([{ team_id: 't1' }], [fila('t1', 'FUTBOL_5', { is_active: false })]);
+    expect(await fetchIncompleteCaptainTeam('p1', ['t1'])).toBeNull();
+  });
+
+  it('con varios incompletos, el que tiene menos lugares por llenar', async () => {
     mockTables(
-      [{ team_id: 't1' }, { team_id: 't1' }, { team_id: 't2' }],
-      { id: 't2', name: 'Furbol', invite_code: 'AB12CD34', is_active: true },
+      [{ team_id: 't1' }, ...Array.from({ length: 6 }, () => ({ team_id: 't2' }))],
+      [fila('t1', 'FUTBOL_5'), fila('t2', 'FUTBOL_7')],
     );
-    expect(await fetchSoloCaptainTeam('p1', ['t1', 't2'])).toEqual({ id: 't2', name: 'Furbol', inviteCode: 'AB12CD34' });
-  });
-
-  it('con compañeros en todos sus equipos, null', async () => {
-    mockTables([{ team_id: 't1' }, { team_id: 't1' }], null);
-    expect(await fetchSoloCaptainTeam('p1', ['t1'])).toBeNull();
-  });
-
-  it('un equipo dado de baja no muestra la tarjeta', async () => {
-    mockTables([{ team_id: 't1' }], { id: 't1', name: 'Viejo', invite_code: 'AB12CD34', is_active: false });
-    expect(await fetchSoloCaptainTeam('p1', ['t1'])).toBeNull();
+    expect((await fetchIncompleteCaptainTeam('p1', ['t1', 't2']))?.id).toBe('t2');
   });
 
   it('un error no frena la Home: null', async () => {
     mockTables([{ team_id: 't1' }], null, { message: 'boom' });
-    expect(await fetchSoloCaptainTeam('p1', ['t1'])).toBeNull();
+    expect(await fetchIncompleteCaptainTeam('p1', ['t1'])).toBeNull();
   });
 });
