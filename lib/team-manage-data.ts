@@ -187,6 +187,16 @@ export async function uploadTeamShield(teamId: string, base64: string, mimeType:
   if (updateError) throw updateError;
 }
 
+/** Elige uno de los escudos prediseñados (`SHIELD_PRESETS`). No sube nada: el archivo es compartido. */
+export async function setTeamShieldPreset(teamId: string, presetPath: string): Promise<void> {
+  const { error } = await supabase
+    .from('teams')
+    .update({ shield_url: presetPath, updated_at: new Date().toISOString() })
+    .eq('id', teamId);
+
+  if (error) throw error;
+}
+
 export async function updateTeam(
   teamId: string, 
   data: { name: string; zone: string; category: TeamCategory; preferred_format: TeamFormat }

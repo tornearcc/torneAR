@@ -10,6 +10,7 @@
 --   D/shield-4.jpg  no lo usa nadie, 48 h (equipo disuelto)   → candidato
 --   L/shield-5.jpg  no lo usa nadie, 48 h (escudo reemplazado)→ candidato
 --   D/shield-6.jpg  no lo usa nadie, 1 h (margen de 24 h)     → NO
+--   presets/escudo-99.png  prediseñado sin usar, 48 h        → NO (20261125140000)
 --
 --   S-1      El dry-run lista exactamente los candidatos.
 --   S-2      El dry-run no encola ni registra nada.
@@ -46,12 +47,14 @@ insert into storage.objects (bucket_id, name, created_at, metadata) values
   ('shields', 'd1d1d1d1-0000-0000-0000-000000000001/shield-3.jpg', now() - interval '48 hours', '{"size": 1000}'),
   ('shields', 'd1d1d1d1-0000-0000-0000-000000000001/shield-4.jpg', now() - interval '48 hours', '{"size": 1000}'),
   ('shields', '22222222-2222-2222-2222-222222222221/shield-5.jpg', now() - interval '48 hours', '{"size": 500}'),
-  ('shields', 'd1d1d1d1-0000-0000-0000-000000000001/shield-6.jpg', now() - interval '1 hour',   '{"size": 1000}');
+  ('shields', 'd1d1d1d1-0000-0000-0000-000000000001/shield-6.jpg', now() - interval '1 hour',   '{"size": 1000}'),
+  ('shields', 'presets/escudo-99.png',                             now() - interval '48 hours', '{"size": 1000}');
 
 create temp view s_mine as
   select objeto from sweep_orphan_shields(true)
   where objeto like '22222222-2222-2222-2222-222222222221/%'
-     or objeto like 'd1d1d1d1-0000-0000-0000-000000000001/%';
+     or objeto like 'd1d1d1d1-0000-0000-0000-000000000001/%'
+     or objeto like 'presets/%';
 
 -- ── Dry-run ─────────────────────────────────────────────────────────────────
 select results_eq(
