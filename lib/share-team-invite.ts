@@ -2,7 +2,7 @@ import { Share } from 'react-native';
 import { shareActivityType, trackShareIntent } from '@/lib/share-analytics';
 import { buildTeamInviteMessage } from '@/lib/team-invite-link';
 
-export type TeamInviteSurface = 'team_manage' | 'home_solo_card';
+export type TeamInviteSurface = 'team_manage' | 'home_next_step';
 
 interface ShareTeamInviteInput {
   team: { id: string; name: string; inviteCode: string };
