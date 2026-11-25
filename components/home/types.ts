@@ -70,35 +70,6 @@ export interface PendingAction {
   matchId?: string | null;
 }
 
-/**
- * Fila del mini-ranking de la Home: el top 3 del formato que juega el equipo
- * del usuario. Es un recorte de `RankingTeamEntry` — sólo lo que entra en la
- * tarjeta, para no arrastrar zona/categoría/fair play que acá no se muestran.
- */
-export interface MiniRankingEntry {
-  rankPosition: number;
-  teamId: string;
-  teamName: string;
-  shieldUrl: string | null;
-  eloRating: number;
-  isMyTeam: boolean;
-}
-
-/**
- * Los tres filtros que definen QUÉ ranking está mirando el usuario.
- *
- * Es el contrato que mantiene honesta a la tarjeta: la misma terna se usa para
- * consultar el top 3, para pintar los chips de la cabecera y para navegar a la
- * tab Ranking. Antes la Home consultaba sólo por formato mientras la tab
- * arrancaba filtrada por zona + categoría + formato del equipo activo, así que
- * "Ver la tabla completa" llevaba a una lista que no era la del widget.
- */
-export interface MiniRankingContext {
-  zone: string | null;
-  category: Database['public']['Enums']['team_category'] | null;
-  format: TeamFormat | null;
-}
-
 export interface HomeViewData {
   myTeams: HomeTeamSnapshot[];
   upcomingMatches: HomeMatchEntry[];
