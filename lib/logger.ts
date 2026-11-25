@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import type { ErrorUtils as RNErrorUtils } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/types/supabase';
+import { describeEmptyErrorObject, getRecentHttpFailure } from '@/lib/http-failures';
 
 /**
  * Telemetria de cliente.
@@ -80,7 +81,7 @@ function toJsonDetails(details: LogDetails | undefined): Json | null {
       } else if (typeof value === 'function' || typeof value === 'undefined') {
         normalized[key] = String(value);
       } else {
-        normalized[key] = value;
+        normalized[key] = describeEmptyErrorObject(value);
       }
     }
 
@@ -149,9 +150,14 @@ function emit(level: LogLevel, message: string, details?: LogDetails): void {
 
   if (!allowedByRateLimit()) return;
 
+  // En los errores, el último pedido a Supabase que falló (si fue hace poco):
+  // status y path, que el error en sí a veces no trae.
+  const lastHttpFailure = level === 'error' ? getRecentHttpFailure() : null;
+
   const payload = toJsonDetails({
     platform: Platform.OS,
     ...(details ?? {}),
+    ...(lastHttpFailure ? { lastHttpFailure } : {}),
     ...(droppedSinceLastWrite > 0 ? { droppedByRateLimit: droppedSinceLastWrite } : {}),
   });
   droppedSinceLastWrite = 0;
