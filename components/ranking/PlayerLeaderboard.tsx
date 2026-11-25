@@ -111,8 +111,8 @@ export function PlayerLeaderboard({
 
     return (
         <View className="mt-5">
-            <Text className="mb-2.5 font-displayBlack text-base uppercase tracking-widest text-neutral-on-surface">
-                ⚽ Mejores jugadores
+            <Text className="mb-2.5 font-uiBold text-xs uppercase tracking-wider text-neutral-on-surface-variant">
+                Mejores jugadores
             </Text>
 
             <LeaderboardStatChips activeStat={activeStat} onStatChange={onStatChange} />

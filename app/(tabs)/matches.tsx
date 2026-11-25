@@ -209,19 +209,6 @@ export default function MatchesScreen() {
     <View className="flex-1 bg-surface-base">
       <GlobalHeader />
 
-      {/* Guest join banner — always visible */}
-      <TouchableOpacity
-        onPress={() => setShowGuestModal(true)}
-        activeOpacity={0.8}
-        className="mx-4 mt-3 flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-2.5"
-      >
-        <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
-        <Text className="font-uiBold flex-1 text-sm text-brand-primary">
-          ¿Te invitaron a un partido? Ingresá el código
-        </Text>
-        <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
-      </TouchableOpacity>
-
       {/* Carga inicial */}
       {isInitialLoad && <MatchesSkeleton />}
 
@@ -233,6 +220,15 @@ export default function MatchesScreen() {
           <Text className="font-ui mt-2 text-center text-neutral-on-surface-variant">
             Seleccioná un equipo para ver tus partidos.
           </Text>
+          <TouchableOpacity
+            onPress={() => setShowGuestModal(true)}
+            activeOpacity={0.8}
+            className="mt-6 w-full flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-3"
+          >
+            <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
+            <Text className="font-uiBold flex-1 text-sm text-brand-primary">¿Te invitaron a un partido? Ingresá el código</Text>
+            <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -242,8 +238,10 @@ export default function MatchesScreen() {
           contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Team selector banner */}
-          {activeTeamId && (
+          {/* Rediseño: título de la pestaña, y el selector de equipo solo con varios equipos
+              (el equipo activo ya se ve en el header). */}
+          <Text className="mb-4 font-displayBlack text-[32px] uppercase text-neutral-on-surface">Partidos</Text>
+          {activeTeamId && myTeams.length > 1 && (
             <View className="mb-4 flex-row items-center justify-between rounded-2xl bg-surface-container px-4 py-3">
               <View>
                 <Text className="font-ui text-[10px] uppercase tracking-widest text-neutral-outline">
@@ -382,6 +380,16 @@ export default function MatchesScreen() {
                 </Text>
               </View>
             )}
+          {/* Partido como invitado: al final (rediseño); arriba quedan los desafíos y los partidos del equipo. */}
+          <TouchableOpacity
+            onPress={() => setShowGuestModal(true)}
+            activeOpacity={0.8}
+            className="mt-6 flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-3"
+          >
+            <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
+            <Text className="font-uiBold flex-1 text-sm text-brand-primary">¿Te invitaron a un partido? Ingresá el código</Text>
+            <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
+          </TouchableOpacity>
         </ScrollView>
       )}
 

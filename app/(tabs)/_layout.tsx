@@ -88,7 +88,8 @@ export default function TabLayout() {
          */
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: '#201F1F', // surface-container
+          // Rediseño (spec §10): fondo más oscuro que las tarjetas, para que la barra no compita con ellas.
+          backgroundColor: '#0E0E0E', // surface-lowest
           borderTopColor: 'rgba(134, 149, 133, 0.15)', // neutral-outline / 15
           borderTopWidth: StyleSheet.hairlineWidth,
           elevation: 0,
@@ -99,9 +100,9 @@ export default function TabLayout() {
         tabBarInactiveTintColor: Colors.dark.tabIconDefault,
         tabBarLabelStyle: {
           // 11 y no 10: con íconos de 26px, el label de 10 quedaba desbalanceado.
+          // Rediseño: etiquetas en tipo oración (Inter), como el resto de la app.
           fontSize: 11,
-          fontFamily: 'BarlowCondensed_700Bold',
-          textTransform: 'uppercase',
+          fontFamily: 'Inter_500Medium',
           letterSpacing: 0.5,
         },
         tabBarHideOnKeyboard: true,
@@ -110,7 +111,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'INICIO',
+          title: 'Inicio',
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="home-variant-outline" size={focused ? 26 : 24} color={color} />
           ),
@@ -120,11 +121,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="matches"
         options={{
-          title: 'PARTIDOS',
+          title: 'Partidos',
           tabBarBadge: receivedChallenges > 0 ? (receivedChallenges > 9 ? '9+' : receivedChallenges) : undefined,
           tabBarBadgeStyle: { backgroundColor: '#FABD32', color: '#0E0E0E', fontSize: 11 },
           tabBarIcon: ({ color, focused }) => (
-            <AppIcon family="material-community" name="soccer" size={focused ? 26 : 24} color={color} />
+            <AppIcon family="material-community" name="calendar-month-outline" size={focused ? 26 : 24} color={color} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -137,13 +138,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ranking"
         options={{
-          title: 'RANKING',
+          title: 'Ranking',
           tabBarActiveTintColor: Colors.dark.tint,
           tabBarInactiveTintColor: Colors.dark.tint,
           tabBarIcon: ({ focused }) => (
             <View
               className={`items-center justify-center rounded-full bg-brand-primary ${focused ? 'shadow-glow-primary' : ''}`}
-              style={{ width: 40, height: 40, marginTop: -6 }}
+              style={{ width: 46, height: 46, marginTop: -14 }}
             >
               <AppIcon family="material-community" name="trophy" size={focused ? 24 : 22} color="#0E0E0E" />
             </View>
@@ -154,7 +155,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="market"
         options={{
-          title: 'BUSCAR',
+          title: 'Buscar',
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="magnify" size={focused ? 26 : 24} color={color} />
           ),
@@ -164,7 +165,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'PERFIL',
+          title: 'Perfil',
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="account-outline" size={focused ? 26 : 24} color={color} />
           ),

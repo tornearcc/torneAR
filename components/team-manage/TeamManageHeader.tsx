@@ -101,103 +101,38 @@ export function TeamManageHeader({
         </View>
       </View>
 
-      <View className="mt-4 flex-row flex-wrap items-center gap-2">
-        <Text className="font-uiBold rounded bg-brand-primary/15 px-2 py-1 text-[10px] uppercase tracking-wide text-brand-primary">
-          {getTeamCategoryLabel(team.category)}
-        </Text>
-        <Text className="font-uiBold rounded bg-info-secondary/15 px-2 py-1 text-[10px] uppercase tracking-wide text-info-secondary">
-          {getTeamFormatLabel(team.preferred_format)}
-        </Text>
-        {myRole ? (
-          <Text className="font-uiBold rounded bg-surface-high px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-on-surface-variant">
-            {getTeamRoleLabel(myRole)}
-          </Text>
-        ) : null}
-      </View>
+      {/* Rediseño, etapa 5 (spec §8.2): lo importante en dos líneas, el código para
+          invitar y las stats a un toque. Antes: chips, tarjeta de código, tres
+          baldosas de resumen y la fila de edad, una debajo de la otra. */}
+      <Text className="font-ui mt-3 text-[13px] text-neutral-on-surface-variant">
+        {[getTeamFormatLabel(team.preferred_format), getTeamCategoryLabel(team.category), myRole ? getTeamRoleLabel(myRole) : null].filter(Boolean).join(' · ')}
+      </Text>
+      <Text className="font-ui mt-1 text-[13px] text-neutral-on-surface-variant" style={{ fontVariant: ['tabular-nums'] }}>
+        {`Rating ${team.elo_rating} · ${team.matches_played} PJ · Fair play ${Number(team.fair_play_score).toFixed(0)}${squadAge ? ` · ${squadAge.average} años de promedio` : ''}`}
+      </Text>
 
-      <View className="mt-4 rounded-lg bg-surface-high px-3 py-2.5">
-        <Text className="font-display text-[10px] uppercase tracking-widest text-neutral-on-surface-variant">
-          Código de invitación
+      <View className="mt-4 flex-row items-center justify-between rounded-lg bg-surface-high px-3 py-2.5">
+        <Text className="font-ui text-[13px] text-neutral-on-surface-variant">
+          Código <Text className="font-displayBlack text-xl tracking-[1px] text-brand-primary">{team.invite_code}</Text>
         </Text>
-        <View className="mt-1.5 flex-row items-center justify-between">
-          <Text className="font-displayBlack text-xl uppercase tracking-[1px] text-brand-primary">
-            {team.invite_code}
-          </Text>
-          <View className="flex-row items-center gap-1">
-            <TouchableOpacity
-              onPress={onCopyInviteCode}
-              activeOpacity={0.9}
-              className="h-8 w-8 items-center justify-center rounded-md bg-surface-variant"
-            >
-              <AppIcon family="material-icons" name="content-copy" size={16} color="#BCCBB9" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={onShareInvite}
-              activeOpacity={0.9}
-              className="h-8 w-8 items-center justify-center rounded-md bg-surface-variant"
-            >
-              <AppIcon family="material-community" name="share-variant" size={16} color="#BCCBB9" />
-            </TouchableOpacity>
-          </View>
+        <View className="flex-row items-center gap-1">
+          <TouchableOpacity onPress={onCopyInviteCode} activeOpacity={0.9} accessibilityLabel="Copiar código" className="h-9 w-9 items-center justify-center rounded-md bg-surface-variant">
+            <AppIcon family="material-icons" name="content-copy" size={16} color="#BCCBB9" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onShareInvite} activeOpacity={0.9} accessibilityLabel="Compartir invitación" className="h-9 w-9 items-center justify-center rounded-md bg-surface-variant">
+            <AppIcon family="material-community" name="share-variant" size={16} color="#BCCBB9" />
+          </TouchableOpacity>
         </View>
       </View>
 
-      <View className="mt-4 rounded-xl bg-surface-low">
-        <Text className="font-display mb-3 text-xs uppercase tracking-wider text-neutral-on-surface-variant">
-          Resumen
-        </Text>
-        <View className="flex-row gap-3">
-          <View className="flex-1 rounded-lg bg-surface-high px-3 py-3">
-            <Text className="font-ui text-[11px] uppercase tracking-wide text-neutral-on-surface-variant">Rating</Text>
-            <Text className="font-display mt-1 text-xl text-neutral-on-surface" style={{ fontVariant: ['tabular-nums'] }}>
-              {team.elo_rating}
-            </Text>
-          </View>
-          <View className="flex-1 rounded-lg bg-surface-high px-3 py-3">
-            <Text className="font-ui text-[11px] uppercase tracking-wide text-neutral-on-surface-variant">Partidos</Text>
-            <Text className="font-display mt-1 text-xl text-neutral-on-surface" style={{ fontVariant: ['tabular-nums'] }}>
-              {team.matches_played}
-            </Text>
-          </View>
-          <View className="flex-1 rounded-lg bg-surface-high px-3 py-3">
-            <Text className="font-ui text-[11px] uppercase tracking-wide text-neutral-on-surface-variant">Fair Play</Text>
-            <Text className="font-display mt-1 text-xl text-neutral-on-surface" style={{ fontVariant: ['tabular-nums'] }}>
-              {Number(team.fair_play_score).toFixed(1)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Promedio de edad del plantel. Fila propia y no una cuarta baldosa:
-            con 4 en la misma fila el número queda con menos ancho que sus
-            dígitos y el label se corta. */}
-        <View className="mt-3 flex-row items-center justify-between rounded-lg bg-surface-high px-3 py-3">
-          <View className="flex-1 pr-3">
-            <Text className="font-ui text-[11px] uppercase tracking-wide text-neutral-on-surface-variant">
-              Promedio de edad
-            </Text>
-            {squadAge && squadAge.counted < members.length && (
-              <Text className="font-ui mt-0.5 text-[10px] text-neutral-outline">
-                sobre {squadAge.counted} de {members.length} jugadores con fecha cargada
-              </Text>
-            )}
-          </View>
-          <Text
-            className="font-display text-xl text-neutral-on-surface"
-            style={{ fontVariant: ['tabular-nums'] }}
-          >
-            {squadAge ? `${squadAge.average} años` : '—'}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => router.push({ pathname: '/team-stats', params: { teamId: team.id } })}
-          className="mt-3 flex-row items-center justify-center gap-2 rounded-lg bg-surface-high py-2.5"
-        >
-          <AppIcon family="material-community" name="chart-timeline-variant" size={15} color="#8CCDFF" />
-          <Text className="font-display text-[10px] uppercase tracking-wider text-info-secondary">Ver stats detalladas</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => router.push({ pathname: '/team-stats', params: { teamId: team.id } })}
+        className="mt-3 flex-row items-center justify-center gap-2 py-1.5"
+      >
+        <AppIcon family="material-community" name="chart-timeline-variant" size={15} color="#8CCDFF" />
+        <Text className="font-uiBold text-[13px] text-info-secondary">Ver stats del equipo</Text>
+      </TouchableOpacity>
     </View>
   );
 }
