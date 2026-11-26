@@ -65,6 +65,18 @@ describe('resolveHomeNextStep', () => {
     expect(resolveHomeNextStep(data({ incompleteTeam: t }))).toEqual({ kind: 'COMPLETE_TEAM', team: t });
   });
 
+  it('las postulaciones del Mercado ganan a completar el equipo (26/11: son la forma de completarlo)', () => {
+    const a = action('MARKET_APPLICATION');
+    expect(resolveHomeNextStep(data({ pendingActions: [a], incompleteTeam: incomplete(1) })))
+      .toEqual({ kind: 'MARKET_APPLICATION', action: a });
+  });
+
+  it('una solicitud de ingreso gana a las postulaciones', () => {
+    const r = action('TEAM_REQUEST');
+    expect(resolveHomeNextStep(data({ pendingActions: [r, action('MARKET_APPLICATION')] })))
+      .toEqual({ kind: 'TEAM_REQUEST', action: r });
+  });
+
   it('solo postulaciones del Mercado → responderlas', () => {
     const a = action('MARKET_APPLICATION');
     expect(resolveHomeNextStep(data({ pendingActions: [a] }))).toEqual({ kind: 'MARKET_APPLICATION', action: a });

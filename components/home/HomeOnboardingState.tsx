@@ -3,6 +3,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { CensusEntryCard } from '@/components/home/CensusEntryCard';
 import { JourneyBar } from '@/components/home/JourneyBar';
 import { NextStepCard } from '@/components/home/NextStepCard';
+import type { PendingAction } from '@/components/home/types';
 
 interface Props {
   onCreateTeam: () => void;
@@ -18,6 +19,9 @@ interface Props {
   /** Solicitudes ya aprobadas por un equipo que esperan que el jugador confirme. */
   pendingTransfers?: number;
   onConfirmTransfer?: () => void;
+  /** Equipos que se postularon a mi «busco equipo» y esperan respuesta (26/11). */
+  marketApplication?: PendingAction | null;
+  onOpenApplication?: (action: PendingAction) => void;
 }
 
 /**
@@ -33,8 +37,11 @@ export function HomeOnboardingState({
   onGoToCensus,
   pendingTransfers = 0,
   onConfirmTransfer,
+  marketApplication,
+  onOpenApplication,
 }: Props) {
   const hasPendingTransfer = pendingTransfers > 0 && !!onConfirmTransfer;
+  const application = marketApplication && onOpenApplication ? marketApplication : null;
 
   return (
     <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }} showsVerticalScrollIndicator={false}>
@@ -58,6 +65,27 @@ export function HomeOnboardingState({
               </Text>
             </View>
             <AppIcon family="material-community" name="chevron-right" size={22} color="#53E076" />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Un equipo se postuló a tu «busco equipo»: respondé y entrás. Antes
+          Inicio sin equipo no lo mostraba en ningún lado (26/11). */}
+      {application && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => onOpenApplication?.(application)}
+          className="mb-5 w-full rounded-2xl border border-warning-tertiary/60 bg-warning-tertiary/10 p-4"
+        >
+          <View className="flex-row items-center gap-3">
+            <AppIcon family="material-community" name="account-group" size={26} color="#FABD32" />
+            <View className="flex-1">
+              <Text className="font-uiBold text-base text-warning-tertiary">{application.label}</Text>
+              <Text className="font-ui mt-0.5 text-xs leading-4 text-neutral-on-surface-variant">
+                Se postularon a tu publicación. Aceptá y entrás al equipo.
+              </Text>
+            </View>
+            <AppIcon family="material-community" name="chevron-right" size={22} color="#FABD32" />
           </View>
         </TouchableOpacity>
       )}

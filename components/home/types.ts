@@ -68,6 +68,13 @@ export interface PendingAction {
    * esperando tu respuesta" obligaba a buscar cuál a mano.
    */
   matchId?: string | null;
+  /**
+   * Solo MARKET_APPLICATION: de qué lado son las postulaciones (`TEAM` = jugadores
+   * que quieren sumarse a mi equipo; `PLAYER` = equipos que me quieren sumar) y,
+   * si todas son de una misma publicación, cuál, para abrir su lista directo.
+   */
+  postType?: 'TEAM' | 'PLAYER';
+  postId?: string | null;
 }
 
 export interface HomeViewData {
@@ -79,7 +86,7 @@ export interface HomeViewData {
    * confirme el traspaso. Se calcula incluso sin equipos: ése es justamente el
    * caso del jugador recién aceptado que aún no entró a ningún plantel.
    */
-  pendingTransfers: number;
+  pendingTransfers: number;
   /** Ver `HomeIncompleteTeam`. Opcional para no tocar cada armado de `HomeViewData` en los tests. */
   incompleteTeam?: HomeIncompleteTeam | null;
 }

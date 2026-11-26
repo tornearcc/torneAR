@@ -14,7 +14,7 @@ import type { Database } from '@/types/supabase';
  *
  * Prioridad: lo que pasa con un partido (en vivo, disputa, propuesta, cancelación,
  * desafío recibido) → el próximo partido → alguien que pide entrar al equipo →
- * completar el equipo → postulaciones del Mercado → buscar rival.
+ * postulaciones del Mercado → completar el equipo → buscar rival.
  */
 
 type TeamFormat = Database['public']['Enums']['team_format'];
@@ -58,10 +58,13 @@ export function resolveHomeNextStep(data: NextStepInput): HomeNextStep {
   const request = data.pendingActions.find((a) => a.type === 'TEAM_REQUEST');
   if (request) return { kind: 'TEAM_REQUEST', action: request };
 
-  if (data.incompleteTeam) return { kind: 'COMPLETE_TEAM', team: data.incompleteTeam };
-
+  // Antes iba después de «Completá tu equipo», y como casi todos los equipos nuevos
+  // están incompletos, nadie lo veía (26/11: 41 postulaciones sin responder). Es
+  // justamente la forma de completarlo, así que va antes.
   const application = data.pendingActions.find((a) => a.type === 'MARKET_APPLICATION');
   if (application) return { kind: 'MARKET_APPLICATION', action: application };
+
+  if (data.incompleteTeam) return { kind: 'COMPLETE_TEAM', team: data.incompleteTeam };
 
   const canChallenge = data.myTeams.some((t) => t.role === 'CAPITAN' || t.role === 'SUBCAPITAN');
   if (!canChallenge) return { kind: 'ASK_CAPTAIN', teamName: data.myTeams[0].name };

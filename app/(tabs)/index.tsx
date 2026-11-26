@@ -128,7 +128,12 @@ export default function HomeScreen() {
         router.push('/challenge-inbox');
         break;
       case 'MARKET_APPLICATION':
-        router.navigate('/(tabs)/market');
+        // Todas de un mismo aviso: directo a su lista. Si no, al Mercado.
+        if (action.postId && action.postType) {
+          router.push({ pathname: '/market-applications', params: { postId: action.postId, postType: action.postType } });
+        } else {
+          router.navigate('/(tabs)/market');
+        }
         break;
       case 'TEAM_REQUEST': {
         const teamId = viewData?.incompleteTeam?.id ?? viewData?.myTeams[0]?.id;
@@ -218,6 +223,8 @@ export default function HomeScreen() {
           onGoToCensus={goToCensus}
           pendingTransfers={viewData?.pendingTransfers ?? 0}
           onConfirmTransfer={() => router.push('/team-requests')}
+          marketApplication={viewData?.pendingActions.find((a) => a.type === 'MARKET_APPLICATION') ?? null}
+          onOpenApplication={handlePendingAction}
         />
       ) : (
         <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }} showsVerticalScrollIndicator={false}>

@@ -91,6 +91,45 @@ export interface PendingActionInput {
   type: PendingActionType;
   count: number;
   matchId?: string | null;
+  postType?: 'TEAM' | 'PLAYER';
+  postId?: string | null;
+}
+
+type ApplicationRow = { id: string; post_id: string };
+
+/**
+ * Postulaciones abiertas → entrada de la bandeja. Si todas son de un mismo aviso,
+ * se guarda cuál para que «Ver» abra su lista directo (26/11: 41 postulaciones sin
+ * responder y solo 13 de 66 avisos leídos; el atajo al Mercado no alcanzaba).
+ */
+export function marketApplicationInput(rows: ApplicationRow[], postType: 'TEAM' | 'PLAYER'): PendingActionInput {
+  const postIds = [...new Set(rows.map((r) => r.post_id))];
+  return {
+    type: 'MARKET_APPLICATION',
+    count: rows.length,
+    postType,
+    postId: postIds.length === 1 ? postIds[0] : null,
+  };
+}
+
+/** Postulaciones abiertas a mis avisos de «busco equipo». Va aparte porque también corre sin equipo. */
+async function fetchOpenPlayerPostApplications(profileId: string): Promise<ApplicationRow[]> {
+  const { data: posts, error: postsError } = await supabase
+    .from('market_player_posts')
+    .select('id')
+    .eq('profile_id', profileId)
+    .eq('is_active', true);
+  if (postsError) throw postsError;
+  const postIds = (posts ?? []).map((p) => p.id);
+  if (postIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('market_player_post_applications')
+    .select('id, post_id')
+    .in('post_id', postIds)
+    .in('status', OPEN_APPLICATION_STATUSES);
+  if (error) throw error;
+  return (data ?? []) as ApplicationRow[];
 }
 
 /**
@@ -106,7 +145,7 @@ export interface PendingActionInput {
  * que espera una respuesta mía, y al final lo que puede esperar.
  */
 export function buildPendingActions(inputs: PendingActionInput[]): PendingAction[] {
-  const label = (type: PendingActionType, n: number): string => {
+  const label = (type: PendingActionType, n: number, postType?: 'TEAM' | 'PLAYER'): string => {
     switch (type) {
       case 'LIVE_RESULT':
         return n === 1
@@ -129,6 +168,13 @@ export function buildPendingActions(inputs: PendingActionInput[]): PendingAction
           ? '1 solicitud de ingreso pendiente'
           : `${n} solicitudes de ingreso pendientes`;
       case 'MARKET_APPLICATION':
+        // Quién espera y para qué, no «postulaciones en el Mercado» (26/11).
+        if (postType === 'TEAM') {
+          return n === 1 ? '1 jugador quiere sumarse a tu equipo' : `${n} jugadores quieren sumarse a tu equipo`;
+        }
+        if (postType === 'PLAYER') {
+          return n === 1 ? '1 equipo te quiere sumar' : `${n} equipos te quieren sumar`;
+        }
         return n === 1
           ? '1 postulación sin responder en el Mercado'
           : `${n} postulaciones sin responder en el Mercado`;
@@ -151,9 +197,10 @@ export function buildPendingActions(inputs: PendingActionInput[]): PendingAction
     .map((entry) => ({
       type: entry.type,
       count: entry.count,
-      label: label(entry.type, entry.count),
+      label: label(entry.type, entry.count, entry.postType),
       // El atajo directo sólo tiene sentido cuando no hay ambigüedad.
       matchId: entry.count === 1 ? (entry.matchId ?? null) : null,
+      ...(entry.postType ? { postType: entry.postType, postId: entry.postId ?? null } : {}),
     }));
 }
 
@@ -201,7 +248,15 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
   const guestMatchIds = Object.keys(guestSideByMatchId);
 
   if (memberRows.length === 0 && guestMatchIds.length === 0) {
-    return { myTeams: [], upcomingMatches: [], pendingActions: [], pendingTransfers };
+    // Sin equipo igual puede haber equipos que se postularon a mi «busco equipo»:
+    // antes el corte los dejaba afuera y nadie se enteraba (26/11).
+    const playerApps = await fetchOpenPlayerPostApplications(profileId);
+    return {
+      myTeams: [],
+      upcomingMatches: [],
+      pendingActions: buildPendingActions([marketApplicationInput(playerApps, 'PLAYER')]),
+      pendingTransfers,
+    };
   }
 
   const teamIds = memberRows.map((r) => r.team_id);
@@ -355,7 +410,7 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
       myPostIds.TEAM.length > 0
         ? supabase
             .from('market_team_post_applications')
-            .select('id')
+            .select('id, post_id')
             .in('post_id', myPostIds.TEAM)
             .in('status', OPEN_APPLICATION_STATUSES)
         : Promise.resolve({ data: [], error: null }),
@@ -363,7 +418,7 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
       myPostIds.PLAYER.length > 0
         ? supabase
             .from('market_player_post_applications')
-            .select('id')
+            .select('id, post_id')
             .in('post_id', myPostIds.PLAYER)
             .in('status', OPEN_APPLICATION_STATUSES)
         : Promise.resolve({ data: [], error: null }),
@@ -389,9 +444,10 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
     (matchId) => !loadedByMe.has(`${matchId}:${myTeamByMatch.get(matchId)}`),
   );
 
-  const marketApplicationCount =
-    ((teamAppsRes.data ?? []) as { id: string }[]).length +
-    ((playerAppsRes.data ?? []) as { id: string }[]).length;
+  // Una entrada por lado (jugadores que quieren sumarse / equipos que me quieren
+  // sumar): el texto y el atajo son distintos para cada uno.
+  const teamApplications = marketApplicationInput((teamAppsRes.data ?? []) as ApplicationRow[], 'TEAM');
+  const playerApplications = marketApplicationInput((playerAppsRes.data ?? []) as ApplicationRow[], 'PLAYER');
 
   // Step 3 — fetch team details for all teams referenced in upcoming matches
   // (needed for opponent names/shields that aren't in my team list)
@@ -481,7 +537,8 @@ export async function fetchHomeViewData(profileId: string): Promise<HomeViewData
     },
     { type: 'CHALLENGE_RECEIVED', count: (challengesRes.data ?? []).length },
     { type: 'TEAM_REQUEST', count: (requestsRes.data ?? []).length },
-    { type: 'MARKET_APPLICATION', count: marketApplicationCount },
+    teamApplications,
+    playerApplications,
   ]);
 
   /*
