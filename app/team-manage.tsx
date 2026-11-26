@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -26,6 +26,7 @@ import { TeamMembersList } from '@/components/team-manage/TeamMembersList';
 import { MixedCompositionCard } from '@/components/team-manage/MixedCompositionCard';
 import { TeamAmbassadorLinkCard } from '@/components/team-manage/TeamAmbassadorLinkCard';
 import { ShieldPickerDialog } from '@/components/team-manage/ShieldPickerDialog';
+import { playersNeeded } from '@/lib/home-next-step';
 import { TeamManageViewData, TeamMemberRow, TeamJoinRequestRow } from '@/components/team-manage/types';
 import {
   fetchTeamManageViewData,
@@ -87,6 +88,10 @@ export default function TeamManageScreen() {
   const [showShieldPicker, setShowShieldPicker] = useState(false);
 
   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
+  // Rediseño, etapa 5: «Ajustes del equipo» plegado y el aviso que lleva a las solicitudes.
+  const [showSettings, setShowSettings] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const [requestsY, setRequestsY] = useState(0);
   const [showZonePicker, setShowZonePicker] = useState(false);
   const [zones, setZones] = useState<string[]>([]);
   const [loadingZones, setLoadingZones] = useState(false);
@@ -750,12 +755,9 @@ export default function TeamManageScreen() {
   return (
     // `edges={['bottom']}`: el inset superior ya lo aplica SecondaryHeader.
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
-      <SecondaryHeader
-        title="Gestión de equipo"
-        subtitle="Administracion y estado de tu plantel."
-      />
+      <SecondaryHeader title="Tu equipo" />
 
-      <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 36 }}>
+      <ScrollView ref={scrollRef} className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 36 }}>
         <TeamManageHeader
           team={team}
           myRole={myRole}
@@ -767,6 +769,23 @@ export default function TeamManageScreen() {
           onCopyInviteCode={handleCopyInviteCode}
           onShareInvite={handleShareInvite}
         />
+
+        {/* Rediseño, etapa 5: alguien quiere entrar → aviso amarillo arriba (lleva a las solicitudes). */}
+        {canModerateRequests && pendingRequests.length > 0 && (
+          <TouchableOpacity
+            onPress={() => scrollRef.current?.scrollTo({ y: requestsY, animated: true })}
+            activeOpacity={0.85}
+            className="mt-4 flex-row items-center gap-3 rounded-2xl border border-warning-tertiary/45 bg-warning-tertiary/10 px-4 py-3.5"
+          >
+            <View className="h-7 min-w-[28px] items-center justify-center rounded-full bg-warning-tertiary px-1.5">
+              <Text className="font-uiBold text-sm text-surface-lowest">{pendingRequests.length}</Text>
+            </View>
+            <Text className="font-uiBold flex-1 text-sm text-neutral-on-surface">
+              {pendingRequests.length === 1 ? 'Alguien quiere sumarse al equipo' : 'Quieren sumarse al equipo'}
+            </Text>
+            <Text className="font-uiBold text-sm text-warning-tertiary">Revisar</Text>
+          </TouchableOpacity>
+        )}
 
         {!team.is_active && (
           <View className="mt-4 flex-row items-start gap-2 rounded-xl border border-warning-tertiary/30 bg-warning-tertiary/10 p-4">
@@ -781,15 +800,6 @@ export default function TeamManageScreen() {
           </View>
         )}
 
-        {showAmbassadorLink && (
-          <TeamAmbassadorLinkCard
-            key={teamId}
-            initialUsername={ambassadorLink?.prefill ?? null}
-            saving={savingAmbassador}
-            onSave={(username) => void handleSaveAmbassador(username)}
-          />
-        )}
-
         {mixedComposition && <MixedCompositionCard status={mixedComposition} />}
 
         {/* El Plantel va PRIMERO y las solicitudes debajo. Al reves, un capitan
@@ -798,8 +808,10 @@ export default function TeamManageScreen() {
             son la excepcion, no lo que se viene a mirar todos los dias. */}
         <View className="mt-4 rounded-xl bg-surface-low p-4">
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="font-display text-xs uppercase tracking-wider text-neutral-on-surface-variant">Plantel</Text>
-            <Text className="font-ui text-xs text-neutral-on-surface-variant" style={{ fontVariant: ['tabular-nums'] }}>{members.length} miembros</Text>
+            <Text className="font-uiBold text-xs uppercase tracking-wider text-neutral-on-surface-variant">{`Plantel · ${members.length} de ${playersNeeded(team.preferred_format)}`}</Text>
+            <TouchableOpacity onPress={handleShareInvite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text className="font-uiBold text-sm text-brand-primary">Invitar</Text>
+            </TouchableOpacity>
           </View>
 
           <TeamMembersList
@@ -811,6 +823,55 @@ export default function TeamManageScreen() {
             askRemoveMember={askRemoveMember}
           />
 
+          {members.length < playersNeeded(team.preferred_format) && (
+            <TouchableOpacity onPress={handleShareInvite} activeOpacity={0.85} className="mt-3 flex-row items-center gap-3 rounded-xl py-2">
+              <View className="h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-brand-primary/40">
+                <Text className="font-uiBold text-lg text-brand-primary">+</Text>
+              </View>
+              <Text className="font-uiBold text-[15px] text-neutral-on-surface">Invitar jugador</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {canModerateRequests && (
+          <View onLayout={(e) => setRequestsY(e.nativeEvent.layout.y)}>
+          <TeamManagePendingRequests
+            requests={pendingRequests}
+            processingRequestId={processingRequestId}
+            onApprove={handleApproveRequest}
+            onReject={handleRejectRequest}
+          />
+          </View>
+        )}
+
+        {/* Ajustes del equipo (rediseño, etapa 5): lo que no se usa todos los días, plegado. */}
+        <TouchableOpacity
+          onPress={() => setShowSettings((v) => !v)}
+          activeOpacity={0.85}
+          className="mt-4 flex-row items-center gap-3 rounded-2xl bg-surface-container px-4 py-3.5"
+        >
+          <AppIcon family="material-community" name="cog-outline" size={20} color="#BCCBB9" />
+          <View className="flex-1">
+            <Text className="font-uiBold text-sm text-neutral-on-surface">Ajustes del equipo</Text>
+            <Text className="font-ui mt-0.5 text-xs text-neutral-on-surface-variant">Embajador, historial de solicitudes, salir o dar de baja</Text>
+          </View>
+          <AppIcon family="material-community" name={showSettings ? 'chevron-up' : 'chevron-down'} size={20} color="#869585" />
+        </TouchableOpacity>
+        {showSettings && (
+          <View className="mt-2">
+        {showAmbassadorLink && (
+          <TeamAmbassadorLinkCard
+            key={teamId}
+            initialUsername={ambassadorLink?.prefill ?? null}
+            saving={savingAmbassador}
+            onSave={(username) => void handleSaveAmbassador(username)}
+          />
+        )}
+
+        {canModerateRequests && (
+          <TeamManageHistoryRequests requests={historyRequests} memberProfileIds={memberProfileIds} />
+        )}
+            <View className="rounded-xl bg-surface-low p-4">
           {myRole && (
             <View className="mt-4">
               <TouchableOpacity
@@ -855,20 +916,10 @@ export default function TeamManageScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
-
-        {canModerateRequests && (
-          <TeamManagePendingRequests
-            requests={pendingRequests}
-            processingRequestId={processingRequestId}
-            onApprove={handleApproveRequest}
-            onReject={handleRejectRequest}
-          />
+            </View>
+          </View>
         )}
 
-        {canModerateRequests && (
-          <TeamManageHistoryRequests requests={historyRequests} memberProfileIds={memberProfileIds} />
-        )}
       </ScrollView>
 
       {/* MODALS */}

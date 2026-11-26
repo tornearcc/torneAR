@@ -8,9 +8,10 @@ interface MarketTabsProps {
 }
 
 const TABS: { value: TabType; label: string }[] = [
-  { value: 'TEAMS_LOOKING', label: 'Buscan jugador' },
-  { value: 'PLAYERS_LOOKING', label: 'Buscan equipo' },
-  { value: 'RIVALS_LOOKING', label: 'Buscan rival' },
+  // Rediseño, etapa 3 (spec §6-7): qué buscás vos. Rival · Jugadores · Equipo.
+  { value: 'RIVALS_LOOKING', label: 'Rival' },
+  { value: 'PLAYERS_LOOKING', label: 'Jugadores' },
+  { value: 'TEAMS_LOOKING', label: 'Equipo' },
 ];
 
 export function MarketTabs({ activeTab, onTabChange }: MarketTabsProps) {

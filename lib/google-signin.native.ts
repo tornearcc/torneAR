@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '@/constants/google-auth';
 import type { GoogleIdTokenResult } from '@/lib/google-signin';
 import { Logger } from '@/lib/logger';
@@ -21,6 +22,10 @@ type GoogleSigninModule = typeof import('@react-native-google-signin/google-sign
 let configured = false;
 
 function loadGoogleSignin(): GoogleSigninModule | null {
+  // Expo Go no trae el SDK nativo: el `require` tira un error que el try no
+  // alcanza a callar (pantalla roja al cerrar sesión durante las pruebas del
+  // rediseño, 25/11). En Expo Go no se intenta: se comporta como «no está».
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return null;
   let mod: GoogleSigninModule;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

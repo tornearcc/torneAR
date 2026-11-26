@@ -11,12 +11,12 @@ export const TEAM_CATEGORY_OPTIONS: { value: TeamCategory; label: string }[] = [
 ];
 
 export const TEAM_FORMAT_OPTIONS: { value: TeamFormat; label: string }[] = [
-  { value: 'FUTBOL_5', label: 'Futbol 5' },
-  { value: 'FUTBOL_6', label: 'Futbol 6' },
-  { value: 'FUTBOL_7', label: 'Futbol 7' },
-  { value: 'FUTBOL_8', label: 'Futbol 8' },
-  { value: 'FUTBOL_9', label: 'Futbol 9' },
-  { value: 'FUTBOL_11', label: 'Futbol 11' },
+  { value: 'FUTBOL_5', label: 'Fútbol 5' },
+  { value: 'FUTBOL_6', label: 'Fútbol 6' },
+  { value: 'FUTBOL_7', label: 'Fútbol 7' },
+  { value: 'FUTBOL_8', label: 'Fútbol 8' },
+  { value: 'FUTBOL_9', label: 'Fútbol 9' },
+  { value: 'FUTBOL_11', label: 'Fútbol 11' },
 ];
 
 export function getTeamCategoryLabel(category: TeamCategory): string {
@@ -39,9 +39,9 @@ export function getTeamFormatShortLabel(format: TeamFormat): string {
 export function getTeamRoleLabel(role: TeamRole): string {
   switch (role) {
     case 'CAPITAN':
-      return 'Capitan';
+      return 'Capitán';
     case 'SUBCAPITAN':
-      return 'Subcapitan';
+      return 'Subcapitán';
     case 'DIRECTOR_TECNICO':
       return 'DT';
     default:

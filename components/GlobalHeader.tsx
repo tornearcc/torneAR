@@ -1,23 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from './ui/AppIcon';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { useTeamStore } from '@/stores/teamStore';
 import { ActiveTeamSelector } from './ui/ActiveTeamSelector';
-import { fetchUnreadChatCount } from '@/lib/chat-api';
-import { fetchChallengesInbox } from '@/lib/challenge-actions'; // NUEVO
-import { Logger } from '@/lib/logger';
 import { wordmarkWidthFor } from '@/constants/brand';
 
 type GlobalHeaderProps = {
   onNotificationPress?: () => void;
   notificationCount?: number;
-  isMarketTab?: boolean;
-  isRankingTab?: boolean; // NUEVO
 };
 
 /**
@@ -45,91 +37,9 @@ const HEADER_BREATHING_ROOM = 12;
 const LOGO_HEIGHT = 45;
 const LOGO_WIDTH = wordmarkWidthFor(LOGO_HEIGHT);
 
-export function GlobalHeader({ onNotificationPress, notificationCount, isMarketTab, isRankingTab }: GlobalHeaderProps) {
+export function GlobalHeader({ onNotificationPress, notificationCount }: GlobalHeaderProps) {
   const insets = useSafeAreaInsets();
-  const { profile, unreadNotificationCount } = useAuth();
-  // Selector puntual: el header solo necesita el equipo activo para el badge de
-  // desafios. Suscribirse al store entero lo re-renderizaba ante cualquier cambio.
-  // La carga de `myTeams` vive en app/(tabs)/_layout.tsx — no aca: GlobalHeader se
-  // monta en las 5 tabs y disparaba un fetch por tab, y cada uno reemplazaba
-  // `myTeams` por un array nuevo, invalidando los useCallback que lo tenian en deps.
-  const activeTeamId = useTeamStore((state) => state.activeTeamId);
-  // Se extrae el id antes de los callbacks: con `profile?.id` directo en el
-  // array de deps, el React Compiler infiere `profile` entero como dependencia
-  // (menos específica que la declarada) y desactiva la memoización del
-  // componente. Con la variable, lo inferido y lo declarado coinciden.
-  const profileId = profile?.id ?? null;
-  const [chatCount, setChatCount] = useState(0);
-  const [challengeCount, setChallengeCount] = useState(0); // NUEVO
-
-  // -- Lógica de Mercado --
-  // Cadena de promesas y no `async`/`await`: esta función la llama un efecto, y
-  // todo lo que un `async` hace antes de suspenderse cuenta como setState
-  // síncrono dentro de él. Dentro de `.then`/`.catch`, no.
-  const loadChatCount = useCallback(() => {
-    if (!profileId) return;
-    fetchUnreadChatCount()
-      .then(setChatCount)
-      .catch((error: unknown) => {
-        // Mismo criterio que las notificaciones: ocultamos el badge y seguimos.
-        Logger.warn('No se pudo contar los chats sin leer; el badge queda en 0', {
-          scope: 'GlobalHeader.loadChatCount',
-          profileId,
-          error,
-        });
-        setChatCount(0);
-      });
-  }, [profileId]);
-
-  useEffect(() => {
-    if (!isMarketTab || !profileId) return;
-    loadChatCount();
-    const channel = supabase
-      .channel(`market-messages-badge-${profileId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => loadChatCount()
-      )
-      .subscribe();
-
-    return () => { void supabase.removeChannel(channel); };
-  }, [isMarketTab, profileId, loadChatCount]);
-
-  // -- NUEVO: Lógica de Ranking (Desafíos) --
-  // Mismo motivo que `loadChatCount` para la cadena de promesas.
-  const loadChallengeCount = useCallback(() => {
-    if (!activeTeamId) return;
-    fetchChallengesInbox(activeTeamId)
-      .then((inbox) => {
-        setChallengeCount(inbox.filter(c => c.direction === 'RECIBIDO' && c.status === 'ENVIADA').length);
-      })
-      .catch((error: unknown) => {
-        Logger.warn('No se pudo contar los desafíos recibidos; el badge queda en 0', {
-          scope: 'GlobalHeader.loadChallengeCount',
-          activeTeamId,
-          error,
-        });
-        setChallengeCount(0);
-      });
-  }, [activeTeamId]);
-
-  useEffect(() => {
-    if (!isRankingTab || !activeTeamId) return;
-    loadChallengeCount();
-
-    // Escuchamos cambios en los desafíos dirigidos a nuestro equipo
-    const channel = supabase
-      .channel(`challenges-badge-${activeTeamId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'challenges', filter: `to_team_id=eq.${activeTeamId}` },
-        () => loadChallengeCount()
-      )
-      .subscribe();
-
-    return () => { void supabase.removeChannel(channel); };
-  }, [isRankingTab, activeTeamId, loadChallengeCount]);
+  const { unreadNotificationCount } = useAuth();
 
   const resolvedNotificationCount = notificationCount ?? unreadNotificationCount;
   const handleNotificationPress = onNotificationPress ?? (() => router.push('/notifications'));
@@ -173,44 +83,8 @@ export function GlobalHeader({ onNotificationPress, notificationCount, isMarketT
           26+16 = 42px, arriba del minimo de 44 recomendado contando el padding
           vertical del header. */}
       <View className="flex-row items-center gap-6">
-        {/* Market Chats Icon */}
-        {isMarketTab && (
-          <TouchableOpacity
-            onPress={() => router.push('/market-chats' as any)}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            className="relative"
-          >
-            <AppIcon family="material-icons" name="chat" size={26} />
-            {chatCount > 0 && (
-              <View className="absolute -right-1.5 -top-1.5 h-[18px] w-[18px] items-center justify-center rounded-full border border-[#53E076] bg-[#003914]">
-                <Text className="font-uiBold text-[9px] text-[#53E076]" style={{ fontVariant: ['tabular-nums'] }}>
-                  {chatCount > 9 ? '9+' : chatCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* NUEVO: Ranking Challenges Icon */}
-        {isRankingTab && (
-          <TouchableOpacity
-            onPress={() => router.push('/challenge-inbox' as any)}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            className="relative"
-          >
-            <AppIcon family="material-community" name="sword-cross" size={26} />
-            {challengeCount > 0 && (
-              <View className="absolute -right-1.5 -top-1.5 h-[18px] min-w-[18px] items-center justify-center rounded-full border border-surface-container bg-danger-error px-1">
-                <Text className="font-uiBold text-[9px] text-surface-base" style={{ fontVariant: ['tabular-nums'] }}>
-                  {challengeCount > 9 ? '9+' : challengeCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
+        {/* Rediseño, etapa 5: chats y desafíos salieron del header (Perfil › Mensajes y
+            el badge de la pestaña Partidos). Queda la campanita. */}
         {/* Notification Bell */}
         <TouchableOpacity
           onPress={handleNotificationPress}

@@ -92,7 +92,7 @@ export interface ShareIntentPayload {
    *  `Share.share`. Nunca se completa con un valor inventado. */
   activityType?: string;
   /** Pantalla desde la que se compartió, cuando el mismo contenido sale de
-   *  más de un lugar (`team_invite`: `team_manage` o `home_solo_card`). Sirve
+   *  más de un lugar (`team_invite`: `team_manage` o `home_next_step`; antes del 25/11, `home_solo_card`). Sirve
    *  para saber si la tarjeta de Inicio de la Tanda 7 mueve la aguja. */
   surface?: string;
 }

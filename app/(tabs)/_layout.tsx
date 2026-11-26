@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { TAB_BAR_CONTENT_HEIGHT } from '@/hooks/useTabBarInset';
+import { useReceivedChallengesCount } from '@/hooks/useBadgeCounts';
 
 /**
  * Alto del CONTENIDO de la barra, sin el área segura.
@@ -33,6 +34,9 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const fetchMyTeams = useTeamStore((state) => state.fetchMyTeams);
+  // Desafíos recibidos: badge de Partidos (rediseño, etapa 5; antes, ícono de espadas en el header).
+  const activeTeamId = useTeamStore((state) => state.activeTeamId);
+  const receivedChallenges = useReceivedChallengesCount(activeTeamId);
 
   // Punto unico de carga de los equipos del usuario. Este layout monta una sola
   // vez para todo el grupo de tabs, asi que `myTeams` se pide una vez por sesion
@@ -84,7 +88,8 @@ export default function TabLayout() {
          */
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: '#201F1F', // surface-container
+          // Rediseño (spec §10): fondo más oscuro que las tarjetas, para que la barra no compita con ellas.
+          backgroundColor: '#0E0E0E', // surface-lowest
           borderTopColor: 'rgba(134, 149, 133, 0.15)', // neutral-outline / 15
           borderTopWidth: StyleSheet.hairlineWidth,
           elevation: 0,
@@ -93,11 +98,14 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: Colors.dark.tint,
         tabBarInactiveTintColor: Colors.dark.tabIconDefault,
+        // Con la letra grande del sistema, Inter no entra en 1/5 de pantalla y se
+        // cortaba («Partid…», prueba del 25/11): la barra no escala con el sistema.
+        tabBarAllowFontScaling: false,
         tabBarLabelStyle: {
           // 11 y no 10: con íconos de 26px, el label de 10 quedaba desbalanceado.
+          // Rediseño: etiquetas en tipo oración (Inter), como el resto de la app.
           fontSize: 11,
-          fontFamily: 'BarlowCondensed_700Bold',
-          textTransform: 'uppercase',
+          fontFamily: 'Inter_500Medium',
           letterSpacing: 0.5,
         },
         tabBarHideOnKeyboard: true,
@@ -106,7 +114,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'INICIO',
+          title: 'Inicio',
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="home-variant-outline" size={focused ? 26 : 24} color={color} />
           ),
@@ -116,9 +124,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="matches"
         options={{
-          title: 'PARTIDOS',
+          title: 'Partidos',
+          tabBarBadge: receivedChallenges > 0 ? (receivedChallenges > 9 ? '9+' : receivedChallenges) : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#FABD32', color: '#0E0E0E', fontSize: 11 },
           tabBarIcon: ({ color, focused }) => (
-            <AppIcon family="material-community" name="soccer" size={focused ? 26 : 24} color={color} />
+            <AppIcon family="material-community" name="calendar-month-outline" size={focused ? 26 : 24} color={color} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -131,13 +141,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ranking"
         options={{
-          title: 'RANKING',
+          title: 'Ranking',
           tabBarActiveTintColor: Colors.dark.tint,
           tabBarInactiveTintColor: Colors.dark.tint,
           tabBarIcon: ({ focused }) => (
             <View
               className={`items-center justify-center rounded-full bg-brand-primary ${focused ? 'shadow-glow-primary' : ''}`}
-              style={{ width: 40, height: 40, marginTop: -6 }}
+              style={{ width: 46, height: 46, marginTop: -14 }}
             >
               <AppIcon family="material-community" name="trophy" size={focused ? 24 : 22} color="#0E0E0E" />
             </View>
@@ -148,9 +158,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="market"
         options={{
-          title: 'MERCADO',
+          title: 'Buscar',
           tabBarIcon: ({ color, focused }) => (
-            <AppIcon family="ionicons" name="storefront-outline" size={focused ? 26 : 24} color={color} />
+            <AppIcon family="material-community" name="magnify" size={focused ? 26 : 24} color={color} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -158,7 +168,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'PERFIL',
+          title: 'Perfil',
           tabBarIcon: ({ color, focused }) => (
             <AppIcon family="material-community" name="account-outline" size={focused ? 26 : 24} color={color} />
           ),

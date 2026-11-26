@@ -12,6 +12,8 @@ import { useCustomAlert } from '@/hooks/useCustomAlert';
 import { findTeamByCode, sendJoinRequest, TeamPreview } from '@/lib/team-join-data';
 import { Logger } from '@/lib/logger';
 import { normalizeTeamInviteCode } from '@/lib/team-invite-link';
+import { fetchTeamPosts, type MarketTeamPost } from '@/lib/market-api';
+import { FindTeamSection } from '@/components/team-join/FindTeamSection';
 
 export default function TeamJoinScreen() {
   const router = useRouter();
@@ -28,6 +30,23 @@ export default function TeamJoinScreen() {
   const [searching, setSearching] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [team, setTeam] = useState<TeamPreview | null>(null);
+  // Rediseño, etapa 2: debajo del código, los equipos de tu zona a los que les falta uno.
+  const [teamPosts, setTeamPosts] = useState<MarketTeamPost[]>([]);
+  const zone = profile?.zone ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTeamPosts(undefined, zone)
+      .then((posts) => {
+        if (!cancelled) setTeamPosts(posts.slice(0, 3));
+      })
+      .catch((error: unknown) => {
+        Logger.warn('No se pudieron cargar los equipos a los que les falta uno', { scope: 'team-join.loadTeamPosts', zone, error });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [zone]);
 
   const normalizedCode = inviteCode.trim().toUpperCase();
 
@@ -136,14 +155,14 @@ export default function TeamJoinScreen() {
     // `edges={['bottom']}`: el inset superior ya lo aplica SecondaryHeader.
     <SafeAreaView edges={['bottom']} className="flex-1 bg-surface-base">
       <SecondaryHeader
-        title="Unirse a equipo"
-        subtitle="Ingresá el código de invitación para sumarte a un plantel."
+        title="Sumarme a un equipo"
+        subtitle="Con el código de un amigo o buscando uno en tu zona."
       />
 
       <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 36 }}>
         <View className="gap-4">
           <View>
-            <Text className="font-display mb-2 text-xs uppercase tracking-wider text-neutral-on-surface-variant">Código de invitación</Text>
+            <Text className="font-uiBold mb-2 text-[15px] text-neutral-on-surface">¿Te pasaron un código?</Text>
             <TextInput
               value={inviteCode}
               onChangeText={(value) => setInviteCode(value.toUpperCase())}
@@ -170,7 +189,17 @@ export default function TeamJoinScreen() {
               </>
             )}
           </TouchableOpacity>
+          <Text className="font-ui text-[13px] text-neutral-outline">Si te mandaron un link, abrilo y entrás directo.</Text>
         </View>
+
+        {!team && (
+          <FindTeamSection
+            zone={zone}
+            posts={teamPosts}
+            onOpenPost={() => router.navigate({ pathname: '/(tabs)/market', params: { tab: 'equipos', ts: String(Date.now()) } })}
+            onPublish={() => router.push({ pathname: '/(modals)/market-create', params: { type: 'PLAYER' } })}
+          />
+        )}
 
         {team ? (
           <View className="mt-7 rounded-xl border border-neutral-outline-variant/40 bg-surface-low p-4">
