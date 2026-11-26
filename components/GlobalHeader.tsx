@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from './ui/AppIcon';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import { ActiveTeamSelector } from './ui/ActiveTeamSelector';
 import { wordmarkWidthFor } from '@/constants/brand';
 
 type GlobalHeaderProps = {
@@ -66,11 +65,8 @@ export function GlobalHeader({ onNotificationPress, notificationCount }: GlobalH
         style={{ height: LOGO_HEIGHT, width: LOGO_WIDTH }}
       />
 
-      {/* `min-w-0` + pr-3 (antes pr-4): con el logo y los íconos más grandes, el
-          presupuesto horizontal del selector se achicó ~40px. */}
-      <View className="min-w-0 flex-1 flex-row items-center justify-end pr-3">
-        <ActiveTeamSelector />
-      </View>
+      {/* Rediseño (pendiente del 25/11): el selector de equipo salió del header.
+          Se cambia desde Perfil › Mis equipos («Usar este») y desde Partidos. */}
 
       {/* gap-6 (24px) y no gap-4: con hitSlop de 12 por lado, 16px de separacion
           hacia que las areas tactiles de dos iconos vecinos se solaparan y el tap
