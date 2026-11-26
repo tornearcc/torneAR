@@ -238,8 +238,8 @@ export default function MatchesScreen() {
           contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Rediseño: título de la pestaña, y el selector de equipo solo con varios equipos
-              (el equipo activo ya se ve en el header). */}
+          {/* Rediseño: título de la pestaña, y el selector de equipo solo con varios equipos.
+              Desde el 25/11 el header ya no lo muestra: se cambia acá o en Perfil › Mis equipos. */}
           <Text className="mb-4 font-displayBlack text-[32px] uppercase text-neutral-on-surface">Partidos</Text>
           {activeTeamId && myTeams.length > 1 && (
             <View className="mb-4 flex-row items-center justify-between rounded-2xl bg-surface-container px-4 py-3">

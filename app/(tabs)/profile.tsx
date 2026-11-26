@@ -32,7 +32,7 @@ export default function ProfileScreen() {
   // Perfil › Mensajes (rediseño, etapa 5): el contador que antes estaba en el header del Mercado.
   const unreadMessages = useUnreadChatsCount(profile?.id ?? null);
   const tabBarInset = useTabBarInset();
-  const { fetchMyTeams } = useTeamStore();
+  const { fetchMyTeams, activeTeamId, setActiveTeam } = useTeamStore();
   const [loading, setLoading] = useState(true);
   const [viewData, setViewData] = useState<ProfileViewData | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -169,6 +169,8 @@ export default function ProfileScreen() {
           onOpenRequests={() => router.push('/team-requests')}
           onTeamPress={(teamId) => router.push({ pathname: '/team-manage', params: { teamId } })}
           onLeaveTeam={setTeamToLeave}
+          activeTeamId={activeTeamId}
+          onSetActiveTeam={(team) => setActiveTeam(team.id, team.name)}
         />
         <ProfileMoreSection
           unreadMessages={unreadMessages}
