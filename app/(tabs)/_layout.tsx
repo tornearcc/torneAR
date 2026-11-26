@@ -98,6 +98,9 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: Colors.dark.tint,
         tabBarInactiveTintColor: Colors.dark.tabIconDefault,
+        // Con la letra grande del sistema, Inter no entra en 1/5 de pantalla y se
+        // cortaba («Partid…», prueba del 25/11): la barra no escala con el sistema.
+        tabBarAllowFontScaling: false,
         tabBarLabelStyle: {
           // 11 y no 10: con íconos de 26px, el label de 10 quedaba desbalanceado.
           // Rediseño: etiquetas en tipo oración (Inter), como el resto de la app.

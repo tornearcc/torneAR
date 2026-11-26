@@ -108,7 +108,7 @@ export function TeamManageHeader({
         {[getTeamFormatLabel(team.preferred_format), getTeamCategoryLabel(team.category), myRole ? getTeamRoleLabel(myRole) : null].filter(Boolean).join(' · ')}
       </Text>
       <Text className="font-ui mt-1 text-[13px] text-neutral-on-surface-variant" style={{ fontVariant: ['tabular-nums'] }}>
-        {`Rating ${team.elo_rating} · ${team.matches_played} PJ · Fair play ${Number(team.fair_play_score).toFixed(0)}${squadAge ? ` · ${squadAge.average} años de promedio` : ''}`}
+        {`Rating ${team.elo_rating} · ${team.matches_played} PJ · Fair play ${Number(team.fair_play_score).toFixed(0)}${squadAge ? ` · ${String(squadAge.average).replace('.', ',')} años de promedio` : ''}`}
       </Text>
 
       <View className="mt-4 flex-row items-center justify-between rounded-lg bg-surface-high px-3 py-2.5">

@@ -27,7 +27,7 @@ export function MatchSectionHeader({ title, count, onToggle, expanded = true }: 
           color="#BCCBB9"
         />
       )}
-      <Text className="font-displayBlack text-[11px] uppercase tracking-widest text-neutral-on-surface-variant">
+      <Text className="font-uiBold text-xs uppercase tracking-wider text-neutral-on-surface-variant">
         {title}
       </Text>
       {count !== undefined && count > 0 && (
