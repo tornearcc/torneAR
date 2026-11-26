@@ -12,6 +12,9 @@ type ProfileTeamsSectionProps = {
   onOpenRequests?: () => void;
   onTeamPress?: (teamId: string) => void;
   onLeaveTeam?: (team: TeamItem) => void;
+  /** Equipo activo del store. Con 2 equipos o más, cada fila muestra «Activo» o «Usar este equipo». */
+  activeTeamId?: string | null;
+  onSetActiveTeam?: (team: TeamItem) => void;
 };
 
 function roleClass(role: TeamItem['role']): string {
@@ -21,7 +24,20 @@ function roleClass(role: TeamItem['role']): string {
   return 'bg-brand-primary/15 text-brand-primary';
 }
 
-export function ProfileTeamsSection({ teams, onCreateTeam, onJoinTeam, onOpenRequests, onTeamPress, onLeaveTeam }: ProfileTeamsSectionProps) {
+export function ProfileTeamsSection({
+  teams,
+  onCreateTeam,
+  onJoinTeam,
+  onOpenRequests,
+  onTeamPress,
+  onLeaveTeam,
+  activeTeamId,
+  onSetActiveTeam,
+}: ProfileTeamsSectionProps) {
+  // Rediseño (pendiente del 25/11): el selector salió del header y el cambio de
+  // equipo vive acá. Con un solo equipo no hay nada que elegir.
+  const canSwitch = Boolean(onSetActiveTeam) && teams.length > 1;
+
   // Helper para obtener URL de shield
   const getShieldImageUrl = (team: TeamItem): string => {
     if (!team.shieldUrl) return '';
@@ -81,9 +97,13 @@ export function ProfileTeamsSection({ teams, onCreateTeam, onJoinTeam, onOpenReq
         ) : (
           teams.map((team) => {
             const isCaptain = team.role === 'CAPITAN';
+            const isActive = team.id === activeTeamId;
 
             return (
-              <View key={team.id} className="rounded-xl bg-surface-low p-3">
+              <View
+                key={team.id}
+                className={`rounded-xl bg-surface-low p-3 ${canSwitch && isActive ? 'border border-brand-primary/40' : ''}`}
+              >
                 {/* Fila principal: navega a gestión. Es un touchable propio para
                     que el botón "Abandonar" no comparta el área de tap. */}
                 <TouchableOpacity
@@ -132,6 +152,30 @@ export function ProfileTeamsSection({ teams, onCreateTeam, onJoinTeam, onOpenReq
                     <AppIcon family="material-icons" name="chevron-right" size={20} color="#BCCBB9" />
                   </View>
                 </TouchableOpacity>
+
+                {canSwitch && (
+                  <View className="mt-3 border-t border-neutral-outline-variant/10 pt-3">
+                    {isActive ? (
+                      <View className="flex-row items-center justify-center gap-2 py-2">
+                        <AppIcon family="material-community" name="check-circle" size={16} color="#53E076" />
+                        <Text className="font-uiBold text-xs text-brand-primary">
+                          Equipo activo: es el que ves en Inicio, Partidos y Buscar
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => onSetActiveTeam?.(team)}
+                        activeOpacity={0.85}
+                        className="flex-row items-center justify-center gap-2 rounded-lg border border-brand-primary/45 bg-brand-primary/10 py-2.5"
+                      >
+                        <AppIcon family="material-community" name="swap-horizontal" size={16} color="#53E076" />
+                        <Text className="font-display text-[11px] uppercase tracking-wide text-brand-primary">
+                          Usar este equipo
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
 
                 {/* Abandonar equipo. El capitán no puede: debe ceder la
                     capitanía primero (la RPC lo rechazaría con

@@ -73,7 +73,9 @@ export default function TeamStatsScreen() {
           return [];
         }),
         // «Busca rival» (P3-19): si el equipo publicó, se avisa arriba de todo.
-        fetchTeamRivalPost(teamId, viewerTeamId ?? null).catch((error: unknown) => {
+        // `||` y no `??`: quien mira sin equipo llega con `viewerTeamId=''` (los
+        // `router.push` mandan `activeTeamId ?? ''`), y la RPC rechaza el uuid vacío.
+        fetchTeamRivalPost(teamId, viewerTeamId || null).catch((error: unknown) => {
           Logger.warn('No se pudo cargar la publicación de Buscan rival; se omite', {
             scope: 'team-stats.loadData',
             teamId,

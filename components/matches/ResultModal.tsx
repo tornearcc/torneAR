@@ -21,6 +21,24 @@ interface Props {
   myParticipants: ScorerPickerPerson[];
 }
 
+/**
+ * Rediseño (pendiente del 25/11): un paso por pantalla en vez de un formulario
+ * largo. Resultado → Goleadores → MVP. Goleadores se saltea si el equipo no hizo
+ * goles, y los dos últimos si no hay plantel para elegir.
+ */
+type Step = 'result' | 'scorers' | 'mvp';
+
+const STEP_TITLES: Record<Step, string> = {
+  result: '¿Cómo salió?',
+  scorers: '¿Quién hizo los goles?',
+  mvp: '¿Quién fue la figura?',
+};
+
+function buildSteps(goalsScored: number, hasParticipants: boolean): Step[] {
+  if (!hasParticipants) return ['result'];
+  return goalsScored > 0 ? ['result', 'scorers', 'mvp'] : ['result', 'mvp'];
+}
+
 function Stepper({
   label,
   value,
@@ -67,6 +85,7 @@ export function ResultModal({ visible, onClose, onSubmit, myParticipants }: Prop
   const [goalsAgainst, setGoalsAgainst] = useState(0);
   const [scorers, setScorers] = useState<Record<string, number>>({});
   const [mvpId, setMvpId] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>('result');
   const [loading, setLoading] = useState(false);
   const { showAlert, AlertComponent } = useCustomAlert();
 
@@ -87,6 +106,7 @@ export function ResultModal({ visible, onClose, onSubmit, myParticipants }: Prop
       setGoalsAgainst(0);
       setScorers({});
       setMvpId(null);
+      setStep('result');
     }
   }
 
@@ -97,23 +117,52 @@ export function ResultModal({ visible, onClose, onSubmit, myParticipants }: Prop
     if (visible) submittingRef.current = false;
   }, [visible]);
 
+  const steps = buildSteps(goalsScored, myParticipants.length > 0);
+  const stepIndex = Math.max(0, steps.indexOf(step));
+  const isLastStep = stepIndex === steps.length - 1;
+
+  // Sin goles propios no hay goleadores: si alguien cargó goleadores y después
+  // volvió a bajar el marcador a 0, se descartan en vez de trabar el envío.
+  const scorerEntries = goalsScored === 0
+    ? []
+    : myParticipants
+      .filter((p) => (scorers[p.profileId] ?? 0) > 0)
+      .map((p) => ({ profileId: p.profileId, goals: scorers[p.profileId] ?? 0 }));
+  const totalScorerGoals = scorerEntries.reduce((sum, s) => sum + s.goals, 0);
+
   function setScorerGoals(profileId: string, goals: number) {
     setScorers((prev) => ({ ...prev, [profileId]: Math.max(0, goals) }));
   }
 
-  async function handleSubmit() {
-    if (submittingRef.current) return;
-
-    const scorerEntries = myParticipants
-      .filter((p) => (scorers[p.profileId] ?? 0) > 0)
-      .map((p) => ({ profileId: p.profileId, goals: scorers[p.profileId] ?? 0 }));
-
-    const totalScorerGoals = scorerEntries.reduce((sum, s) => sum + s.goals, 0);
+  /** La suma de goleadores tiene que cerrar con el marcador (o quedar vacía). */
+  function scorersAreConsistent(): boolean {
     if (totalScorerGoals > 0 && totalScorerGoals !== goalsScored) {
       showAlert(
         'Goles inconsistentes',
         `Los goles de los anotadores suman ${totalScorerGoals} pero cargaste ${goalsScored} gol${goalsScored !== 1 ? 'es' : ''}. Revisá los goleadores.`,
       );
+      return false;
+    }
+    return true;
+  }
+
+  function goBack() {
+    if (stepIndex > 0) setStep(steps[stepIndex - 1]);
+  }
+
+  function goNext() {
+    if (step === 'scorers' && !scorersAreConsistent()) return;
+    if (isLastStep) {
+      void handleSubmit();
+      return;
+    }
+    setStep(steps[stepIndex + 1]);
+  }
+
+  async function handleSubmit() {
+    if (submittingRef.current) return;
+    if (!scorersAreConsistent()) {
+      if (steps.includes('scorers')) setStep('scorers');
       return;
     }
 
@@ -154,18 +203,40 @@ export function ResultModal({ visible, onClose, onSubmit, myParticipants }: Prop
     }
   }
 
+  // En goleadores y MVP los dos son opcionales: el botón lo dice para que nadie
+  // crea que tiene que elegir a alguien para poder seguir.
+  const skippable =
+    (step === 'scorers' && totalScorerGoals === 0) || (step === 'mvp' && mvpId === null);
+  let nextLabel: string;
+  if (loading) nextLabel = 'Enviando...';
+  else if (isLastStep) nextLabel = skippable ? 'Confirmar sin MVP' : 'Confirmar resultado';
+  else nextLabel = skippable ? 'Saltear' : 'Siguiente';
+
   return (
     <SafeAreaBottomSheet visible={visible} onClose={onClose} overlay={AlertComponent}>
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4">
-        <Text className="font-uiBold text-lg text-neutral-on-surface">Cargar resultado</Text>
-        <TouchableOpacity
-          onPress={onClose}
-          activeOpacity={0.7}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <AppIcon family="material-community" name="close" size={22} color="#869585" />
-        </TouchableOpacity>
+      {/* Header: paso actual + barra de progreso */}
+      <View className="px-5 pb-3 pt-4">
+        <View className="flex-row items-center justify-between">
+          <Text className="font-ui text-xs uppercase tracking-widest text-neutral-outline">
+            Cargar resultado · Paso {stepIndex + 1} de {steps.length}
+          </Text>
+          <TouchableOpacity
+            onPress={onClose}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <AppIcon family="material-community" name="close" size={22} color="#869585" />
+          </TouchableOpacity>
+        </View>
+        <Text className="font-uiBold mt-1 text-lg text-neutral-on-surface">{STEP_TITLES[step]}</Text>
+        <View className="mt-3 flex-row gap-1.5">
+          {steps.map((s, i) => (
+            <View
+              key={s}
+              className={`h-1 flex-1 rounded-full ${i <= stepIndex ? 'bg-brand-primary' : 'bg-surface-high'}`}
+            />
+          ))}
+        </View>
       </View>
 
       <ScrollView
@@ -173,32 +244,67 @@ export function ResultModal({ visible, onClose, onSubmit, myParticipants }: Prop
         contentContainerStyle={{ paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Goals steppers */}
-        <View className="mb-4 flex-row gap-3">
-          <Stepper label="Mis goles" value={goalsScored} onChange={setGoalsScored} />
-          <Stepper label="Goles rival" value={goalsAgainst} onChange={setGoalsAgainst} />
+        {step === 'result' ? (
+          <View className="mb-4 flex-row gap-3">
+            <Stepper label="Mis goles" value={goalsScored} onChange={setGoalsScored} />
+            <Stepper label="Goles rival" value={goalsAgainst} onChange={setGoalsAgainst} />
+          </View>
+        ) : (
+          // Recordatorio del marcador en los pasos siguientes.
+          <View className="mb-4 flex-row items-center justify-center gap-3 rounded-xl bg-surface-high py-2.5">
+            <Text className="font-ui text-xs uppercase tracking-widest text-neutral-outline">Resultado</Text>
+            <Text className="font-displayBlack text-xl text-neutral-on-surface" style={{ fontVariant: ['tabular-nums'] }}>
+              {goalsScored} - {goalsAgainst}
+            </Text>
+          </View>
+        )}
+
+        {step === 'scorers' && (
+          <ScorerMvpPicker
+            section="scorers"
+            participants={myParticipants}
+            scorers={scorers}
+            onScorerGoalsChange={setScorerGoals}
+            mvpId={mvpId}
+            onMvpChange={setMvpId}
+            goalCap={goalsScored}
+          />
+        )}
+
+        {step === 'mvp' && (
+          <ScorerMvpPicker
+            section="mvp"
+            participants={myParticipants}
+            scorers={scorers}
+            onScorerGoalsChange={setScorerGoals}
+            mvpId={mvpId}
+            onMvpChange={setMvpId}
+          />
+        )}
+
+        {/* Botones: atrás (gris) + el próximo paso (verde) */}
+        <View className="flex-row gap-3">
+          {stepIndex > 0 && (
+            <TouchableOpacity
+              onPress={goBack}
+              disabled={loading}
+              activeOpacity={0.8}
+              className="rounded-xl bg-surface-high px-5 py-3.5"
+            >
+              <Text className="font-uiBold text-center text-sm text-neutral-on-surface-variant">Atrás</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={goNext}
+            disabled={loading}
+            activeOpacity={0.8}
+            className="flex-1 rounded-xl bg-brand-primary py-3.5"
+          >
+            <Text className="font-uiBold text-center text-sm text-[#003914]">
+              {nextLabel}
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Scorers + MVP (componente compartido) */}
-        <ScorerMvpPicker
-          participants={myParticipants}
-          scorers={scorers}
-          onScorerGoalsChange={setScorerGoals}
-          mvpId={mvpId}
-          onMvpChange={setMvpId}
-        />
-
-        {/* Submit */}
-        <TouchableOpacity
-          onPress={() => void handleSubmit()}
-          disabled={loading}
-          activeOpacity={0.8}
-          className="rounded-xl bg-brand-primary py-3.5"
-        >
-          <Text className="font-uiBold text-center text-sm text-[#003914]">
-            {loading ? 'Enviando...' : 'Confirmar resultado'}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaBottomSheet>
   );
