@@ -17,6 +17,8 @@ import { MatchCard } from '@/components/matches/MatchCard';
 import { LiveMatchBanner } from '@/components/matches/LiveMatchBanner';
 import { MatchSectionHeader } from '@/components/matches/MatchSectionHeader';
 import { GuestJoinModal } from '@/components/matches/GuestJoinModal';
+import { ReceivedChallengesSection } from '@/components/matches/ReceivedChallengesSection';
+import { useReceivedChallenges } from '@/hooks/useReceivedChallenges';
 import type { MatchesViewData } from '@/components/matches/types';
 
 export default function MatchesScreen() {
@@ -35,6 +37,7 @@ export default function MatchesScreen() {
   // R6: son DOS. `canManageMatches` coordina el partido (proponer, aceptar,
   // cancelar); `isMatchStaff` carga el resultado e incluye al DIRECTOR_TECNICO.
   const canManageMatches = isTeamMatchAdmin(activeRole);
+  const canRespondChallenges = activeRole === 'CAPITAN' || activeRole === 'SUBCAPITAN';
   const isMatchStaff = isTeamMatchStaff(activeRole);
 
   const [loading, setLoading] = useState(true);
@@ -104,6 +107,7 @@ export default function MatchesScreen() {
   // el usuario mira la lista, la tarjeta se actualiza sola. Antes eso sólo se
   // veía al cambiar de tab y volver.
   useTeamMatchesRealtime(activeTeamId ?? undefined, useCallback(() => { void loadData(); }, [loadData]));
+  const challenges = useReceivedChallenges(activeTeamId ?? null, showAlert);
 
   function handleCardPress(matchId: string) {
     router.push({ pathname: '/match-detail' as never, params: { matchId } });
@@ -205,19 +209,6 @@ export default function MatchesScreen() {
     <View className="flex-1 bg-surface-base">
       <GlobalHeader />
 
-      {/* Guest join banner — always visible */}
-      <TouchableOpacity
-        onPress={() => setShowGuestModal(true)}
-        activeOpacity={0.8}
-        className="mx-4 mt-3 flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-2.5"
-      >
-        <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
-        <Text className="font-uiBold flex-1 text-sm text-brand-primary">
-          ¿Te invitaron a un partido? Ingresá el código
-        </Text>
-        <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
-      </TouchableOpacity>
-
       {/* Carga inicial */}
       {isInitialLoad && <MatchesSkeleton />}
 
@@ -229,6 +220,15 @@ export default function MatchesScreen() {
           <Text className="font-ui mt-2 text-center text-neutral-on-surface-variant">
             Seleccioná un equipo para ver tus partidos.
           </Text>
+          <TouchableOpacity
+            onPress={() => setShowGuestModal(true)}
+            activeOpacity={0.8}
+            className="mt-6 w-full flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-3"
+          >
+            <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
+            <Text className="font-uiBold flex-1 text-sm text-brand-primary">¿Te invitaron a un partido? Ingresá el código</Text>
+            <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -238,8 +238,10 @@ export default function MatchesScreen() {
           contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Team selector banner */}
-          {activeTeamId && (
+          {/* Rediseño: título de la pestaña, y el selector de equipo solo con varios equipos
+              (el equipo activo ya se ve en el header). */}
+          <Text className="mb-4 font-displayBlack text-[32px] uppercase text-neutral-on-surface">Partidos</Text>
+          {activeTeamId && myTeams.length > 1 && (
             <View className="mb-4 flex-row items-center justify-between rounded-2xl bg-surface-container px-4 py-3">
               <View>
                 <Text className="font-ui text-[10px] uppercase tracking-widest text-neutral-outline">
@@ -268,6 +270,18 @@ export default function MatchesScreen() {
                 </View>
               )}
             </View>
+          )}
+
+          {/* «Te desafiaron» (rediseño, etapa 3): antes, detrás del ícono de espadas del header. */}
+          {activeTeamId && (
+            <ReceivedChallengesSection
+              challenges={challenges.received}
+              canRespond={canRespondChallenges}
+              busyId={challenges.busyId}
+              onAccept={(c) => void challenges.accept(c, () => void loadData())}
+              onDecline={(c) => void challenges.decline(c)}
+              onSeeAll={() => router.push('/challenge-inbox')}
+            />
           )}
 
           {/* Live match banner */}
@@ -366,6 +380,16 @@ export default function MatchesScreen() {
                 </Text>
               </View>
             )}
+          {/* Partido como invitado: al final (rediseño); arriba quedan los desafíos y los partidos del equipo. */}
+          <TouchableOpacity
+            onPress={() => setShowGuestModal(true)}
+            activeOpacity={0.8}
+            className="mt-6 flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-3"
+          >
+            <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
+            <Text className="font-uiBold flex-1 text-sm text-brand-primary">¿Te invitaron a un partido? Ingresá el código</Text>
+            <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
+          </TouchableOpacity>
         </ScrollView>
       )}
 

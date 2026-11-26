@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { useIsFocused } from "expo-router/react-navigation";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@/context/AuthContext';
 import { useTeamStore } from '@/stores/teamStore';
 import { GlobalHeader } from '@/components/GlobalHeader';
@@ -12,53 +11,31 @@ import { useAppFonts } from '@/hooks/useAppFonts';
 import { useEngagedReviewPrompt } from '@/hooks/useEngagedReviewPrompt';
 import { getGenericSupabaseErrorMessage } from '@/lib/auth-error-messages';
 import { fetchHomeViewData } from '@/lib/home-data';
-import { fetchActiveTeamRankingInfo, fetchRankingWithFilters } from '@/lib/ranking-data';
+import { otherPendingActions, resolveHomeNextStep, resolveJourney } from '@/lib/home-next-step';
 import { Logger } from '@/lib/logger';
-import type {
-  HomeViewData,
-  MiniRankingContext,
-  MiniRankingEntry,
-  PendingAction,
-} from '@/components/home/types';
-import { TeamShield } from '@/components/ui/TeamShield';
+import type { HomeViewData, PendingAction } from '@/components/home/types';
 import { HomeOnboardingState } from '@/components/home/HomeOnboardingState';
-import { HomeOnboardingTour } from '@/components/home/HomeOnboardingTour';
 import { CensusEntryCard } from '@/components/home/CensusEntryCard';
-import { SoloTeamInviteCard } from '@/components/home/SoloTeamInviteCard';
+import { JourneyBar } from '@/components/home/JourneyBar';
+import { NextStepCard, type NextStepTarget } from '@/components/home/NextStepCard';
+import { OtherPendingList } from '@/components/home/OtherPendingList';
+import { TeamSummaryRow } from '@/components/home/TeamSummaryRow';
 import { shareTeamInvite } from '@/lib/share-team-invite';
-import { MiniRankingCard } from '@/components/home/MiniRankingCard';
 import { SuggestedRivalsCard } from '@/components/rival/SuggestedRivalsCard';
 import { fetchSuggestedRivals, type SuggestedRival } from '@/lib/rival-posts-api';
-import { PendingActionsCard } from '@/components/home/PendingActionsCard';
-import { UpcomingMatchesSection } from '@/components/home/UpcomingMatchesSection';
-import { MyTeamsRankingSection } from '@/components/home/MyTeamsRankingSection';
-import { QuickActionsSection } from '@/components/home/QuickActionsSection';
 
 /**
- * Un día, en ms. Desde el 28/09/2026 la cuenta regresiva se ve siempre, igual
- * en todos los casos (segundos, borde verde): con un día o más por delante suma
- * adelante el contador de días (DÍAS : HS : MIN : SEG). Hasta el 27/09, con más
- * de 24 h sólo se veía la fecha.
+ * Inicio (rediseño, etapa 1; spec docs/superpowers/specs/2026-11-25-rediseno-design.md §8).
+ * Un solo «próximo paso» según dónde está la persona (`lib/home-next-step.ts`),
+ * la barra de 3 pasos, lo demás pendiente en una lista corta, tus equipos en una
+ * línea, rivales sugeridos y el censo. Lo que antes vivía acá (mini-ranking,
+ * próximos partidos, accesos rápidos) sigue en su pestaña.
  */
-const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Cadencia del reloj: al segundo mientras cuenta; floja cuando no hay nada que contar. */
-const COUNTDOWN_TICK_MS = 1_000;
-const IDLE_TICK_MS = 30_000;
-
-/** Clave de la guía inicial. Un valor `'true'` es lo único que la apaga. */
-const ONBOARDING_STORAGE_KEY = 'has_seen_onboarding';
-
-const pad = (value: number) => String(value).padStart(2, '0');
-
-/** "vie 8 ago · 21:30" — el formato largo, para cuando falta más de un día. */
+/** "vie 8 ago · 21:30". */
 function formatMatchDate(iso: string): string {
   const date = new Date(iso);
-  const day = date.toLocaleDateString('es-AR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
+  const day = date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
   const time = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   return `${day} · ${time}`;
 }
@@ -68,219 +45,56 @@ export default function HomeScreen() {
   // D-63: pedido de valoración al volver a Inicio, desde el 5.º día de uso.
   useEngagedReviewPrompt();
   const activeTeamId = useTeamStore((state) => state.activeTeamId);
-  const isFocused = useIsFocused();
   const fontsReady = useAppFonts();
   const [loading, setLoading] = useState(true);
   const [viewData, setViewData] = useState<HomeViewData | null>(null);
   const { showAlert, AlertComponent } = useCustomAlert();
-
-  // ─── Mini-ranking (top 3 global de la categoría que juega mi equipo) ───────
-  const [miniRanking, setMiniRanking] = useState<MiniRankingEntry[]>([]);
-  const [miniRankingContext, setMiniRankingContext] = useState<MiniRankingContext | null>(null);
-  const [miniRankingLoading, setMiniRankingLoading] = useState(true);
   const [suggestedRivals, setSuggestedRivals] = useState<SuggestedRival[]>([]);
   const [suggestedLoading, setSuggestedLoading] = useState(true);
   const [suggestionsTeamId, setSuggestionsTeamId] = useState<string | null>(null);
-
-  // ─── Guía inicial ──────────────────────────────────────────────────────────
-  // `null` = todavía no sabemos qué dice AsyncStorage. Distinguirlo de `false`
-  // evita el parpadeo de la guía en el primer frame de cada arranque.
-  const [tourPending, setTourPending] = useState<boolean | null>(null);
-
-  // ─── Reloj de la cuenta regresiva ──────────────────────────────────────────
-  const [nowTs, setNowTs] = useState(() => Date.now());
-
-  // Instante contra el que se decide cuál es el «próximo partido». Se sella
-  // junto con `viewData` y no en cada tick del reloj a propósito: si avanzara
-  // con el reloj, apenas el partido cruza su horario dejaría de contar como
-  // próximo y la tarjeta saltaría al siguiente en vez de mostrar «ya empezó».
-  const [upcomingRefTs, setUpcomingRefTs] = useState(() => Date.now());
+  const [sharingInvite, setSharingInvite] = useState(false);
 
   const loadData = useCallback(async () => {
-    /*
-     * `profile` puede ser un objeto VERDADERO y aun así no tener `id`.
-     *
-     * `get_own_profile()` (20260819100000) es `RETURNS public.profiles`, no
-     * `RETURNS SETOF`: para un usuario sin fila la función no devuelve "cero
-     * filas" sino UNA fila de NULLs, y PostgREST la serializa como
-     * `{ id: null, auth_user_id: null, ... }`. `AuthContext.fetchProfile`
-     * chequea `if (!data)`, que ese objeto pasa, así que el estado
-     * pending/onboarding llega acá con `profile.id === null`.
-     *
-     * De ahí el 22P02: `fetchHomeViewData(null)` termina en
-     * `.eq('profile_id', null)`, supabase-js lo manda como `profile_id=eq.null`
-     * y Postgres castea el TEXTO 'null' a uuid → "invalid input syntax for
-     * type uuid: \"null\"".
-     *
-     * Esta pantalla igual se monta en ese estado aunque el guard de
-     * `app/_layout.tsx` mande a /onboarding: `unstable_settings.anchor` es
-     * `(tabs)`, así que la Home monta —y dispara su `useFocusEffect`— durante
-     * los ~2,3 s de intro, antes de que el guard llegue a redirigir.
-     *
-     * El fix de raíz está en `AuthContext.fetchProfile` (normaliza esa fila a
-     * `null`); este guard es la red de seguridad de la pantalla, que no tiene
-     * por qué confiar en la forma que le llega el perfil.
-     */
+    // `profile` puede llegar como una fila de NULLs (get_own_profile sin fila):
+    // sin id no se consulta nada. Ver el historial de este archivo.
     const profileId = profile?.id ?? null;
-
     if (!profileId) {
       setViewData(null);
-      setMiniRanking([]);
-      setMiniRankingContext(null);
       setLoading(false);
-      setMiniRankingLoading(false);
       return;
     }
 
     try {
       setLoading(true);
       const data = await fetchHomeViewData(profileId);
-      const loadedAt = Date.now();
       setViewData(data);
-      // El reloj se resincroniza con cada carga: si la pantalla estuvo horas en
-      // segundo plano, `nowTs` quedó viejo y la cuenta arrancaría atrasada.
-      setNowTs(loadedAt);
-      setUpcomingRefTs(loadedAt);
 
-      // ── TAREA 2 — mini-ranking del contexto de mi equipo ──────────────────
-      // Va acá, dentro de la pantalla, y no en `lib/home-data.ts`: son dos pasos
-      // (contexto del equipo → top 3 de ese contexto) y un fallo suyo no puede
-      // tumbar el resto del inicio, así que tiene su propio try/catch.
-      const rankedTeamId =
-        activeTeamId && data.myTeams.some((team) => team.id === activeTeamId)
-          ? activeTeamId
-          : (data.myTeams[0]?.id ?? null);
-
-      // «Rivales para vos» (P3-19): sale en paralelo con el mini-ranking y con
-      // su propio catch; si falla, la tarjeta simplemente no aparece.
-      const suggestionsPromise = rankedTeamId
-        ? fetchSuggestedRivals(rankedTeamId, 3).catch((suggestionsError: unknown) => {
+      // «Sugeridos para tu equipo» (P3-19): del equipo activo, o del primero.
+      const teamId =
+        activeTeamId && data.myTeams.some((team) => team.id === activeTeamId) ? activeTeamId : (data.myTeams[0]?.id ?? null);
+      setSuggestionsTeamId(teamId);
+      if (!teamId) {
+        setSuggestedRivals([]);
+        setSuggestedLoading(false);
+      } else {
+        void fetchSuggestedRivals(teamId, 3)
+          .catch((suggestionsError: unknown) => {
             Logger.warn('No se pudieron cargar los rivales sugeridos del inicio', {
               scope: 'tabs.index.loadSuggestedRivals',
               profileId,
-              teamId: rankedTeamId,
+              teamId,
               error: suggestionsError,
             });
             return [] as SuggestedRival[];
           })
-        : Promise.resolve([] as SuggestedRival[]);
-      setSuggestionsTeamId(rankedTeamId);
-      void suggestionsPromise.then((rows) => {
-        setSuggestedRivals(rows);
-        setSuggestedLoading(false);
-      });
-
-      if (!rankedTeamId) {
-        setMiniRanking([]);
-        setMiniRankingContext(null);
-        setMiniRankingLoading(false);
-      } else {
-        setMiniRankingLoading(true);
-        try {
-          // Paso 1: el contexto del widget.
-          //
-          // Se usa `fetchActiveTeamRankingInfo`, que es EXACTAMENTE la misma
-          // fuente que el bootstrap de la tab Ranking. Es una invariante, no
-          // una coincidencia: cada vez que las dos pantallas derivaron su
-          // contexto por caminos distintos, el "Ver la tabla completa" terminó
-          // abriendo una lista que no era la del widget y el botón pareció roto.
-          const teamInfo = await fetchActiveTeamRankingInfo(rankedTeamId);
-
-          /*
-           * Del equipo se hereda SÓLO la categoría; `zone` y `format` arrancan
-           * en null = Global. Es la misma decisión que toma el bootstrap de la
-           * tab Ranking, y tiene que ser la misma o el widget vuelve a mostrar
-           * una tabla distinta de la que se abre al tocarlo.
-           *
-           * El motivo, acá, pesa todavía más que en la tab: con el volumen del
-           * MVP la intersección "mi zona × mi formato × mi categoría" suele
-           * tener uno o dos equipos —o ninguno—, y el resultado era la tarjeta
-           * en su estado vacío ocupando el centro de la pantalla PRINCIPAL. La
-           * primera impresión de la app terminaba siendo "acá no hay nada" en
-           * vez de "así está el ranking".
-           *
-           * La categoría se retiene porque no es recorte de volumen sino de
-           * pertinencia: a un equipo de MUJERES no le sirve un podio de equipos
-           * de HOMBRES, por más lleno que esté.
-           *
-           * `MiniRankingCard` ya contempla estos nulls sin tocarla: el título
-           * cae a "Top 3 del ranking" y el chip de zona simplemente no se
-           * pinta. Y `handleSeeRanking` manda '' por cada null, que
-           * `paramToNullable` de la tab lee como "sin filtro" — el pasaje del
-           * widget a la tabla completa sigue siendo exacto.
-           */
-          const context: MiniRankingContext = {
-            zone: null,
-            category: teamInfo?.category ?? null,
-            format: null,
-          };
-          setMiniRankingContext(context);
-
-          /*
-           * Ya no hay corte por `!teamInfo`.
-           *
-           * Cuando el contexto se armaba con los tres campos del equipo, no
-           * poder resolverlo dejaba la consulta sin sentido y la salida era la
-           * tarjeta vacía. Ahora lo único que aporta `teamInfo` es la
-           * categoría, y su ausencia es un filtro menos: el widget cae al top 3
-           * global, que es información válida y es justo lo que el estado vacío
-           * NO era. El warn de abajo mantiene la traza de que no se resolvió.
-           */
-          if (!teamInfo) {
-            Logger.warn('No se pudo resolver la categoría del equipo para el mini-ranking', {
-              scope: 'tabs.index.loadMiniRanking',
-              profileId,
-              teamId: rankedTeamId,
-            });
-          }
-
-          // Paso 2: la misma consulta que alimenta la tab Ranking, recortada
-          // al podio. `activeTeamElo` va en null a propósito: "rivales
-          // ideales" es un filtro de la tab, no del widget.
-          const myTeamIds = data.myTeams.map((team) => team.id);
-          const ranking = await fetchRankingWithFilters(
-            { ...context, rivalesIdeales: false },
-            myTeamIds,
-            null,
-          );
-
-          const top3 = [...ranking]
-            .sort((a, b) => a.rankPosition - b.rankPosition)
-            .slice(0, 3)
-            .map<MiniRankingEntry>((row) => ({
-              rankPosition: row.rankPosition,
-              teamId: row.teamId,
-              teamName: row.teamName,
-              shieldUrl: row.shieldUrl,
-              eloRating: row.eloRating,
-              isMyTeam: row.isMyTeam,
-            }));
-
-          setMiniRanking(top3);
-        } catch (rankingError) {
-          // La tarjeta se degrada a su estado vacío; el resto del inicio queda intacto.
-          Logger.error('No se pudo cargar el mini-ranking del inicio', {
-            scope: 'tabs.index.loadMiniRanking',
-            profileId,
-            teamId: rankedTeamId,
-            error: rankingError,
+          .then((rows) => {
+            setSuggestedRivals(rows);
+            setSuggestedLoading(false);
           });
-          setMiniRanking([]);
-        } finally {
-          setMiniRankingLoading(false);
-        }
       }
     } catch (error) {
-      Logger.error('No se pudo cargar la pantalla de inicio', {
-        scope: 'tabs.index.loadData',
-        profileId,
-        error,
-      });
-      showAlert(
-        'Error al cargar inicio',
-        getGenericSupabaseErrorMessage(error, 'No se pudo cargar la pantalla de inicio.'),
-      );
-      setMiniRankingLoading(false);
+      Logger.error('No se pudo cargar la pantalla de inicio', { scope: 'tabs.index.loadData', profileId, error });
+      showAlert('Error al cargar inicio', getGenericSupabaseErrorMessage(error, 'No se pudo cargar la pantalla de inicio.'));
     } finally {
       setLoading(false);
     }
@@ -292,217 +106,23 @@ export default function HomeScreen() {
     }, [loadData]),
   );
 
-  // ─── TAREA 1 — Próximo partido y cuenta regresiva ──────────────────────────
+  const next = useMemo(() => (viewData ? resolveHomeNextStep(viewData) : null), [viewData]);
+  const journey = useMemo(() => (viewData ? resolveJourney(viewData) : null), [viewData]);
+  const others = useMemo(() => (viewData && next ? otherPendingActions(viewData, next) : []), [viewData, next]);
 
-  // El "próximo partido" es el primero con fecha futura. `EN_VIVO` queda afuera
-  // a propósito: ése ya empezó y no hay nada que contar.
-  const nextMatch = useMemo(() => {
-    if (!viewData) return null;
-    const reference = upcomingRefTs;
-    return (
-      viewData.upcomingMatches
-        .filter(
-          (match) =>
-            match.status !== 'EN_VIVO' &&
-            match.scheduledAt !== null &&
-            new Date(match.scheduledAt).getTime() > reference,
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.scheduledAt as string).getTime() -
-            new Date(b.scheduledAt as string).getTime(),
-        )[0] ?? null
-    );
-  }, [viewData, upcomingRefTs]);
+  // ─── Navegación ────────────────────────────────────────────────────────────
+  // `router.navigate` (no `push`) para ir a una pestaña: reutiliza la instancia
+  // y no apila otra encima de Inicio.
 
-  const targetTs = nextMatch?.scheduledAt ? new Date(nextMatch.scheduledAt).getTime() : null;
-  const msLeft = targetTs === null ? null : targetTs - nowTs;
-  const isCountingDown = msLeft !== null && msLeft > 0;
-  const hasStarted = msLeft !== null && msLeft <= 0;
-
-  // Un solo `setInterval` para todo: late cada segundo mientras hay cuenta
-  // regresiva (sólo con la Home en foco) y cada 30 s cuando ya no hay nada que
-  // contar. Cuando `isCountingDown` cambia, el efecto se reinicia con la nueva
-  // cadencia.
-  useEffect(() => {
-    if (targetTs === null || !isFocused) return;
-
-    const tick = () => setNowTs(Date.now());
-    // Primera muestra apenas arranca el efecto, pero diferida un turno del
-    // event loop en vez de sincrónica en su cuerpo: al volver del segundo
-    // plano `nowTs` quedó viejo y esperar hasta 30 s mostraría la cuenta
-    // atrasada.
-    const firstTickId = setTimeout(tick, 0);
-    const intervalId = setInterval(tick, isCountingDown ? COUNTDOWN_TICK_MS : IDLE_TICK_MS);
-
-    return () => {
-      clearTimeout(firstTickId);
-      clearInterval(intervalId);
-    };
-  }, [targetTs, isCountingDown, isFocused]);
-
-  // HS : MIN : SEG, y el contador de días adelante cuando falta un día o más.
-  const countdownSegments = useMemo(() => {
-    const totalSeconds = Math.max(0, Math.floor((msLeft ?? 0) / 1000));
-    const days = Math.floor((msLeft ?? 0) / DAY_MS);
-    const clock = [
-      { value: pad(Math.floor((totalSeconds % 86400) / 3600)), label: 'Hs' },
-      { value: pad(Math.floor((totalSeconds % 3600) / 60)), label: 'Min' },
-      { value: pad(totalSeconds % 60), label: 'Seg' },
-    ];
-    return days >= 1 ? [{ value: pad(days), label: days === 1 ? 'Día' : 'Días' }, ...clock] : clock;
-  }, [msLeft]);
-
-  // ─── TAREA 3 — Guía inicial ────────────────────────────────────────────────
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const stored = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
-        if (!cancelled) setTourPending(stored !== 'true');
-      } catch (error) {
-        // Si el storage falla preferimos no molestar con la guía.
-        Logger.warn('No se pudo leer el estado de la guía inicial', {
-          scope: 'tabs.index.readOnboardingFlag',
-          error,
-        });
-        if (!cancelled) setTourPending(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleDismissTour = useCallback(() => {
-    setTourPending(false);
-    void AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, 'true').catch((error) => {
-      // Que no se persista sólo significa que la guía vuelve a aparecer.
-      Logger.warn('No se pudo persistir el estado de la guía inicial', {
-        scope: 'tabs.index.writeOnboardingFlag',
-        error,
-      });
-    });
-  }, []);
-
-  // ─── Navigation handlers ──────────────────────────────────────────────────
-
-  const handleMatchPress = (matchId: string) => {
-    router.push({ pathname: '/match-detail', params: { matchId } });
-  };
-
-  const handleSeeAllMatches = () => {
-    router.navigate('/(tabs)/matches');
-  };
-
-  const handleTeamPress = (teamId: string) => {
-    router.push({ pathname: '/team-manage', params: { teamId } });
-  };
-
-  /**
-   * El widget y la tab tienen que terminar mostrando la MISMA tabla, así que se
-   * viaja con el contexto exacto con el que se consultó el top 3.
-   *
-   * `ts` es un nonce y no decoración: la tab aplica los params una sola vez por
-   * valor recibido (si no, pisaría los filtros que el usuario toca a mano). Sin
-   * él, volver a entrar desde el widget después de haber cambiado los filtros no
-   * re-aplicaría nada, porque los params serían idénticos a los de la vez
-   * anterior.
-   */
-  /*
-   * `router.navigate` y NO `router.push` para ir a una tab.
-   *
-   * `push` apila una instancia NUEVA de la pantalla sobre la Home en vez de
-   * cambiar de pestaña: la tab se monta de cero (skeleton incluido) por encima
-   * de la que ya estaba cargada, la barra inferior no marca la pestaña activa y
-   * el gesto repetido hace crecer la pila sin fin. Es el mismo problema que ya
-   * habíamos sacado del enlace "Ver ranking" de MyTeamsRankingSection.
-   *
-   * `navigate` reutiliza la instancia existente y le entrega los params.
-   */
-  const handleSeeRanking = () => {
-    // Sin contexto resuelto todavía (carga en vuelo, o usuario sin equipo) se
-    // navega pelado: que la tab aplique SUS defaults es mejor que forzarle un
-    // ranking global que no pidió nadie.
-    if (!miniRankingContext) {
-      router.navigate('/(tabs)/ranking');
-      return;
-    }
-
-    router.navigate({
-      pathname: '/(tabs)/ranking',
-      params: {
-        zone: miniRankingContext.zone ?? '',
-        category: miniRankingContext.category ?? '',
-        format: miniRankingContext.format ?? '',
-        ts: String(Date.now()),
-      },
-    });
-  };
-
-  // «Buscar rival» abre Mercado › Buscan rival. `ts` hace que la tab la
-  // re-aplique aunque ya se haya entrado antes con el mismo param.
-  const handleFindRival = () => {
-    router.navigate({ pathname: '/(tabs)/market', params: { tab: 'rivales', ts: String(Date.now()) } });
-  };
-
-  const handleSeeMoreRivals = () => {
-    router.navigate({ pathname: '/(tabs)/ranking', params: { mode: 'rivales', ts: String(Date.now()) } });
-  };
-
-  const handleSuggestedRivalPress = (teamId: string) => {
-    router.push({ pathname: '/team-stats', params: { teamId, viewerTeamId: suggestionsTeamId ?? '' } });
-  };
-
-  const handleGoToMarket = () => {
-    router.navigate('/(tabs)/market');
-  };
-
-  const handleGoToCensus = () => {
-    router.push('/censo');
-  };
-
-  // Tanda 7: el mismo link que la gestión del equipo (link + código).
-  const [sharingSoloInvite, setSharingSoloInvite] = useState(false);
-  const handleInviteToSoloTeam = async () => {
-    const soloTeam = viewData?.soloTeam;
-    if (!soloTeam || sharingSoloInvite) return;
-    try {
-      setSharingSoloInvite(true);
-      await shareTeamInvite({ team: soloTeam, profile: profile ?? null, surface: 'home_solo_card' });
-    } catch (error) {
-      Logger.error('No se pudo compartir la invitación del equipo desde Inicio', {
-        scope: 'tabs.index.handleInviteToSoloTeam',
-        teamId: soloTeam.id,
-        error,
-      });
-      showAlert('No se pudo compartir', getGenericSupabaseErrorMessage(error, 'Intenta nuevamente en unos segundos.'));
-    } finally {
-      setSharingSoloInvite(false);
-    }
-  };
-
-  const handleManageTeam = () => {
-    router.navigate('/(tabs)/profile');
-  };
-
-  // D12 — cada señal lleva al lugar donde SE RESUELVE. Las que apuntan a un
-  // partido concreto (`matchId`, que sólo viene cuando hay uno solo) entran
-  // directo al detalle; con varias, a la lista de partidos.
+  // Cada señal lleva al lugar donde SE RESUELVE (D12).
   const handlePendingAction = (action: PendingAction) => {
     switch (action.type) {
       case 'DISPUTE':
       case 'LIVE_RESULT':
       case 'MATCH_PROPOSAL':
       case 'CANCELLATION_REQUEST':
-        if (action.matchId) {
-          router.push({ pathname: '/match-detail', params: { matchId: action.matchId } });
-        } else {
-          router.navigate('/(tabs)/matches');
-        }
+        if (action.matchId) router.push({ pathname: '/match-detail', params: { matchId: action.matchId } });
+        else router.navigate('/(tabs)/matches');
         break;
       case 'CHALLENGE_RECEIVED':
         router.push('/challenge-inbox');
@@ -510,37 +130,78 @@ export default function HomeScreen() {
       case 'MARKET_APPLICATION':
         router.navigate('/(tabs)/market');
         break;
-      case 'TEAM_REQUEST':
-        // El perfil es donde vive la gestión de equipos.
-        router.navigate('/(tabs)/profile');
+      case 'TEAM_REQUEST': {
+        const teamId = viewData?.incompleteTeam?.id ?? viewData?.myTeams[0]?.id;
+        if (teamId) router.push({ pathname: '/team-manage', params: { teamId } });
+        else router.navigate('/(tabs)/profile');
+        break;
+      }
+    }
+  };
+
+  const handleInvite = async () => {
+    const team = viewData?.incompleteTeam;
+    if (!team || sharingInvite) return;
+    try {
+      setSharingInvite(true);
+      await shareTeamInvite({ team, profile: profile ?? null, surface: 'home_next_step' });
+    } catch (error) {
+      Logger.error('No se pudo compartir la invitación del equipo desde Inicio', { scope: 'tabs.index.handleInvite', teamId: team.id, error });
+      showAlert('No se pudo compartir', getGenericSupabaseErrorMessage(error, 'Intenta nuevamente en unos segundos.'));
+    } finally {
+      setSharingInvite(false);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    const code = viewData?.incompleteTeam?.inviteCode;
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    showAlert('Código copiado', `Pasáselo a tus amigos: con ${code} entran al equipo.`);
+  };
+
+  const handleNextStep = (target: NextStepTarget) => {
+    if (!next) return;
+    switch (target) {
+      case 'join_code':
+        router.push('/team-join');
+        break;
+      case 'team_create':
+        router.push('/team-create');
+        break;
+      case 'invite':
+        void handleInvite();
+        break;
+      case 'copy_code':
+        void handleCopyCode();
+        break;
+      case 'pending':
+        if ('action' in next) handlePendingAction(next.action);
+        break;
+      case 'match':
+        if (next.kind === 'NEXT_MATCH') router.push({ pathname: '/match-detail', params: { matchId: next.match.id } });
+        break;
+      case 'find_rival':
+        router.navigate({ pathname: '/(tabs)/market', params: { tab: 'rivales', ts: String(Date.now()) } });
         break;
     }
   };
 
-  const handleCreateTeam = () => {
-    router.push('/team-create');
-  };
+  const goToCensus = () => router.push('/censo');
+  const goToRanking = () => router.navigate('/(tabs)/ranking');
 
-  const handleJoinTeam = () => {
-    router.push('/team-join');
-  };
+  // ─── Render ────────────────────────────────────────────────────────────────
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-
-  // Solo la PRIMERA carga muestra esqueleto. En los refrescos por foco el
-  // contenido anterior sigue en pantalla y se actualiza en silencio: antes cada
-  // regreso a la tab borraba todo y mostraba un loader a pantalla completa.
+  // Solo la PRIMERA carga muestra esqueleto; los refrescos por foco actualizan en silencio.
   const isInitialLoad = loading && !viewData;
   const hasNoTeams = !viewData || viewData.myTeams.length === 0;
 
-  // La guía señala tarjetas que sólo existen con equipo cargado; sin eso, el
-  // usuario ya tiene su propia pantalla de bienvenida.
-  const showTour = tourPending === true && !isInitialLoad && !hasNoTeams;
-
-  // Sin las fuentes no se dibuja ningún texto: medido con la de reemplazo,
-  // Android lo corta cuando llega Inter (M-02, ver `useAppFonts`). No se ve
-  // nada raro porque hasta ese momento el overlay de `_layout` tapa la Home.
+  // Sin las fuentes no se dibuja ningún texto (M-02, ver `useAppFonts`).
   if (!fontsReady) return <View className="flex-1 bg-surface-base" />;
+
+  const nextMatch = next?.kind === 'NEXT_MATCH' ? next.match : null;
+  const matchDateLabel = nextMatch ? (nextMatch.scheduledAt ? formatMatchDate(nextMatch.scheduledAt) : 'Sin fecha todavía') : undefined;
+  const showRivals = next?.kind === 'FIND_RIVAL' || next?.kind === 'NEXT_MATCH' || next?.kind === 'ASK_CAPTAIN';
 
   return (
     <View className="flex-1 bg-surface-base">
@@ -549,185 +210,39 @@ export default function HomeScreen() {
       {isInitialLoad ? (
         <HomeSkeleton />
       ) : hasNoTeams ? (
-        // Full-screen onboarding CTA for users without any team
         <HomeOnboardingState
-          onCreateTeam={handleCreateTeam}
-          onJoinTeam={handleJoinTeam}
-          onGoToMarket={handleGoToMarket}
-          onGoToCensus={handleGoToCensus}
+          onCreateTeam={() => router.push('/team-create')}
+          onJoinTeam={() => router.push('/team-join')}
+          onGoToMarket={() => router.navigate('/(tabs)/market')}
+          onGoToRanking={goToRanking}
+          onGoToCensus={goToCensus}
           pendingTransfers={viewData?.pendingTransfers ?? 0}
           onConfirmTransfer={() => router.push('/team-requests')}
         />
       ) : (
-        <ScrollView
-          className="px-4"
-          contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <PendingActionsCard
-            actions={viewData.pendingActions}
-            onActionPress={handlePendingAction}
-          />
+        <ScrollView className="px-4" contentContainerStyle={{ paddingTop: 18, paddingBottom: 114 }} showsVerticalScrollIndicator={false}>
+          {journey && <JourneyBar step={journey.step} teamProgress={journey.teamProgress} />}
+          {next && <NextStepCard next={next} onAction={handleNextStep} matchDateLabel={matchDateLabel} />}
+          <OtherPendingList actions={others} onPress={handlePendingAction} />
 
-          {viewData.soloTeam && (
-            <SoloTeamInviteCard
-              teamName={viewData.soloTeam.name}
-              sharing={sharingSoloInvite}
-              onInvite={handleInviteToSoloTeam}
-            />
+          {viewData.myTeams.map((team) => (
+            <TeamSummaryRow key={team.id} team={team} onPress={() => router.push({ pathname: '/team-manage', params: { teamId: team.id } })} />
+          ))}
+
+          {showRivals && (
+            <View className="mt-2.5">
+              <SuggestedRivalsCard
+                rivals={suggestedRivals}
+                loading={suggestedLoading}
+                onPressRival={(teamId) => router.push({ pathname: '/team-stats', params: { teamId, viewerTeamId: suggestionsTeamId ?? '' } })}
+                onSeeMore={() => router.push('/rival-search')}
+              />
+            </View>
           )}
 
-          {/* ── TAREA 1 — Próximo partido con cuenta regresiva ────────────── */}
-          {nextMatch && (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => handleMatchPress(nextMatch.id)}
-              className={`mb-5 overflow-hidden rounded-2xl bg-surface-container ${isCountingDown ? 'border border-brand-primary/30' : ''
-                }`}
-            >
-              {/* Encabezado */}
-              <View className="flex-row items-center justify-between px-4 pt-4">
-                <Text className="font-displayBlack text-xs uppercase tracking-widest text-neutral-on-surface-variant">
-                  Próximo partido
-                </Text>
-                <View className="flex-row items-center gap-1.5">
-                  <View
-                    className={`h-1.5 w-1.5 rounded-full ${nextMatch.status === 'CONFIRMADO' ? 'bg-info-secondary' : 'bg-neutral-outline'
-                      }`}
-                  />
-                  <Text
-                    className={`font-ui text-[11px] ${nextMatch.status === 'CONFIRMADO'
-                        ? 'text-info-secondary'
-                        : 'text-neutral-outline'
-                      }`}
-                  >
-                    {nextMatch.status === 'CONFIRMADO' ? 'Confirmado' : 'Pendiente'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Equipos */}
-              <View className="flex-row items-center justify-between gap-2 px-4 py-4">
-                <View className="flex-1 items-center gap-2">
-                  <TeamShield
-                    shieldUrl={nextMatch.teamA.shieldUrl}
-                    size={44}
-                    isMyTeam={nextMatch.myTeamId === nextMatch.teamA.id}
-                    teamId={nextMatch.teamA.id}
-                    viewerTitle={nextMatch.teamA.name}
-                    expandable
-                  />
-                  <Text
-                    className="font-uiBold text-center text-[12px] text-neutral-on-surface"
-                    numberOfLines={1}
-                  >
-                    {nextMatch.teamA.name}
-                  </Text>
-                </View>
-
-                <Text className="font-displayBlack text-base text-neutral-outline">VS</Text>
-
-                <View className="flex-1 items-center gap-2">
-                  <TeamShield
-                    shieldUrl={nextMatch.teamB.shieldUrl}
-                    size={44}
-                    isMyTeam={nextMatch.myTeamId === nextMatch.teamB.id}
-                    teamId={nextMatch.teamB.id}
-                    viewerTitle={nextMatch.teamB.name}
-                    expandable
-                  />
-                  <Text
-                    className="font-uiBold text-center text-[12px] text-neutral-on-surface"
-                    numberOfLines={1}
-                  >
-                    {nextMatch.teamB.name}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Cuenta regresiva: HS : MIN : SEG, con DÍAS adelante si falta un día o más */}
-              <View className="border-t border-neutral-outline/20 bg-surface-high/40 px-4 py-3">
-                {isCountingDown ? (
-                  <>
-                    <Text className="font-ui mb-2 text-center text-[10px] uppercase tracking-wider text-brand-primary">
-                      Empieza en
-                    </Text>
-
-                    <View className="flex-row items-center justify-center gap-1">
-                      {countdownSegments.map((segment, index) => (
-                        <View key={segment.label} className="flex-row items-center gap-1">
-                          {index > 0 && (
-                            <Text className="font-displayBlack text-lg text-neutral-outline/60">
-                              :
-                            </Text>
-                          )}
-
-                          <View className="min-w-[50px] items-center rounded-lg bg-surface-lowest px-2 py-1.5">
-                            <Text className="font-displayBlack text-2xl leading-none text-brand-primary">
-                              {String(segment.value).padStart(2, '0')}
-                            </Text>
-
-                            <Text className="font-ui mt-1 text-[9px] uppercase tracking-wider text-neutral-on-surface-variant">
-                              {segment.label}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                ) : hasStarted ? (
-                  <Text className="font-uiBold text-center text-[13px] text-brand-primary">
-                    ¡Es la hora del partido!
-                  </Text>
-                ) : (
-                  <Text className="font-uiBold text-center text-[13px] text-neutral-on-surface">
-                    {nextMatch.scheduledAt
-                      ? formatMatchDate(nextMatch.scheduledAt)
-                      : 'Sin fecha'}
-                  </Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          )}
-
-          <SuggestedRivalsCard
-            rivals={suggestedRivals}
-            loading={suggestedLoading}
-            onPressRival={handleSuggestedRivalPress}
-            onSeeMore={handleSeeMoreRivals}
-          />
-
-          {/* ── TAREA 2 — Mini-ranking de la categoría de mi equipo ───────── */}
-          <MiniRankingCard
-            entries={miniRanking}
-            context={miniRankingContext}
-            loading={miniRankingLoading}
-            onPress={handleSeeRanking}
-          />
-
-          <UpcomingMatchesSection
-            matches={viewData.upcomingMatches}
-            onMatchPress={handleMatchPress}
-            onSeeAll={handleSeeAllMatches}
-          />
-
-          <MyTeamsRankingSection
-            teams={viewData.myTeams}
-            onTeamPress={handleTeamPress}
-          />
-
-          <QuickActionsSection
-            onFindRival={handleFindRival}
-            onGoToMarket={handleGoToMarket}
-            onManageTeam={handleManageTeam}
-          />
-
-          <CensusEntryCard onPress={handleGoToCensus} />
+          <CensusEntryCard onPress={goToCensus} className="mt-2.5" />
         </ScrollView>
       )}
-
-      {/* ── TAREA 3 — Guía de 3 pasos, sólo la primera vez ────────────────── */}
-      <HomeOnboardingTour visible={showTour} onDismiss={handleDismissTour} />
 
       {AlertComponent}
     </View>

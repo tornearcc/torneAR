@@ -22,8 +22,8 @@ export function RankingTable({ entries, onTeamPress, topLimit = 5, onClearFilter
     if (entries.length === 0) {
         return (
             <View>
-                <Text className="mb-2.5 font-displayBlack text-base uppercase tracking-widest text-neutral-on-surface">
-                    🏆 Mejores equipos
+                <Text className="mb-2.5 font-uiBold text-xs uppercase tracking-wider text-neutral-on-surface-variant">
+                    Mejores equipos
                 </Text>
                 {/* Con zona + formato + categoria es facil llegar a cero equipos. Sin
                     este bloque la pantalla quedaba en blanco y el usuario no tenia
@@ -51,8 +51,8 @@ export function RankingTable({ entries, onTeamPress, topLimit = 5, onClearFilter
 
     return (
         <View>
-            <Text className="mb-2.5 font-displayBlack text-base uppercase tracking-widest text-neutral-on-surface">
-                🏆 Mejores equipos
+            <Text className="mb-2.5 font-uiBold text-xs uppercase tracking-wider text-neutral-on-surface-variant">
+                Mejores equipos
             </Text>
             <RankingColumnsHeader />
 

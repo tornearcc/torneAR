@@ -17,14 +17,14 @@ interface StatusConfig {
 }
 
 const CONFIG: Record<MatchStatus, StatusConfig> = {
-  PENDIENTE:  { label: 'PENDIENTE',  className: 'bg-warning-tertiary/20', textClassName: 'text-warning-tertiary' },
-  CONFIRMADO: { label: 'CONFIRMADO', className: 'bg-info-secondary/20',   textClassName: 'text-info-secondary' },
-  EN_VIVO:    { label: 'EN VIVO',    className: 'bg-danger-error/20',      textClassName: 'text-danger-error' },
-  FINALIZADO: { label: 'FINALIZADO', className: 'bg-brand-primary/15',     textClassName: 'text-brand-primary' },
-  EN_DISPUTA: { label: 'EN DISPUTA', className: 'bg-warning-tertiary/20',  textClassName: 'text-warning-tertiary' },
+  PENDIENTE:  { label: 'Falta acordar día', className: 'bg-warning-tertiary/20', textClassName: 'text-warning-tertiary' },
+  CONFIRMADO: { label: 'Confirmado', className: 'bg-info-secondary/20',   textClassName: 'text-info-secondary' },
+  EN_VIVO:    { label: 'En vivo',    className: 'bg-brand-primary/15',     textClassName: 'text-brand-primary' },
+  FINALIZADO: { label: 'Terminado',  className: 'bg-neutral-outline/20',   textClassName: 'text-neutral-on-surface-variant' },
+  EN_DISPUTA: { label: 'En disputa', className: 'bg-warning-tertiary/20',  textClassName: 'text-warning-tertiary' },
   WO_A:       { label: 'W.O.',       className: 'bg-neutral-outline/20',   textClassName: 'text-neutral-on-surface-variant' },
   WO_B:       { label: 'W.O.',       className: 'bg-neutral-outline/20',   textClassName: 'text-neutral-on-surface-variant' },
-  CANCELADO:  { label: 'CANCELADO',  className: 'bg-danger-error/10',      textClassName: 'text-danger-error/70' },
+  CANCELADO:  { label: 'Cancelado',  className: 'bg-danger-error/10',      textClassName: 'text-danger-error/70' },
 };
 
 /** Pulsing dot shown only for EN_VIVO matches. */
@@ -40,7 +40,7 @@ function LiveDot() {
   return (
     <Animated.View
       style={[
-        { width: 5, height: 5, borderRadius: 3, backgroundColor: '#FFB4AB', marginRight: 4 },
+        { width: 5, height: 5, borderRadius: 3, backgroundColor: '#53E076', marginRight: 4 },
         animatedStyle,
       ]}
     />
@@ -52,7 +52,7 @@ export function MatchStatusBadge({ status }: { status: MatchStatus }) {
   return (
     <View className={`flex-row items-center rounded px-2 py-0.5 ${cfg.className}`}>
       {status === 'EN_VIVO' && <LiveDot />}
-      <Text className={`font-displayBlack text-[9px] uppercase tracking-wide ${cfg.textClassName}`}>
+      <Text className={`font-uiBold text-[11px] ${cfg.textClassName}`}>
         {cfg.label}
       </Text>
     </View>
