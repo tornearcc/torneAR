@@ -20,6 +20,7 @@ import {
 } from '@/lib/guest-code';
 import { supabase } from '@/lib/supabase';
 import { Logger } from '@/lib/logger';
+import { findTeamByCode } from '@/lib/team-join-data';
 
 interface MatchPreview {
   id: string;
@@ -34,9 +35,11 @@ interface Props {
   onClose: () => void;
   /** Called after a successful join so the caller can navigate to the match */
   onJoined: (matchId: string, myTeamId: string) => void;
+  /** El código resultó ser de un equipo: el llamador lleva a «Unirme a un equipo» con ese código. */
+  onTeamCode?: (code: string) => void;
 }
 
-export function GuestJoinModal({ visible, onClose, onJoined }: Props) {
+export function GuestJoinModal({ visible, onClose, onJoined, onTeamCode }: Props) {
   const [code, setCode] = useState('');
   const [teamSide, setTeamSide] = useState<'A' | 'B' | null>(null);
   const [matchPreview, setMatchPreview] = useState<MatchPreview | null>(null);
@@ -68,6 +71,20 @@ export function GuestJoinModal({ visible, onClose, onJoined }: Props) {
         .single();
 
       if (error || !data) {
+        // 26/11: casi todas las fallas eran códigos de EQUIPO (8 caracteres; los
+        // de partido tienen 6) puestos acá por gente sin equipo. Si es de un
+        // equipo, se lo lleva a sumarse en vez de decirle «código inválido».
+        const team = onTeamCode ? await findTeamByCode(trimmed).catch(() => null) : null;
+        if (team && onTeamCode) {
+          Logger.info('Código de equipo ingresado como código de partido; se deriva a unirse', {
+            scope: 'GuestJoinModal.lookupMatch',
+            teamId: team.id,
+          });
+          handleClose();
+          onTeamCode(trimmed);
+          return;
+        }
+
         // Supabase devuelve el fallo como valor: sin esto, un error de RLS se
         // ve exactamente igual que un código que no existe.
         Logger.warn('Búsqueda de partido por código de invitado sin resultado', {
@@ -75,7 +92,10 @@ export function GuestJoinModal({ visible, onClose, onJoined }: Props) {
           hasError: error !== null,
           error,
         });
-        showAlert('Código inválido', 'No se encontró ningún partido con ese código.');
+        showAlert(
+          'Código inválido',
+          'No se encontró ningún partido ni equipo con ese código. Revisalo con quien te lo pasó.',
+        );
         return;
       }
 

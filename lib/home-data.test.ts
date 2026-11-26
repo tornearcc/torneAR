@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPendingActions, fetchIncompleteCaptainTeam } from './home-data';
+import { buildPendingActions, fetchIncompleteCaptainTeam, marketApplicationInput } from './home-data';
 import { supabase } from '@/lib/supabase';
 import { createQueryBuilder } from '@/lib/test-utils/supabase-mock';
 
@@ -13,6 +13,31 @@ vi.mock('@/lib/supabase', () => ({
 vi.mock('@/lib/logger', () => ({
   Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+
+describe('postulaciones del Mercado en Inicio (26/11)', () => {
+  it('dice quién espera según el lado del aviso', () => {
+    const [team, player] = buildPendingActions([
+      marketApplicationInput([{ id: 'a1', post_id: 'p1' }, { id: 'a2', post_id: 'p1' }], 'TEAM'),
+      marketApplicationInput([{ id: 'a3', post_id: 'p2' }], 'PLAYER'),
+    ]);
+    expect(team.label).toBe('2 jugadores quieren sumarse a tu equipo');
+    expect(player.label).toBe('1 equipo te quiere sumar');
+  });
+
+  it('con un solo aviso guarda cuál, para abrir su lista directo', () => {
+    const [a] = buildPendingActions([marketApplicationInput([{ id: 'a1', post_id: 'p1' }, { id: 'a2', post_id: 'p1' }], 'TEAM')]);
+    expect(a).toMatchObject({ postType: 'TEAM', postId: 'p1' });
+  });
+
+  it('con varios avisos no hay atajo: va al Mercado', () => {
+    const [a] = buildPendingActions([marketApplicationInput([{ id: 'a1', post_id: 'p1' }, { id: 'a2', post_id: 'p2' }], 'TEAM')]);
+    expect(a.postId).toBeNull();
+  });
+
+  it('sin postulaciones no aparece', () => {
+    expect(buildPendingActions([marketApplicationInput([], 'PLAYER')])).toHaveLength(0);
+  });
+});
 
 describe('buildPendingActions (D12)', () => {
   it('descarta las señales en cero: la bandeja no muestra "0 desafíos"', () => {

@@ -217,17 +217,28 @@ export default function MatchesScreen() {
       {!isInitialLoad && !activeTeamId && !hasGuestMatches && (
         <View className="flex-1 items-center justify-center px-6">
           <Text className="font-displayBlack text-2xl text-neutral-on-surface">Partidos</Text>
+          {/* 26/11: el único botón era el código de PARTIDO y la gente ponía ahí el
+              de su equipo. Ahora el de equipo va primero y el de partido abajo. */}
           <Text className="font-ui mt-2 text-center text-neutral-on-surface-variant">
-            Seleccioná un equipo para ver tus partidos.
+            Todavía no estás en un equipo. Cuando te sumes a uno, acá vas a ver sus partidos.
           </Text>
+          <TouchableOpacity
+            onPress={() => router.push('/team-join')}
+            activeOpacity={0.8}
+            className="mt-6 w-full flex-row items-center gap-2 rounded-xl bg-brand-primary px-4 py-3"
+          >
+            <AppIcon family="material-community" name="account-plus" size={16} color="#003914" />
+            <Text className="font-uiBold flex-1 text-sm text-[#003914]">Tengo el código de un equipo</Text>
+            <AppIcon family="material-community" name="chevron-right" size={18} color="#003914" />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setShowGuestModal(true)}
             activeOpacity={0.8}
-            className="mt-6 w-full flex-row items-center gap-2 rounded-xl border border-brand-primary/20 bg-brand-primary/8 px-4 py-3"
+            className="mt-3 w-full flex-row items-center gap-2 rounded-xl border border-neutral-outline/30 px-4 py-3"
           >
-            <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#53E076" />
-            <Text className="font-uiBold flex-1 text-sm text-brand-primary">¿Te invitaron a un partido? Ingresá el código</Text>
-            <AppIcon family="material-community" name="chevron-right" size={18} color="#53E076" />
+            <AppIcon family="material-community" name="ticket-confirmation-outline" size={16} color="#BCCBB9" />
+            <Text className="font-uiBold flex-1 text-sm text-neutral-on-surface-variant">Me invitaron a jugar un partido</Text>
+            <AppIcon family="material-community" name="chevron-right" size={18} color="#BCCBB9" />
           </TouchableOpacity>
         </View>
       )}
@@ -399,6 +410,7 @@ export default function MatchesScreen() {
         onJoined={(matchId, myTeamId) =>
           router.push({ pathname: '/match-detail' as never, params: { matchId, myTeamId } })
         }
+        onTeamCode={(code) => router.push({ pathname: '/team-join', params: { code } })}
       />
 
       {AlertComponent}
